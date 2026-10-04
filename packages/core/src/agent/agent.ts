@@ -1,7 +1,8 @@
 import type { Model, ModelCallOptions, ModelMessage, ModelPrompt } from '../model/contract.js';
 import { assertModelChain } from '../model/fallback.js';
 import { assertModel } from '../model/resolve.js';
-import type { Memory, MemoryThreadRef, StoredMessage } from '../memory/index.js';
+import { assertMemoryTarget } from '../memory/identity.js';
+import type { Memory, StoredMessage } from '../memory/index.js';
 import { loadRunWorkingMemory } from '../memory/working-memory.js';
 import type { RunWorkingMemory } from '../memory/working-memory.js';
 import { AGENT_RUN_SPAN, MEMORY_RECALL_SPAN } from '../observability/index.js';
@@ -12,6 +13,7 @@ import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 import type { Tool } from '../tools/index.js';
 import { toModelTools } from '../tools/to-model-tools.js';
 import { resolveDynamicArgument } from './dynamic.js';
+import { toUserTextMessages } from './input.js';
 import { DEFAULT_MAX_STEPS, runAgentLoop } from './loop.js';
 import type { AgentRunMemory, AgentTracing } from './loop.js';
 import { runProcessInput } from './processors.js';
@@ -123,7 +125,7 @@ export class Agent {
           resolveDynamicArgument(tools, requestContext),
           resolveDynamicArgument(memory, requestContext),
         ]);
-      const inputMessages = toInputMessages(input);
+      const inputMessages = toUserTextMessages(input);
       // A resumed run's prompt is the list it was handed — the suspended run's own messages — so
       // nothing is assembled and nothing is recalled (see `toResumedPrompt`); its memory identity,
       // when it has one, carries no input messages: the suspended run's history was already saved.
@@ -412,18 +414,6 @@ function toPrompt(
 }
 
 /**
- * Normalizes the run's input to prompt messages: a string becomes one user text message (the exact
- * shape the prompt carries), an array is kept as given. These are also the messages the first
- * memory save persists alongside the first step's record — message-history timing: the first turn
- * carries the user's input messages.
- */
-function toInputMessages(input: string | ModelMessage[]): ModelMessage[] {
-  return typeof input === 'string'
-    ? [{ role: 'user', content: [{ type: 'text', text: input }] }]
-    : [...input];
-}
-
-/**
  * The prompt of a resumed run (`AgentRunOptions.resume`): the message list the suspended run
  * stopped at, used verbatim. It already carries everything prompt assembly would rebuild — the
  * instructions, the recalled history, every completed step's messages and the suspended step's own
@@ -448,7 +438,7 @@ function toResumedPrompt(
  * Resolves the run's memory wiring (`AgentConfig.memory` × the per-call `memory` option): no
  * instance and no option = a stateless run, no
  * instance but an option = a call-time error, instance plus option = the run's memory identity.
- * A `memory` option with either field missing is rejected the same way — the identity is explicit,
+ * The identity itself is validated by the rule's one home (`memory/identity.ts`) — explicit,
  * never defaulted.
  */
 function toRunMemory(
@@ -465,12 +455,11 @@ function toRunMemory(
     return undefined;
   }
   if (option === undefined) return undefined;
-  const threadId = threadIdOf(option.thread);
-  if (typeof option.resource !== 'string' || option.resource === '') {
-    throw new Error(
-      'The run memory option is missing its resource: pass memory: { thread, resource } with both fields.',
-    );
-  }
+  const threadId = assertMemoryTarget(
+    'agent',
+    option,
+    'pass memory: { thread, resource } with both fields.',
+  );
   return { memory, threadId, thread: option.thread, resource: option.resource, inputMessages };
 }
 
@@ -505,15 +494,4 @@ async function recallWithSpan(
   } finally {
     span.end();
   }
-}
-
-/** The thread id of a per-call memory identity — the string form, or the `id` of the ref object. */
-function threadIdOf(thread: MemoryThreadRef | undefined): string {
-  const id = typeof thread === 'string' ? thread : thread?.id;
-  if (typeof id !== 'string' || id === '') {
-    throw new Error(
-      'The run memory option is missing its thread: pass memory: { thread, resource } with both fields.',
-    );
-  }
-  return id;
 }

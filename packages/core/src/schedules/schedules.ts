@@ -1,5 +1,5 @@
 import type { Agent } from '../agent/agent.js';
-import type { MemoryThreadRef } from '../memory/index.js';
+import { assertMemoryTarget } from '../memory/identity.js';
 import type { Signals } from '../signals/index.js';
 import { createInMemoryScheduleStore } from './in-memory-store.js';
 import type { ScheduleStore } from './store.js';
@@ -95,12 +95,11 @@ export function createSchedules(config: SchedulesConfig): Schedules {
   /** Fail-fast target validation at `save`: the two forms' requirements, before anything is written. */
   function assertTarget(target: ScheduleTarget): void {
     if ('thread' in target) {
-      threadIdOf(target.thread);
-      if (typeof target.resource !== 'string' || target.resource === '') {
-        throw new Error(
-          "schedules: a threaded target is missing its resource — pass { thread, resource, payload } with both fields.",
-        );
-      }
+      assertMemoryTarget(
+        'schedules',
+        target,
+        'pass { thread, resource, payload } with both fields.',
+      );
       if (signals === undefined) {
         throw new Error(
           'schedules: a threaded target requires a signals instance — pass createSchedules({ signals }).',
@@ -203,15 +202,4 @@ export function createSchedules(config: SchedulesConfig): Schedules {
     tick,
     startTicker,
   };
-}
-
-/** The thread id of a target identity — the string form, or the `id` of the ref object. */
-function threadIdOf(thread: MemoryThreadRef): string {
-  const id = typeof thread === 'string' ? thread : thread?.id;
-  if (typeof id !== 'string' || id === '') {
-    throw new Error(
-      'schedules: a threaded target is missing its thread — pass { thread, resource, payload } with both fields.',
-    );
-  }
-  return id;
 }

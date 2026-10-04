@@ -1,5 +1,6 @@
 import type { Agent } from '../agent/agent.js';
 import { passThrough } from '../agent/boundary.js';
+import { toUserTextMessages } from '../agent/input.js';
 import type {
   AgentGenerateResult,
   AgentMemoryOptions,
@@ -11,7 +12,8 @@ import type {
 } from '../agent/types.js';
 import type { Chunk } from '../model/chunks.js';
 import type { ModelMessage } from '../model/contract.js';
-import type { Memory, MemoryThreadRef } from '../memory/index.js';
+import { assertMemoryTarget, resolveThreadId } from '../memory/identity.js';
+import type { Memory } from '../memory/index.js';
 import type { Tracer } from '../observability/index.js';
 import { materialize, teeOutputObject } from '../output-object.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
@@ -149,6 +151,9 @@ interface Subscriber {
 
 const DONE: IteratorResult<Chunk> = { value: undefined, done: true };
 
+/** The fix hint the signals subsystem's memory identity errors carry (memory/identity.ts template). */
+const TARGET_HINT = 'pass { thread, resource } with both fields.';
+
 /**
  * Creates the signals entry object. See `Signals` for the per-method semantics.
  */
@@ -180,7 +185,7 @@ export function createSignals(config: SignalsConfig): Signals {
   ): AgentStreamResult {
     const target = options?.memory;
     if (target === undefined) return agent.stream(input, options);
-    const state = stateOf(threadIdOf(target.thread));
+    const state = stateOf(resolveThreadId('signals', target.thread, TARGET_HINT));
     if (state.running) {
       throw new Error(
         `signals: thread '${state.threadId}' already has a live run — one active run per thread is ` +
@@ -403,48 +408,21 @@ export function createSignals(config: SignalsConfig): Signals {
     ): Promise<AgentGenerateResult> {
       return materialize<AgentGenerateResult>(streamWrapped(input, options));
     },
-    sendMessage: (target, input) => deliver(target, toInputMessages(input)),
-    queueMessage: (target, input) => queue(target, toInputMessages(input)),
+    sendMessage: (target, input) => deliver(target, toUserTextMessages(input)),
+    queueMessage: (target, input) => queue(target, toUserTextMessages(input)),
     sendSignal: (target, payload) => deliver(target, [toSignalMessage(payload)]),
     subscribeToThread: subscribe,
   };
 }
 
 /**
- * Validates a target identity and returns its registry key plus the identity itself — the same
- * explicitness rule the per-call memory option enforces (`agent.ts` `toRunMemory`): a target
- * missing either field fails before anything is delivered.
+ * Validates a target identity and returns its registry key plus the identity itself — the memory
+ * identity rule's one home is `memory/identity.ts`: a target missing either field fails before
+ * anything is delivered.
  */
 function toTarget(target: AgentMemoryOptions): { threadId: string; valid: AgentMemoryOptions } {
-  const threadId = threadIdOf(target.thread);
-  if (typeof target.resource !== 'string' || target.resource === '') {
-    throw new Error(
-      'signals: the target is missing its resource — pass { thread, resource } with both fields.',
-    );
-  }
+  const threadId = assertMemoryTarget('signals', target, TARGET_HINT);
   return { threadId, valid: target };
-}
-
-/** The thread id of a target identity — the string form, or the `id` of the ref object. */
-function threadIdOf(thread: MemoryThreadRef | undefined): string {
-  const id = typeof thread === 'string' ? thread : thread?.id;
-  if (typeof id !== 'string' || id === '') {
-    throw new Error(
-      'signals: the target is missing its thread — pass { thread, resource } with both fields.',
-    );
-  }
-  return id;
-}
-
-/**
- * Normalizes message input the way the agent normalizes its own run input: a string becomes one
- * user text message, an array is copied as given. These are the messages that inject into a live
- * run and the input a woken run starts from.
- */
-function toInputMessages(input: string | ModelMessage[]): ModelMessage[] {
-  return typeof input === 'string'
-    ? [{ role: 'user', content: [{ type: 'text', text: input }] }]
-    : [...input];
 }
 
 /** Renders a signal payload as its conversation message (`SignalPayload` for the exact recipe). */

@@ -212,10 +212,10 @@ describe('schedules:记录(save)', () => {
     });
     await expect(
       withSignals.save({ next: () => null, target: { thread: '', resource: 'u1', payload: { type: 'x' } } }),
-    ).rejects.toThrow(/thread/);
+    ).rejects.toThrow(/missing its thread/);
     await expect(
       withSignals.save({ next: () => null, target: { thread: 't1', resource: '', payload: { type: 'x' } } }),
-    ).rejects.toThrow(/resource/);
+    ).rejects.toThrow(/missing its resource/);
   });
 });
 

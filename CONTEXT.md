@@ -116,6 +116,10 @@ _Avoid_: session、conversation 作正式词(Run 是一次执行,Thread 是持�
 Memory 域的用户/实体稳定标识:跨 thread 共享的锚点,每条消息与每个 thread 都带 resourceId,是工作记忆的归属维度;memory 子系统不做访问控制,授权归应用层。
 _Avoid_: user(不总是人类用户)、tenant(多租户隔离是应用层职责)
 
+**记忆身份 (Memory identity)**:
+per-call 传入的身份配对 `memory: { thread, resource }`——一次执行落在哪个 Thread、归属哪个 Resource;两字段显式传入、永不默认,任一缺失在执行前报错。与 thread 记录的自动创建是两回事:记录在写路径按需创建,身份字段不存在默认值。
+_Avoid_: 把记录自动创建误读为身份可省略、session / conversation(那是 Thread 的禁用词)
+
 **消息历史 (Message history)**:
 唯一默认开启的记忆机制:消息持久化 + 最近 N 条窗口(lastMessages)在模型调用前注入 + `recall()` 单一查询入口;消息格式即模型契约的 vendor prompt 类型加存储信封(id/threadId/resourceId/createdAt)。
 _Avoid_: short-term memory、chat history 作术语
