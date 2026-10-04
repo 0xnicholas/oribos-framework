@@ -304,11 +304,11 @@ if (rows.length > 0) {
   );
 }
 if (problems.length > 0) {
-  console.log(`🟡 ${problems.length} 项需处理:`);
+  console.error(`🟡 ${problems.length} 项需处理:`);
   for (const problem of problems) {
-    console.log(`  - ${problem}`);
+    console.error(`  - ${problem}`);
   }
-  console.log(`调整基线:${UPDATE_HINT}(ADR-0001:黄灯仅作内部回归参考,不卡合并)`);
+  console.error(`调整基线:${UPDATE_HINT}(ADR-0001:黄灯仅作内部回归参考,不卡合并)`);
   process.exitCode = EXIT_YELLOW;
 } else {
   console.log(`ok  ${rows.length} 个声明依赖全部在基线内`);

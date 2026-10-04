@@ -6,8 +6,9 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
 /**
  * 字节预算黄灯的 CLI 契约(M1-02 #23,ADR-0001):
  * 口径 = esbuild minify 后每个子路径导出入口的 bundle 字节数;基线落 byte-budget.json。
- * 超预算不是硬失败(CI 步骤 continue-on-error),但脚本以非零退出码把"需处理"带给调用方;
- * 黄灯信号本身走 stdout(GitHub 注释 + job summary),stderr 留给真正的配置错误。
+ * 超预算不是硬失败(CI 步骤 continue-on-error),但脚本以非零退出码把"需处理"带给调用方。
+ * 输出流约定(全闸门统一,gate-kit 收编):报表面(标题 / 表格 / ok 行)与 CI 记录面
+ * (::warning 注释、job summary)走 stdout,黄灯问题清单与硬错误走 stderr。
  */
 afterEach(cleanupFixtures);
 
@@ -53,8 +54,9 @@ describe('check-byte-budget:字节预算比对', () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain('./agent');
     expect(result.stdout).toContain('超预算');
-    expect(result.stdout).toMatch(/基线\s*1\b/);
     expect(result.stdout).toMatch(/\+/);
+    expect(result.stderr).toMatch(/基线\s*1\b/);
+    expect(result.stderr).toContain('超预算');
   });
 
   it('新增入口没有基线时提示先建基线', () => {
@@ -66,8 +68,8 @@ describe('check-byte-budget:字节预算比对', () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain('./agent');
-    expect(result.stdout).toContain('尚无预算基线');
-    expect(result.stdout).toContain('byte-budget:update');
+    expect(result.stderr).toContain('尚无预算基线');
+    expect(result.stderr).toContain('byte-budget:update');
   });
 
   it('基线中已不再导出的入口视为陈旧', () => {
@@ -78,8 +80,8 @@ describe('check-byte-budget:字节预算比对', () => {
     const result = runScript('check-byte-budget', [dir]);
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain('./memory');
-    expect(result.stdout).toContain('已不再导出');
+    expect(result.stderr).toContain('./memory');
+    expect(result.stderr).toContain('已不再导出');
   });
 
   it('缺少基线文件时提示先建基线', () => {
@@ -88,8 +90,8 @@ describe('check-byte-budget:字节预算比对', () => {
     const result = runScript('check-byte-budget', [dir]);
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain('byte-budget.json');
-    expect(result.stdout).toContain('byte-budget:update');
+    expect(result.stderr).toContain('byte-budget.json');
+    expect(result.stderr).toContain('byte-budget:update');
   });
 
   it('基线口径与脚本口径不符时拒绝比对(硬错误,退出 2)', () => {

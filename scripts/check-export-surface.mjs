@@ -224,13 +224,13 @@ for (const [subpath, target] of entries) {
 if (gaps.size === 0) {
   console.log(`导出面无缺口(${entries.length} 个子路径)`);
 } else {
-  console.log(
+  console.error(
     `\n导出面缺口 ${gaps.size} 处(被公共签名引用、但没有任何子路径入口导出——导出它们,或把声明标 @internal):`,
   );
   for (const gap of [...gaps.values()].sort((left, right) =>
     `${left.reference}${left.where}`.localeCompare(`${right.reference}${right.where}`),
   )) {
-    console.log(`缺口  ${gap.reference} ← ${gap.declaration} (${gap.where}${gap.hint})`);
+    console.error(`缺口  ${gap.reference} ← ${gap.declaration} (${gap.where}${gap.hint})`);
   }
   process.exitCode = EXIT_GAP;
 }

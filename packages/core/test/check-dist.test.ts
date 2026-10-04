@@ -12,7 +12,8 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
  *
  * 夹具由测试自身构造(临时包目录 + 自带可加载的 ESM 产物 + 显式 `type: "module"`),不依赖仓库
  * 自身构建;断言只碰外部行为(退出码 / stdout 的 `ok` 进度行 / stderr 的缺口行),脚本内部重构
- * 不造成假红。缺口与硬错误都报在 stderr(与 check-export-surface 把缺口报 stdout 相反)。
+ * 不造成假红。输出流约定(全闸门统一,gate-kit 收编):报表面 stdout、问题 stderr——
+ * 缺口与硬错误都报在 stderr,check-export-surface 同一约定。
  */
 afterEach(cleanupFixtures);
 

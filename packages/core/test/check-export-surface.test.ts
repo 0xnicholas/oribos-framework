@@ -11,7 +11,8 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
  * 唯一排除通道 = 源码 JSDoc 的 `@internal`(生成侧 `excludeInternal` 同源),不另设白名单。
  *
  * 退出码契约(沿 ADR-0015):0 = 干净;1 = 有缺口(需处理);2 = 配置/产物硬错误。
- * 本套件只测 CLI 这个接缝;缺口报在 stdout(`缺口 ` 起头的行),硬错误报在 stderr。
+ * 本套件只测 CLI 这个接缝。输出流约定(全闸门统一,gate-kit 收编):报表面(ok 进度行)走
+ * stdout,问题(缺口)与硬错误走 stderr。
  */
 afterEach(cleanupFixtures);
 
@@ -19,9 +20,9 @@ const ROOT_ONLY = {
   '.': { types: './dist/index.d.ts', default: './dist/index.js' },
 };
 
-/** 缺口行(stdout 里以 `缺口 ` 起头);其余行是进度与总结。 */
-function gaps(stdout: string): string[] {
-  return stdout.split('\n').filter((line) => line.startsWith('缺口'));
+/** 缺口行(stderr 里以 `缺口 ` 起头);其余行是汇总,ok 进度行在 stdout。 */
+function gaps(stderr: string): string[] {
+  return stderr.split('\n').filter((line) => line.startsWith('缺口'));
 }
 
 describe('check-export-surface:被公共签名引用的类型必须有页', () => {
@@ -40,10 +41,10 @@ describe('check-export-surface:被公共签名引用的类型必须有页', () =
     const result = runScript('check-export-surface', [dir]);
 
     expect(result.status).toBe(1);
-    expect(gaps(result.stdout)).toHaveLength(1);
-    expect(gaps(result.stdout)[0]).toContain('SchemaInput');
-    expect(gaps(result.stdout)[0]).toContain('createTool');
-    expect(gaps(result.stdout)[0]).toContain('dist/tool.d.ts');
+    expect(gaps(result.stderr)).toHaveLength(1);
+    expect(gaps(result.stderr)[0]).toContain('SchemaInput');
+    expect(gaps(result.stderr)[0]).toContain('createTool');
+    expect(gaps(result.stderr)[0]).toContain('dist/tool.d.ts');
   });
 
   it('类型从入口导出时通过,并逐个子路径报 ok', () => {
@@ -84,8 +85,8 @@ describe('check-export-surface:被公共签名引用的类型必须有页', () =
     // 公共签名点名的是 `InternalOptions`(它自己没有页,是缺口);
     // 只有内部声明碰过的 `SchemaInput` 不随之变红。
     expect(result.status).toBe(1);
-    expect(gaps(result.stdout)).toHaveLength(1);
-    expect(gaps(result.stdout)[0]).toContain('InternalOptions');
+    expect(gaps(result.stderr)).toHaveLength(1);
+    expect(gaps(result.stderr)[0]).toContain('InternalOptions');
   });
 
   it('@internal 标注即放行:唯一排除通道,不另设白名单', () => {
@@ -107,7 +108,7 @@ describe('check-export-surface:被公共签名引用的类型必须有页', () =
     const result = runScript('check-export-surface', [dir]);
 
     expect(result.status).toBe(0);
-    expect(gaps(result.stdout)).toHaveLength(0);
+    expect(gaps(result.stderr)).toHaveLength(0);
   });
 
   it('类型由另一个子路径入口导出时通过:判定是"有页",不是"逐个入口自足"', () => {
@@ -175,9 +176,9 @@ describe('check-export-surface:被公共签名引用的类型必须有页', () =
     const result = runScript('check-export-surface', [dir]);
 
     expect(result.status).toBe(1);
-    expect(gaps(result.stdout)).toHaveLength(1);
-    expect(gaps(result.stdout)[0]).toContain('WalkOptions');
-    expect(gaps(result.stdout)[0]).not.toContain('未从所在模块导出');
+    expect(gaps(result.stderr)).toHaveLength(1);
+    expect(gaps(result.stderr)[0]).toContain('WalkOptions');
+    expect(gaps(result.stderr)[0]).not.toContain('未从所在模块导出');
   });
 
   it('入口声明的产物缺失时以退出码 2 报错,不把"没测成"读成"干净"', () => {
