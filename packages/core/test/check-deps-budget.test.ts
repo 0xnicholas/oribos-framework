@@ -6,7 +6,7 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
 /**
  * 依赖数字黄灯的 CLI 契约(ADR-0015 M5 修订)。测量口径要 npm/registry(网络),
  * verify 硬约束无网络(ADR-0015)——本文件只测离线可达的契约面:
- * 零依赖免基线、口径不符硬错误(退出 2)、workspace 范围守护;
+ * 零依赖免基线、口径不符硬错误(退出 2)、manifest 不可读硬错误(退出 2)、workspace 范围守护;
  * 网络路径(闭包实测/超基线/零引用/--update)由实施票的活体夹具与各包基线落数覆盖。
  */
 afterEach(cleanupFixtures);
@@ -69,6 +69,17 @@ describe('check-deps-budget:依赖数字比对', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('transitive-count-only');
     expect(result.stderr).toContain('npm-install-closure-packages-and-unpacked-bytes');
+  });
+
+  it('manifest JSON 非法时以退出码 2 干净报错,不抛栈(配置硬错误,不是黄灯)', () => {
+    const dir = fixturePackage({ 'package.json': '{ 非法 JSON' });
+
+    const result = runScript('check-deps-budget', [dir]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('package.json');
+    expect(result.stderr).not.toContain('\n    at ');
+    expect(result.stdout).toBe('');
   });
 
   it('真实基线文件(示例:本仓库 croner 研究快照)的口径字段与本脚本一致', () => {

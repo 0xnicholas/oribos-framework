@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFil
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { readManifest, scanDist } from './lib.mjs';
+import { readManifestOrHardError, scanDist } from './lib.mjs';
 
 const METRIC = 'npm-install-closure-packages-and-unpacked-bytes';
 const BUDGET_FILE = 'deps-budget.json';
@@ -39,7 +39,7 @@ function readJson(file) {
 const argv = process.argv.slice(2);
 const update = argv.includes('--update');
 const packageDir = resolve(argv.find((arg) => !arg.startsWith('--')) ?? process.cwd());
-const manifest = readManifest(packageDir);
+const manifest = readManifestOrHardError(packageDir);
 
 /**
  * 声明运行时依赖 → 测量条目。peer `@oribos/core`(workspace: 范围)豁免;

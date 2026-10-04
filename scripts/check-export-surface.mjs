@@ -20,7 +20,7 @@
 // 薄脚本指回(或显式传包目录);产物缺失时报错,不把「没测成」读成「干净」。
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { readManifest } from './lib.mjs';
+import { readManifestOrHardError } from './lib.mjs';
 
 const EXIT_GAP = 1;
 const EXIT_HARD_ERROR = 2;
@@ -176,7 +176,7 @@ function typeReferences(text) {
 }
 
 const packageDir = resolve(process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? process.cwd());
-const { name, exports: exportMap } = readManifest(packageDir);
+const { name, exports: exportMap } = readManifestOrHardError(packageDir);
 
 const entries = Object.entries(exportMap ?? {});
 if (entries.length === 0) hardError(`${name}: exports 表为空,没有子路径入口可执法`);

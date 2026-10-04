@@ -199,4 +199,15 @@ describe('check-export-surface:被公共签名引用的类型必须有页', () =
 
     expect(result.status).toBe(2);
   });
+
+  it('manifest JSON 非法时以退出码 2 干净报错,不抛栈(配置硬错误)', () => {
+    const dir = fixturePackage({ 'package.json': '{ 非法 JSON' });
+
+    const result = runScript('check-export-surface', [dir]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('package.json');
+    expect(result.stderr).not.toContain('\n    at ');
+    expect(result.stdout).toBe('');
+  });
 });
