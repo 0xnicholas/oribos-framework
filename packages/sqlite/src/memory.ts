@@ -21,7 +21,7 @@ import type {
   WorkingMemoryStore,
 } from '@oribos/core/memory';
 import type { SqliteLifecycle } from './connection.js';
-import { decodeJson, encodeJson, inTransaction } from './connection.js';
+import { assertPageLimit, decodeJson, encodeJson, inTransaction, loadCursorRow } from './connection.js';
 
 interface ThreadRow {
   id: string;
@@ -98,13 +98,6 @@ function messagePayload(message: StoredMessage): string {
   return JSON.stringify(body);
 }
 
-/** `limit` is the port's own rule — a non-positive or fractional value throws, never widens. */
-function assertLimit(kind: string, limit: number | undefined): void {
-  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
-    throw new Error(`${kind}: limit must be a positive integer, got ${limit}`);
-  }
-}
-
 export function createMemoryStore(lifecycle: SqliteLifecycle): WorkingMemoryStore {
   return {
     async getThreadById(id) {
@@ -140,19 +133,17 @@ export function createMemoryStore(lifecycle: SqliteLifecycle): WorkingMemoryStor
 
     async listThreads(query: ListThreadsQuery) {
       const db = lifecycle.open();
-      assertLimit('listThreads', query.limit);
-      let cursor: ThreadRow | undefined;
-      if (query.before !== undefined) {
-        const row = db
-          .prepare(`SELECT ${THREAD_COLUMNS} FROM threads WHERE id = ?`)
-          .get(query.before) as ThreadRow | undefined;
-        if (row === undefined || row.resource_id !== query.resourceId) {
-          throw new Error(
-            `listThreads: before cursor '${query.before}' is not a thread of resource '${query.resourceId}'`,
-          );
-        }
-        cursor = row;
-      }
+      assertPageLimit('memory.listThreads', query.limit);
+      const cursor =
+        query.before === undefined
+          ? undefined
+          : loadCursorRow<ThreadRow>(db, {
+              caller: 'memory.listThreads',
+              noun: 'thread',
+              sql: `SELECT ${THREAD_COLUMNS} FROM threads WHERE id = ?`,
+              before: query.before,
+              inScope: (row) => row.resource_id === query.resourceId,
+            });
       const cursorClause = cursor === undefined ? '' : ' AND (updated_at, id) < (?, ?)';
       const limitClause = query.limit === undefined ? '' : ' LIMIT ?';
       const rows = db
@@ -171,19 +162,17 @@ export function createMemoryStore(lifecycle: SqliteLifecycle): WorkingMemoryStor
 
     async listMessages(query: ListMessagesQuery) {
       const db = lifecycle.open();
-      assertLimit('listMessages', query.limit);
-      let cursor: MessageRow | undefined;
-      if (query.before !== undefined) {
-        const row = db
-          .prepare(`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id = ?`)
-          .get(query.before) as MessageRow | undefined;
-        if (row === undefined || row.thread_id !== query.threadId) {
-          throw new Error(
-            `listMessages: before cursor '${query.before}' is not a message of thread '${query.threadId}'`,
-          );
-        }
-        cursor = row;
-      }
+      assertPageLimit('memory.listMessages', query.limit);
+      const cursor =
+        query.before === undefined
+          ? undefined
+          : loadCursorRow<MessageRow>(db, {
+              caller: 'memory.listMessages',
+              noun: 'message',
+              sql: `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id = ?`,
+              before: query.before,
+              inScope: (row) => row.thread_id === query.threadId,
+            });
       const cursorClause = cursor === undefined ? '' : ' AND (created_at, id) < (?, ?)';
       const limitClause = query.limit === undefined ? '' : ' LIMIT ?';
       const rows = db

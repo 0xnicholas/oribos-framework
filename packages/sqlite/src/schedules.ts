@@ -10,7 +10,7 @@
  */
 import type { ScheduleListQuery, ScheduleRecord, ScheduleStore } from '@oribos/core/schedules';
 import type { SqliteLifecycle } from './connection.js';
-import { decodeJson, encodeJson } from './connection.js';
+import { assertPageLimit, decodeJson, encodeJson, loadCursorRow } from './connection.js';
 
 interface ScheduleRow {
   id: string;
@@ -36,12 +36,6 @@ function scheduleFromRow(row: ScheduleRow): ScheduleRecord {
       ? {}
       : { metadata: decodeJson(row.metadata) as Record<string, unknown> }),
   };
-}
-
-function assertLimit(limit: number | undefined): void {
-  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
-    throw new Error(`schedules.list: limit must be a positive integer, got ${limit}`);
-  }
 }
 
 export function createScheduleStore(lifecycle: SqliteLifecycle): ScheduleStore {
@@ -73,17 +67,16 @@ export function createScheduleStore(lifecycle: SqliteLifecycle): ScheduleStore {
 
     async list(query: ScheduleListQuery = {}) {
       const db = lifecycle.open();
-      assertLimit(query.limit);
-      let cursor: ScheduleRow | undefined;
-      if (query.before !== undefined) {
-        const row = db
-          .prepare(`SELECT ${SCHEDULE_COLUMNS} FROM schedules WHERE id = ?`)
-          .get(query.before) as ScheduleRow | undefined;
-        if (row === undefined) {
-          throw new Error(`schedules.list: before cursor '${query.before}' is not a schedule id`);
-        }
-        cursor = row;
-      }
+      assertPageLimit('schedules.list', query.limit);
+      const cursor =
+        query.before === undefined
+          ? undefined
+          : loadCursorRow<ScheduleRow>(db, {
+              caller: 'schedules.list',
+              noun: 'schedule',
+              sql: `SELECT ${SCHEDULE_COLUMNS} FROM schedules WHERE id = ?`,
+              before: query.before,
+            });
       const cursorClause =
         cursor === undefined
           ? ''

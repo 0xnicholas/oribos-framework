@@ -22,6 +22,7 @@ import type {
   WorkflowSnapshotStore,
 } from '@oribos/core/workflows';
 import type { SqliteLifecycle } from './connection.js';
+import { assertPageLimit, loadCursorRow } from './connection.js';
 
 /** `WorkflowSnapshotStore` with every declared extension implemented (all of them are frozen). */
 export interface SqliteWorkflowSnapshotStore extends WorkflowSnapshotStore {
@@ -65,12 +66,6 @@ function cursorClause(hasCursor: boolean): string {
   return hasCursor ? ' AND (updated_at, run_id) < (?, ?)' : '';
 }
 
-function assertLimit(kind: string, limit: number | undefined): void {
-  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
-    throw new Error(`${kind}: limit must be a positive integer, got ${limit}`);
-  }
-}
-
 /** The one serializer both `save` and `compareAndSave` use — the CAS comparison strings must match. */
 function serialize(snapshot: { readonly runId: string }): string {
   return JSON.stringify(snapshot);
@@ -79,21 +74,6 @@ function serialize(snapshot: { readonly runId: string }): string {
 export function createWorkflowSnapshotStore(
   lifecycle: SqliteLifecycle,
 ): SqliteWorkflowSnapshotStore {
-  const loadCursor = (
-    db: ReturnType<SqliteLifecycle['open']>,
-    before: string,
-  ): CursorRow => {
-    const row = db
-      .prepare('SELECT run_id, updated_at FROM workflow_snapshots WHERE run_id = ?')
-      .get(before) as CursorRow | undefined;
-    if (row === undefined) {
-      throw new Error(
-        `listSnapshots: before cursor '${before}' is not a snapshot in this store`,
-      );
-    }
-    return row;
-  };
-
   return {
     async load(runId) {
       const db = lifecycle.open();
@@ -139,8 +119,16 @@ export function createWorkflowSnapshotStore(
 
     async listSnapshots(query = {}) {
       const db = lifecycle.open();
-      assertLimit('listSnapshots', query.limit);
-      const cursor = query.before === undefined ? undefined : loadCursor(db, query.before);
+      assertPageLimit('workflowSnapshots.listSnapshots', query.limit);
+      const cursor =
+        query.before === undefined
+          ? undefined
+          : loadCursorRow<CursorRow>(db, {
+              caller: 'workflowSnapshots.listSnapshots',
+              noun: 'snapshot',
+              sql: 'SELECT run_id, updated_at FROM workflow_snapshots WHERE run_id = ?',
+              before: query.before,
+            });
       // No `status` column: the record's own JSON answers, exactly as the spec pins it.
       const statusClause =
         query.status === undefined ? '' : " AND json_extract(payload, '$.status') = ?";
@@ -164,21 +152,6 @@ export function createWorkflowSnapshotStore(
 export function createAgentRunSnapshotStore(
   lifecycle: SqliteLifecycle,
 ): SqliteAgentRunSnapshotStore {
-  const loadCursor = (
-    db: ReturnType<SqliteLifecycle['open']>,
-    before: string,
-  ): CursorRow => {
-    const row = db
-      .prepare('SELECT run_id, updated_at FROM agent_run_snapshots WHERE run_id = ?')
-      .get(before) as CursorRow | undefined;
-    if (row === undefined) {
-      throw new Error(
-        `listSuspended: before cursor '${before}' is not a snapshot in this store`,
-      );
-    }
-    return row;
-  };
-
   return {
     async load(runId) {
       const db = lifecycle.open();
@@ -204,8 +177,16 @@ export function createAgentRunSnapshotStore(
 
     async listSuspended(query = {}) {
       const db = lifecycle.open();
-      assertLimit('listSuspended', query.limit);
-      const cursor = query.before === undefined ? undefined : loadCursor(db, query.before);
+      assertPageLimit('agentRunSnapshots.listSuspended', query.limit);
+      const cursor =
+        query.before === undefined
+          ? undefined
+          : loadCursorRow<CursorRow>(db, {
+              caller: 'agentRunSnapshots.listSuspended',
+              noun: 'snapshot',
+              sql: 'SELECT run_id, updated_at FROM agent_run_snapshots WHERE run_id = ?',
+              before: query.before,
+            });
       const limitClause = query.limit === undefined ? '' : ' LIMIT ?';
       const rows = db
         .prepare(

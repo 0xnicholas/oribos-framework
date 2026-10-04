@@ -7,6 +7,12 @@
  * `init()` is idempotent (open once), `close()` is idempotent (close once, a no-op before init) and
  * the object is dead afterwards: port methods throw until `init()` ran and again after `close()`.
  *
+ * This module is also the home of the four ports' shared pagination vocabulary: `assertPageLimit`
+ * (the `limit` rule) and `loadCursorRow` (the `before` cursor row, missing or out of scope → the
+ * one cursor message). Error wording is the adapter's observable face, so it is built once here —
+ * `<port>.<method>: …` — and never per call site. What a page does with the row (tuple direction,
+ * sentinels) stays with the port: that is genuinely per-port semantics, not duplication.
+ *
  * The busy timeout is set with the `PRAGMA` rather than the constructor's `timeout` option alone:
  * the option only landed in Node 22.16 and is **silently ignored** on the engines floor (22.13,
  * the floor ADR-0002 froze for M5), which would leave cross-process writes with no wait at all. The
@@ -42,6 +48,40 @@ export function encodeJson(value: unknown): string | null {
 /** Reads a JSON text column back; the caller decides what SQL NULL (absent) means. */
 export function decodeJson(text: string): unknown {
   return JSON.parse(text);
+}
+
+/** `limit` is the port's own rule — a non-positive or fractional value throws, never widens. */
+export function assertPageLimit(caller: string, limit: number | undefined): void {
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+    throw new Error(`${caller}: limit must be a positive integer, got ${limit}`);
+  }
+}
+
+/**
+ * Loads the row a `before` cursor points at; absent — or outside the query's scope when `inScope`
+ * is given — throws the adapter's one cursor message.
+ */
+export function loadCursorRow<TRow>(
+  db: DatabaseSync,
+  cursor: {
+    /** The error prefix, `<port>.<method>` — the storage object's slot name plus the port method. */
+    readonly caller: string;
+    /** What the cursor was expected to name (`thread` / `message` / `snapshot` / `schedule`). */
+    readonly noun: string;
+    /** `SELECT … WHERE <id column> = ?` — the row the cursor names, by its primary key. */
+    readonly sql: string;
+    readonly before: string;
+    /** Absent → existence only; present → the row must also belong to the query's scope. */
+    readonly inScope?: (row: TRow) => boolean;
+  },
+): TRow {
+  const row = db.prepare(cursor.sql).get(cursor.before) as TRow | undefined;
+  if (row === undefined || cursor.inScope?.(row) === false) {
+    throw new Error(
+      `${cursor.caller}: before cursor '${cursor.before}' is not a ${cursor.noun} in this store`,
+    );
+  }
+  return row;
 }
 
 /** `BEGIN IMMEDIATE` … `COMMIT`, rolling back on any throw — the multi-statement write unit. */

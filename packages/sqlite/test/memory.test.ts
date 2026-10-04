@@ -144,15 +144,15 @@ describe('memory threads', () => {
 
     expect(
       messageOf(await caught(storage.memory.listThreads({ resourceId: 'r1', before: 'dangling' }))),
-    ).toContain('before cursor');
+    ).toBe("memory.listThreads: before cursor 'dangling' is not a thread in this store");
     expect(
       messageOf(await caught(storage.memory.listThreads({ resourceId: 'r1', before: 'other' }))),
-    ).toContain('is not a thread of resource');
+    ).toBe("memory.listThreads: before cursor 'other' is not a thread in this store");
     for (const limit of [0, -1, 1.5]) {
       expect(
         messageOf(await caught(storage.memory.listThreads({ resourceId: 'r1', limit }))),
         `limit ${limit}`,
-      ).toContain('limit must be a positive integer');
+      ).toBe(`memory.listThreads: limit must be a positive integer, got ${limit}`);
     }
   });
 
@@ -234,13 +234,13 @@ describe('memory messages', () => {
 
     expect(
       messageOf(await caught(storage.memory.listMessages({ threadId: 'th1', before: 'nope' }))),
-    ).toContain('before cursor');
+    ).toBe("memory.listMessages: before cursor 'nope' is not a message in this store");
     expect(
       messageOf(await caught(storage.memory.listMessages({ threadId: 'th1', before: 'm5' }))),
-    ).toContain('is not a message of thread');
+    ).toBe("memory.listMessages: before cursor 'm5' is not a message in this store");
     expect(
       messageOf(await caught(storage.memory.listMessages({ threadId: 'th1', limit: 0 }))),
-    ).toContain('limit must be a positive integer');
+    ).toBe('memory.listMessages: limit must be a positive integer, got 0');
   });
 
   it('upserts a batch by id, accepting an empty batch', async () => {

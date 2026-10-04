@@ -161,12 +161,14 @@ describe('workflow snapshots: listSnapshots', () => {
 
     expect(
       messageOf(await caught(storage.workflowSnapshots.listSnapshots({ before: 'ghost' }))),
-    ).toContain('before cursor');
+    ).toBe(
+      "workflowSnapshots.listSnapshots: before cursor 'ghost' is not a snapshot in this store",
+    );
     for (const limit of [0, -3, 1.5]) {
       expect(
         messageOf(await caught(storage.workflowSnapshots.listSnapshots({ limit }))),
         `limit ${limit}`,
-      ).toContain('limit must be a positive integer');
+      ).toBe(`workflowSnapshots.listSnapshots: limit must be a positive integer, got ${limit}`);
     }
   });
 });

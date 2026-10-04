@@ -89,9 +89,11 @@ describe('agent run snapshots', () => {
 
     expect(
       messageOf(await caught(storage.agentRunSnapshots.listSuspended({ before: 'ghost' }))),
-    ).toContain('before cursor');
+    ).toBe(
+      "agentRunSnapshots.listSuspended: before cursor 'ghost' is not a snapshot in this store",
+    );
     expect(
       messageOf(await caught(storage.agentRunSnapshots.listSuspended({ limit: 0 }))),
-    ).toContain('limit must be a positive integer');
+    ).toBe('agentRunSnapshots.listSuspended: limit must be a positive integer, got 0');
   });
 });

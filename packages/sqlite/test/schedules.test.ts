@@ -123,12 +123,12 @@ describe('schedules listing', () => {
   it('throws on a dangling cursor and a non-positive or fractional limit', async () => {
     const storage = memoryStorage();
     await seed(storage);
-    expect(messageOf(await caught(storage.schedules.list({ before: 'nope' })))).toContain(
-      'before cursor',
+    expect(messageOf(await caught(storage.schedules.list({ before: 'nope' })))).toBe(
+      "schedules.list: before cursor 'nope' is not a schedule in this store",
     );
     for (const limit of [0, -1, 2.5]) {
-      expect(messageOf(await caught(storage.schedules.list({ limit })))).toContain(
-        'limit must be a positive integer',
+      expect(messageOf(await caught(storage.schedules.list({ limit })))).toBe(
+        `schedules.list: limit must be a positive integer, got ${limit}`,
       );
     }
   });
