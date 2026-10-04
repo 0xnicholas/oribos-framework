@@ -2,20 +2,18 @@
 // 证明「产物以子路径导出各子系统入口」在 dist 上真实成立。
 // 同时按 CJS `require()` 走一遍 —— exports 的 `default` 条件保证 require(esm) 可用(Node ≥22.12)。
 // 落位(ADR-0015 M5 修订):共享实现居根 scripts/,各包以 `node ../../scripts/check-dist.mjs`
-// 薄脚本指回(或显式传包目录)。
+// 薄脚本指回(或显式传包目录)。脚手架(开场 / 硬错误小件 / 退出码)居 gate-kit.mjs(#126)。
 // 退出码契约(ADR-0015,#113 裁决对齐 check-export-surface):0 = 干净;1 = 公开面缺口(产物在盘上
 // 但解析或加载失败);2 = 配置·产物硬错误(`exports` 表为空 / 缺 dist 目录 / 子路径声明产物缺失 /
 // manifest 不可读)。硬错误优先于缺口——「闸门没跑成」不混进「公开面真坏」。
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { EXIT_HARD_ERROR, hardError, readManifestOrHardError } from './lib.mjs';
+import { EXIT_HARD_ERROR, EXIT_PROBLEM, gatePreamble, hardError } from './gate-kit.mjs';
 
-const EXIT_GAP = 1;
-
-const packageDir = resolve(process.argv[2] ?? process.cwd());
-const { name, exports: exportMap } = readManifestOrHardError(packageDir);
+const { packageDir, manifest } = gatePreamble();
+const { name, exports: exportMap } = manifest;
 // 解析锚在包目录内:包自身名字经 exports 自引用解析,不依赖脚本所在位置。
 const requireCjs = createRequire(join(packageDir, 'package.json'));
 
@@ -63,5 +61,5 @@ if (gaps.length > 0) {
 if (hardErrors.length > 0) {
   process.exitCode = EXIT_HARD_ERROR;
 } else if (gaps.length > 0) {
-  process.exitCode = EXIT_GAP;
+  process.exitCode = EXIT_PROBLEM;
 }

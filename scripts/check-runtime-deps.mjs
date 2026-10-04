@@ -5,25 +5,21 @@
 // devDependencies 不在合法集——源码误引 devDependency(清单却干净)的绕过路径照旧被挡;
 // 传递依赖不入扫描(重量由 deps-budget 数字承载,见 check-deps-budget.mjs)。
 // 落位(ADR-0015 M5 修订):共享实现居根 scripts/,各包以 `node ../../scripts/check-runtime-deps.mjs`
-// 薄脚本指回;挂进 pnpm verify 走红线。
+// 薄脚本指回;挂进 pnpm verify 走红线。脚手架(开场 / 硬错误小件 / 退出码)居 gate-kit.mjs(#126),
+// dist 扫描机制居 lib.mjs。
 // 退出码契约(ADR-0015):0 = 干净;1 = 任一违背;2 = 配置·产物硬错误
 // (manifest 不可读 / 缺 dist——扫描无从谈起)。「闸门没跑成」不混进「公开面真坏」(#113 裁决)。
 import { existsSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { join } from 'node:path';
 import {
   RUNTIME_DEPENDENCY_FIELDS,
   ZERO_RUNTIME_PACKAGES,
   allowedSpecifierPredicate,
-  hardError,
-  readManifestOrHardError,
   scanDist,
 } from './lib.mjs';
+import { EXIT_PROBLEM, gatePreamble, hardError } from './gate-kit.mjs';
 
-/** 依赖红线违背(不是硬错误):manifest 三字段或产物导入面任一不对,退出码 1。 */
-const EXIT_VIOLATION = 1;
-
-const packageDir = resolve(process.argv[2] ?? process.cwd());
-const manifest = readManifestOrHardError(packageDir);
+const { packageDir, manifest } = gatePreamble();
 
 const violations = [];
 
@@ -65,7 +61,7 @@ if (violations.length > 0) {
   for (const violation of violations) {
     console.error(`  - ${violation}`);
   }
-  process.exitCode = EXIT_VIOLATION;
+  process.exitCode = EXIT_PROBLEM;
 } else {
   console.log(
     isZeroRuntimePackage

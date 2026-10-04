@@ -6,7 +6,7 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
 /**
  * 字节预算黄灯的 CLI 契约(M1-02 #23,ADR-0001):
  * 口径 = esbuild minify 后每个子路径导出入口的 bundle 字节数;基线落 byte-budget.json。
- * 超预算不是硬失败(CI 步骤 continue-on-error),但脚本以非零退出码把"需处理"带给调用方。
+ * 超预算不是硬失败(CI 以 `|| test $? -eq 1` 只容忍退出码 1,ADR-0015),但脚本以非零退出码把"需处理"带给调用方。
  * 输出流约定(全闸门统一,gate-kit 收编):报表面(标题 / 表格 / ok 行)与 CI 记录面
  * (::warning 注释、job summary)走 stdout,黄灯问题清单与硬错误走 stderr。
  */

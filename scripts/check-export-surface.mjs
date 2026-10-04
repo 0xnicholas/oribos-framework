@@ -18,22 +18,14 @@
 // 退出码契约(沿 ADR-0015):0 = 导出面干净;1 = 有缺口(需处理);2 = 配置/产物硬错误(检查坏了)。
 // 落位(ADR-0015 M5 修订):共享实现居根 scripts/,各包以 `node ../../scripts/check-export-surface.mjs`
 // 薄脚本指回(或显式传包目录);产物缺失时报错,不把「没测成」读成「干净」。
+// 脚手架(开场 / 硬错误小件 / 退出码)居 gate-kit.mjs(#126)。
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { readManifestOrHardError } from './lib.mjs';
-
-const EXIT_GAP = 1;
-const EXIT_HARD_ERROR = 2;
+import { EXIT_PROBLEM, gatePreamble, hardError } from './gate-kit.mjs';
 
 /** 顶层声明形态:只有这些行首语句进目录(接口成员、命名空间体都带缩进)。 */
 const DECLARATION_RE =
   /^(export\s+)?(declare\s+)?(abstract\s+)?(type|interface|class|enum|namespace|function|const|let|var)\s+([\w$]+)/gm;
-
-/** 硬错误 = 口径或产物问题,退出码 2,CI 不容忍。 */
-function hardError(message) {
-  console.error(message);
-  process.exit(EXIT_HARD_ERROR);
-}
 
 /** 注释替换为等长空白(保留换行):偏移与原文一致,字符串字面量照旧可读。 */
 function stripComments(source) {
@@ -175,8 +167,8 @@ function typeReferences(text) {
   return references;
 }
 
-const packageDir = resolve(process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? process.cwd());
-const { name, exports: exportMap } = readManifestOrHardError(packageDir);
+const { packageDir, manifest } = gatePreamble();
+const { name, exports: exportMap } = manifest;
 
 const entries = Object.entries(exportMap ?? {});
 if (entries.length === 0) hardError(`${name}: exports 表为空,没有子路径入口可执法`);
@@ -232,5 +224,5 @@ if (gaps.size === 0) {
   )) {
     console.error(`缺口  ${gap.reference} ← ${gap.declaration} (${gap.where}${gap.hint})`);
   }
-  process.exitCode = EXIT_GAP;
+  process.exitCode = EXIT_PROBLEM;
 }
