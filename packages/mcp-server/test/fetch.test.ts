@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createMcpServer } from '@oribos/mcp-server';
+import type { McpServerRequestOptions } from '@oribos/mcp-server';
 import { createTool } from '@oribos/core/tools';
 import type { Tool, ToolContext } from '@oribos/core/tools';
-import { contentOf, initializeRequest, legacyHeaders, modernHeaders, post, postParsedBody, rpc, toolsOf, withEnvelope } from './helpers.js';
+import { contentOf, expectAssignable, initializeRequest, legacyHeaders, modernHeaders, post, postAuthInfo, postParsedBody, readMessage, rpc, toolsOf, withEnvelope } from './helpers.js';
 
 const SERVER_INFO = { name: 'tools-server', version: '1.2.3' };
 
@@ -320,5 +321,194 @@ describe('createMcpServer fetch', () => {
         }),
       ),
     ).rejects.toThrow(/closed/i);
+  });
+
+  it('passes authInfo straight through to the SDK handler, never into the ToolContext', async () => {
+    let captured: ToolContext | undefined;
+    const capture: Tool = {
+      description: 'Capture',
+      execute: (_input, ctx) => {
+        captured = ctx;
+        return 'ok';
+      },
+    };
+    const server = createMcpServer({ ...SERVER_INFO, tools: { capture } });
+    const authInfo = { token: 'tok', clientId: 'client-1', scopes: ['read'] };
+    // The option type is the SDK's own, re-exported: `authInfo` is part of the surface.
+    expectAssignable<McpServerRequestOptions>({ authInfo });
+
+    const response = await postAuthInfo(server, rpc('tools/call', { name: 'capture', arguments: {} }), legacyHeaders(), authInfo);
+
+    expect(response.message.error).toBeUndefined();
+    expect(captured).toBeDefined();
+    // v1 does not consume authInfo: the synthesized context stays the six-piece shape, MCP
+    // facts are not stuffed in (authorization is the transport middleware's business).
+    expect({ ...captured?.requestContext }).toEqual({ signal: captured?.signal, runId: '' });
+    await server.close();
+  });
+
+  it('serves both eras with no config at all: legacy stateless (session ops 405) and modern', async () => {
+    const ping = createTool({ description: 'Ping', execute: () => 'pong' });
+    const server = createMcpServer({ ...SERVER_INFO, tools: { ping } });
+
+    const legacy = await post(server, rpc('tools/list', {}), legacyHeaders());
+    expect(toolsOf(legacy).map((tool) => tool.name)).toEqual(['ping']);
+
+    const modern = await post(server, rpc('tools/list', withEnvelope({})), modernHeaders('tools/list'));
+    expect(toolsOf(modern).map((tool) => tool.name)).toEqual(['ping']);
+
+    // The default legacy posture is stateless: 2025 session operations have nothing to act on.
+    const get = await server.fetch(new Request('http://localhost/mcp', { method: 'GET', headers: legacyHeaders() }));
+    expect(get.status).toBe(405);
+    expect((await readMessage(get)).error?.code).toBe(-32000);
+    const del = await server.fetch(new Request('http://localhost/mcp', { method: 'DELETE', headers: legacyHeaders() }));
+    expect(del.status).toBe(405);
+    await server.close();
+  });
+
+  it('close() aborts an in-flight modern exchange: the tool signal fires and the exchange settles 499', async () => {
+    let started: () => void = () => {};
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let aborted = false;
+    const slow: Tool = {
+      description: 'Slow',
+      execute: (_input, ctx) =>
+        new Promise(() => {
+          started();
+          ctx.signal.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+            },
+            { once: true },
+          );
+        }),
+    };
+    const server = createMcpServer({ ...SERVER_INFO, tools: { slow } });
+
+    const pending = server.fetch(
+      new Request('http://localhost/mcp', {
+        method: 'POST',
+        headers: modernHeaders('tools/call', 'slow'),
+        body: JSON.stringify(rpc('tools/call', withEnvelope({ name: 'slow', arguments: {} }))),
+      }),
+    );
+    await running;
+    await server.close();
+
+    // The aborted exchange settles as the SDK's client-gone answer (499, empty body) — no result.
+    const response = await pending;
+    expect(response.status).toBe(499);
+    expect(aborted).toBe(true);
+  });
+
+  it('close() does not track a legacy stateless exchange: it resolves while one is in flight and the exchange still completes', async () => {
+    let started: () => void = () => {};
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let release: (value: string) => void = () => {};
+    const gate = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const slow: Tool = {
+      description: 'Slow',
+      execute: async () => {
+        started();
+        return gate;
+      },
+    };
+    const server = createMcpServer({ ...SERVER_INFO, tools: { slow } });
+
+    const pending = server.fetch(
+      new Request('http://localhost/mcp', {
+        method: 'POST',
+        headers: legacyHeaders(),
+        body: JSON.stringify(rpc('tools/call', { name: 'slow', arguments: {} })),
+      }),
+    );
+    await running;
+    // Per-request by construction: close() holds nothing open and returns without awaiting the exchange.
+    await server.close();
+    release('legacy-done');
+
+    const response = await pending;
+    expect(response.status).toBe(200);
+    expect((await readMessage(response)).result?.content).toEqual([{ type: 'text', text: 'legacy-done' }]);
+  });
+
+  it('snapshots the tool container at construction: later mutations never reach the wire', async () => {
+    const ping = createTool({ description: 'Ping', execute: () => 'pong' });
+    const tools: Record<string, Tool> = { ping };
+    const server = createMcpServer({ ...SERVER_INFO, tools });
+
+    tools.late = createTool({ description: 'Late', execute: () => 'late' });
+    tools.ping = createTool({ description: 'Ping', execute: () => 'replaced' });
+
+    const listed = await post(server, rpc('tools/list', {}), legacyHeaders());
+    expect(toolsOf(listed).map((tool) => tool.name)).toEqual(['ping']);
+
+    const called = await post(server, rpc('tools/call', { name: 'ping', arguments: {} }), legacyHeaders());
+    expect(contentOf(called)).toEqual([{ type: 'text', text: 'pong' }]);
+
+    const late = await post(server, rpc('tools/call', { name: 'late', arguments: {} }), legacyHeaders());
+    expect(late.message.result).toBeUndefined();
+    expect(late.message.error?.code).toBe(-32602);
+    await server.close();
+  });
+
+  it('runs the input schema transform: execute receives the validated (transformed) value', async () => {
+    let seen: unknown;
+    const trim = createTool({
+      description: 'Trim',
+      inputSchema: z.object({ city: z.string().trim() }),
+      execute: (input) => {
+        seen = input;
+        return input.city;
+      },
+    });
+    const server = createMcpServer({ ...SERVER_INFO, tools: { trim } });
+
+    const response = await post(server, rpc('tools/call', { name: 'trim', arguments: { city: '  Oslo  ' } }), legacyHeaders());
+
+    expect(seen).toEqual({ city: 'Oslo' });
+    expect(contentOf(response)).toEqual([{ type: 'text', text: 'Oslo' }]);
+    await server.close();
+  });
+
+  it('rejects a non-object-root inputSchema at tools/list with the SDK object-root error', async () => {
+    // MCP requires `type: "object"` at an inputSchema's root; the SDK converts schemas at list
+    // time (registration only memoizes), so the rejection surfaces there, not at construction.
+    const bare = createTool({
+      description: 'Bare string root',
+      inputSchema: z.string(),
+      execute: (input) => String(input),
+    });
+    const server = createMcpServer({ ...SERVER_INFO, tools: { bare } });
+
+    const listed = await post(server, rpc('tools/list', {}), legacyHeaders());
+
+    expect(listed.message.result).toBeUndefined();
+    expect(listed.message.error?.code).toBe(-32603);
+    expect(listed.message.error?.message).toMatch(/must describe objects \(got type: "string"\)/);
+    await server.close();
+  });
+
+  it('derives the tools/list JSON Schema at draft 2020-12 ($schema marker)', async () => {
+    const weather = createTool({
+      description: 'Weather lookup',
+      inputSchema: z.object({ city: z.string() }),
+      execute: ({ city }) => city,
+    });
+    const server = createMcpServer({ ...SERVER_INFO, tools: { weather } });
+
+    const listed = await post(server, rpc('tools/list', {}), legacyHeaders());
+
+    expect(toolsOf(listed).find((tool) => tool.name === 'weather')?.inputSchema?.['$schema']).toBe(
+      'https://json-schema.org/draft/2020-12/schema',
+    );
+    await server.close();
   });
 });

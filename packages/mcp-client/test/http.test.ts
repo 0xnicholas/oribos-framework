@@ -173,4 +173,30 @@ describe('createMcpClient over HTTP', () => {
       await served.close();
     }
   });
+
+  it('rejects an in-flight call with CONNECTION_CLOSED when close() runs', async () => {
+    const served = await serveSdkServer((server) => {
+      server.registerTool('hanging', { description: 'Never answers' }, neverAnswers('closed mid-flight'));
+    });
+    try {
+      const client = await createMcpClient(httpConfig(served, 10_000));
+      const pending = caught(toolOf(client, 'hanging').execute(undefined, toolContext()));
+      await sleep(100);
+
+      await client.close();
+
+      const inFlight: unknown = await pending;
+      expect(SdkError.isInstance(inFlight)).toBe(true);
+      expect((inFlight as SdkError).code).toBe(SdkErrorCode.ConnectionClosed);
+      expect((inFlight as SdkError).message).toBe('Connection closed');
+      // The error face after close is different: a fresh call fails before any transport work
+      // with the SDK's plain "Not connected" (no SdkError code), and close stays idempotent.
+      const afterClose: unknown = await caught(toolOf(client, 'hanging').execute(undefined, toolContext()));
+      expect(SdkError.isInstance(afterClose)).toBe(false);
+      expect((afterClose as Error).message).toBe('Not connected');
+      await expect(client.close()).resolves.toBeUndefined();
+    } finally {
+      await served.close();
+    }
+  });
 });

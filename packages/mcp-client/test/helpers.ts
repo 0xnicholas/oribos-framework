@@ -184,6 +184,14 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Compile-time assertion: `expectAssignable<To>(value)` requires `value`'s type to be assignable
+ * to `To`, failing tsc outright when it is not. Not vitest's `expectTypeOf().toExtend()` — under
+ * `exactOptionalPropertyTypes` that matcher gives false negatives on objects with unions and
+ * optional properties (a plain assignment passes). The function body is empty at runtime.
+ */
+export function expectAssignable<To>(_value: To): void {}
+
+/**
  * A tool handler that never answers on its own: it resolves only when the request's signal is
  * aborted (a client timeout or cancellation), then returns a result nobody is left to read —
  * `lateText` names that result so the two fixtures can be told apart. Lets a test assert the
@@ -243,8 +251,14 @@ export async function serveLegacy(options: {
   readonly initializeDelayMs?: number;
   /** After this many successful `tools/list` responses, answer with a JSON-RPC error instead. */
   readonly listErrorAfter?: number;
+  /**
+   * Pages every `tools/list` walk: the no-cursor request is page 0 and each cursor follow-up
+   * the next page; page i answers `nextCursor: nextCursor(i)` (`undefined` ends the walk).
+   */
+  readonly nextCursor?: (pageIndex: number) => string | undefined;
 }): Promise<RawServed> {
   let listIndex = 0;
+  let walkPage = 0;
   return serveRaw(async (call) => {
     if (call.method === 'GET') return { status: 405, body: {} };
     const message = call.jsonRpc;
@@ -267,9 +281,11 @@ export async function serveLegacy(options: {
       if (options.listErrorAfter !== undefined && listIndex > options.listErrorAfter) {
         return response(id, undefined, {}, { code: -32603, message: 'mock list failure' });
       }
+      walkPage = message.params?.cursor === undefined ? 0 : walkPage + 1;
       const tools = typeof options.tools === 'function' ? options.tools(listIndex) : options.tools;
       listIndex += 1;
-      return response(id, { tools });
+      const cursor = options.nextCursor?.(walkPage);
+      return response(id, cursor === undefined ? { tools } : { tools, nextCursor: cursor });
     }
     if (method === 'tools/call') {
       const name = message.params?.name as string;

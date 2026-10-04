@@ -83,6 +83,28 @@ describe('the JSON Schema pass-through wrapper', () => {
     }
   });
 
+  it('stamps the ~standard runtime facts: version 1, vendor oribos, frozen types {input, output} undefined', async () => {
+    const served = await serveLegacy({
+      tools: [{ name: 'weather', description: 'Weather', inputSchema: REMOTE_SCHEMA as unknown as Record<string, unknown> }],
+    });
+    try {
+      const client = await createMcpClient({ transport: { type: 'http', url: served.url } });
+      const standard = client.tools.weather?.inputSchema?.['~standard'];
+
+      expect(standard?.version).toBe(1);
+      expect(standard?.vendor).toBe('oribos');
+      // Both keys exist and are undefined at runtime: the type parameter is caller-asserted
+      // (`StandardSchema<unknown, unknown>`), there is no runtime value to carry.
+      expect(Object.keys(standard?.types ?? {}).sort()).toEqual(['input', 'output']);
+      expect(standard?.types?.input).toBeUndefined();
+      expect(standard?.types?.output).toBeUndefined();
+      expect(Object.isFrozen(standard?.types)).toBe(true);
+      await client.close();
+    } finally {
+      await served.close();
+    }
+  });
+
   it('carries no outputSchema on bridged tools', async () => {
     const served = await serveLegacy({
       tools: [{ name: 'weather', description: 'Weather', inputSchema: REMOTE_SCHEMA as unknown as Record<string, unknown> }],

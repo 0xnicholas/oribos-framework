@@ -4,7 +4,7 @@
  * service. The modern-era headers and per-request `_meta` envelope mirror what an MCP
  * 2026-07-28 client sends (protocol revision is mandatory in both the header and the envelope).
  */
-import type { JSONRPCMessage, Transport } from '@modelcontextprotocol/server';
+import type { AuthInfo, JSONRPCMessage, Transport } from '@modelcontextprotocol/server';
 import type { McpServer } from '@oribos/mcp-server';
 
 export interface JsonRpcRequest {
@@ -109,7 +109,22 @@ export async function postParsedBody(
   return { status: response.status, message: await readMessage(response) };
 }
 
-async function readMessage(response: Response): Promise<JsonRpcMessage> {
+/** POSTs with an `authInfo` — the pass-through opt an authenticating middleware supplies. */
+export async function postAuthInfo(
+  server: McpServer,
+  request: JsonRpcRequest,
+  headers: Record<string, string>,
+  authInfo: AuthInfo,
+): Promise<WireResponse> {
+  const response = await server.fetch(
+    new Request('http://localhost/mcp', { method: 'POST', headers, body: JSON.stringify(request) }),
+    { authInfo },
+  );
+  return { status: response.status, message: await readMessage(response) };
+}
+
+/** Reads one JSON-RPC message off a response — SSE-framed (`data:` line) or a bare JSON body. */
+export async function readMessage(response: Response): Promise<JsonRpcMessage> {
   const text = await response.text();
   const dataLine = text
     .split('\n')
@@ -129,3 +144,11 @@ export function contentOf(response: WireResponse): Array<{ type: string; text?: 
   if (!Array.isArray(content)) throw new Error(`expected a tool result, got ${JSON.stringify(response.message)}`);
   return content as Array<{ type: string; text?: string }>;
 }
+
+/**
+ * Compile-time assertion: `expectAssignable<To>(value)` requires `value`'s type to be assignable
+ * to `To`, failing tsc outright when it is not. Not vitest's `expectTypeOf().toExtend()` — under
+ * `exactOptionalPropertyTypes` that matcher gives false negatives on objects with unions and
+ * optional properties (a plain assignment passes). The function body is empty at runtime.
+ */
+export function expectAssignable<To>(_value: To): void {}
