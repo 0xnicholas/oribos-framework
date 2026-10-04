@@ -31,10 +31,11 @@ export interface StepContext<TInputData = unknown, TResumeData = undefined, TSus
   readonly resumeData: TResumeData | undefined;
   /**
    * Marks the step suspended with this payload and unwinds the run — never returns: it throws the
-   * suspend control signal, which the walker turns into the run's `suspended` outcome when the step
-   * sits in a top-level `then` entry. Suspending from anywhere else (`parallel`, a `branch` arm,
-   * `foreach`, the loops) is an explicit error: a block's iteration site has no snapshot
-   * representation yet. Never catch it as an exception; run it as the step's last act.
+   * suspend control signal, which the walker turns into the run's `suspended` outcome wherever the
+   * step sits — a top-level `then` entry or inside a block (a `parallel` arm, a `branch` arm, a
+   * `foreach` iteration, a loop body, #54). The snapshot carries the block's iteration site when
+   * the suspension happened inside one, so `resume` re-enters the block from it. Never catch it as
+   * an exception; run it as the step's last act.
    */
   suspend(payload: TSuspendPayload): never;
 }

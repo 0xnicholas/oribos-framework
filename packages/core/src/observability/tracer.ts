@@ -1,6 +1,7 @@
 import type { ObservabilityExporter, SpanProcessor, TracingEvent } from './events.js';
 import { NoOpSpan } from './span.js';
 import type { ExportedSpan, Span, SpanAttributes, SpanError, SpanType, SpanUpdate } from './span.js';
+import { messageOf } from '../standard-schema-runtime.js';
 
 /**
  * The parent a root span continues an existing trace from — `undefined` when the span starts a
@@ -367,10 +368,6 @@ function randomHex(bytes: number): string {
   let hex = '';
   for (const value of values) hex += value.toString(16).padStart(2, '0');
   return hex;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** Validates the sampler once, at construction: a bad ratio fails loudly instead of mid-run. */

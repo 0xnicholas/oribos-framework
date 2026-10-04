@@ -44,9 +44,9 @@ export interface WorkflowStepStartEvent {
 
 /**
  * A step's boundary was left: how it ended, and what it produced when it succeeded. `suspended`
- * means the step suspended the run; a suspend raised where the run cannot act on it (a block's
- * iteration site, #51) leaves the run failed and reads `failed` here — the record and the stream
- * agree about it (neither claims a suspended step on a failed run).
+ * means the step suspended the run — a suspend is not a step failure, wherever it was raised (a
+ * block's iteration site included, #54): the boundary closes `suspended` and the signal keeps
+ * travelling, so the event, the record and the snapshot all read the same way.
  */
 export interface WorkflowStepEndEvent {
   readonly type: 'step-end';

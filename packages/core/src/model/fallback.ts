@@ -1,5 +1,6 @@
 import type { Model } from './contract.js';
 import { ModelContractError, assertModel } from './resolve.js';
+import { messageOf } from '../standard-schema-runtime.js';
 
 /**
  * The model fallback chain (the accepted `model` shapes): an array of models
@@ -76,8 +77,4 @@ function chainFailureMessage(failures: readonly ModelFallbackFailure[]): string 
 
 function identify(model: Model): string {
   return `'${model.provider}/${model.modelId}'`;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

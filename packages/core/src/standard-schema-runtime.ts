@@ -8,7 +8,8 @@ import type { StandardSchema, StandardSchemaV1 } from './standard-schema.js';
  * asks this module for its JSON Schema. One implementation keeps the answer the same everywhere.
  *
  * Internal seam — not exported from any entry. Consumers: tool input / output schema validation
- * and structured output.
+ * and structured output; `messageOf` also serves every boundary that reports a thrown value (the
+ * tracer's span errors, the fallback chain's failure messages).
  */
 
 /** A validation outcome: the schema's value, or the issues that rejected the input. */
@@ -47,7 +48,7 @@ export function formatIssues(issues: readonly StandardSchemaV1.Issue[]): string 
   return issues.map(formatIssue).join('; ');
 }
 
-/** The message of a thrown value, for the failure messages of the boundaries around it. */
+/** The message of a thrown value — one extraction for every failure message the core composes. */
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

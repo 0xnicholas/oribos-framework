@@ -1,5 +1,6 @@
 import type { ScheduleListQuery, ScheduleRecord } from './types.js';
 import type { ScheduleStore } from './store.js';
+import { copy } from '../map-snapshot-store.js';
 
 /**
  * The core's in-memory default `ScheduleStore` (Map-backed, zero runtime burden): a schedules
@@ -15,11 +16,6 @@ import type { ScheduleStore } from './store.js';
  *   past the referenced one are returned, and a dangling cursor is a caller bug that throws.
  * - `listDue` = enabled records with `nextFireAt !== null && nextFireAt <= now`, same order.
  */
-
-/** Reads and writes crossing the port as deep copies — stored state changes only through the port. */
-function copy<T>(value: T): T {
-  return structuredClone(value);
-}
 
 function assertLimit(limit: number | undefined): void {
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {

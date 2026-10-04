@@ -6,6 +6,7 @@ import type {
   StoredThread,
 } from './types.js';
 import type { WorkingMemoryStore } from './store.js';
+import { copy } from '../map-snapshot-store.js';
 
 /**
  * The core's in-memory default `MemoryStore` (Map-backed, zero runtime burden): attach no storage
@@ -22,11 +23,6 @@ import type { WorkingMemoryStore } from './store.js';
  *   a dangling cursor (unknown id, or one owned by another thread/resource) is a caller bug and
  *   throws. `limit` must be a positive integer.
  */
-
-/** Reads and writes cross the port as deep copies — stored state changes only through the port. */
-function copy<T>(value: T): T {
-  return structuredClone(value);
-}
 
 function assertLimit(limit: number | undefined): void {
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
