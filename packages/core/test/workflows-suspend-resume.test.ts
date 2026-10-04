@@ -1418,7 +1418,7 @@ describe('块内 suspend:parallel 臂挂起 → 迭代现场快照 + resume 重�
 });
 
 describe('createInMemorySnapshotStore:内存默认实现', () => {
-  it('深拷贝:save 后改写原快照不影响 load;未知 runId 返回 null;同 runId 覆盖', async () => {
+  it('深拷贝:save 后改写原快照不影响 load;load 返回值改写不影响 store;未知 runId 返回 null;同 runId 覆盖', async () => {
     const store = createInMemorySnapshotStore();
     const snapshot = {
       runId: 'r-1',
@@ -1440,6 +1440,9 @@ describe('createInMemorySnapshotStore:内存默认实现', () => {
       stepResults: { approval: { status: 'suspended', suspendPayload: { q: 'q?' } } },
       position: 0,
     });
+    // 读出后改写返回值:store 内的快照不受影响(读向同样深拷贝过缝)
+    (loaded?.stepResults['approval']?.suspendPayload as { q: string }).q = 'mutated';
+    expect((await store.load('r-1'))?.stepResults['approval']?.suspendPayload).toEqual({ q: 'q?' });
     expect(await store.load('r-2')).toBeNull();
 
     await store.save('r-1', { ...snapshot, status: 'success', position: 1 });

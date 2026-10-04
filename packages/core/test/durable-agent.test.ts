@@ -658,3 +658,36 @@ describe('createDurableAgent:span 锚点', () => {
     expect(runSpans[1]?.error).toBeUndefined();
   });
 });
+
+describe('createInMemoryAgentRunSnapshotStore:内存默认实现', () => {
+  it('深拷贝:save 后改写原快照不影响 load;load 返回值改写不影响 store;未知 runId 返回 null;同 runId 覆盖', async () => {
+    const store = createInMemoryAgentRunSnapshotStore();
+    const snapshot = {
+      runId: 'r-1',
+      status: 'suspended' as const,
+      messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'go?' }] }],
+      stepCount: 0,
+      suspendPayload: { toolCalls: [], awaitingApproval: ['call-1'] },
+    };
+
+    await store.save('r-1', snapshot);
+    // 写入后改写调用方对象:内存实现像序列化后端一样隔离
+    snapshot.suspendPayload.awaitingApproval[0] = 'mutated';
+
+    const loaded = await store.load('r-1');
+    expect(loaded).toEqual({
+      runId: 'r-1',
+      status: 'suspended',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'go?' }] }],
+      stepCount: 0,
+      suspendPayload: { toolCalls: [], awaitingApproval: ['call-1'] },
+    });
+    // 读出后改写返回值:store 内的快照不受影响(读向同样深拷贝过缝)
+    (loaded?.suspendPayload.awaitingApproval as string[])[0] = 'mutated';
+    expect((await store.load('r-1'))?.suspendPayload.awaitingApproval).toEqual(['call-1']);
+    expect(await store.load('r-2')).toBeNull();
+
+    await store.save('r-1', { ...snapshot, stepCount: 1 });
+    expect((await store.load('r-1'))?.stepCount).toBe(1);
+  });
+});
