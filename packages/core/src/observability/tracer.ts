@@ -274,6 +274,37 @@ export function createTracer(config: TracerConfig): Tracer {
 }
 
 /**
+ * The wrap-one-await span idiom of the automatic instrumentation: runs `run` wrapped in one span —
+ * an absent tracer short-circuits to the bare call (no span object is ever created), otherwise
+ * `startSpan`, the awaited result lands as the span's `output`, a throw is recorded with `error`
+ * and rethrown untouched, and `end` closes the span on every path. The error / rethrow / end
+ * triple — the half of the skeleton that is easiest to get wrong — lives here exactly once.
+ *
+ * Not for spans that stay open across an unbounded region (a step span outliving its tool calls):
+ * those keep their explicit `startSpan` / `end` pair at the call site.
+ *
+ * Internal to the package (not re-exported from the observability entry).
+ */
+export async function withSpan<T>(
+  tracer: Tracer | undefined,
+  options: StartSpanOptions,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (tracer === undefined) return run();
+  const span = tracer.startSpan(options);
+  try {
+    const result = await run();
+    span.update({ output: result });
+    return result;
+  } catch (error) {
+    span.error(error);
+    throw error;
+  } finally {
+    span.end();
+  }
+}
+
+/**
  * The external parent description a root continues — `undefined` for a fresh trace. Both ids come
  * from the caller (a `traceparent` header, a run option), so no id is synthesized here.
  */

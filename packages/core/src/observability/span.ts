@@ -191,3 +191,30 @@ export const NoOpSpan: Span = Object.freeze({
   update(_patch: SpanUpdate): void {},
   error(_error: unknown): void {},
 });
+
+/**
+ * The one home of the empty-string rule for continuation pairs (`NoOpSpan`'s encoding):
+ * empty-string continuation ids mean "no trace", not a parent with an empty id. The tool context
+ * encodes an untraced call as `traceId: ''` / `spanId: ''` (`NoOpSpan` / no tracer), and an as-tool
+ * delegation passes them through verbatim — such a run starts its own trace instead of hanging off
+ * a nonexistent parent (multi-agent composition, ADR-0012).
+ *
+ * The rule: an empty trace id voids the whole pair (a parent outside a trace means nothing); an
+ * empty parent id only drops the parent. The asymmetry is deliberate: a real parent id with a
+ * *missing* trace id is not the "no trace" encoding but a caller bug, so the pair passes through
+ * untouched for the tracer to reject loudly (`startSpan` requires `traceId` with `parentSpanId`).
+ *
+ * The returned bag omits its absent fields — spread-ready for a `startSpan` options literal.
+ * Internal to the package (not re-exported from the observability entry); `startSpan`'s own
+ * contract is unchanged — it still stores the ids it is given.
+ */
+export function normalizeTraceContinuation(
+  traceId: string | undefined,
+  parentSpanId: string | undefined,
+): { traceId?: string; parentSpanId?: string } {
+  if (traceId === '') return {};
+  return {
+    ...(traceId === undefined ? {} : { traceId }),
+    ...(parentSpanId === undefined || parentSpanId === '' ? {} : { parentSpanId }),
+  };
+}

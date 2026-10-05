@@ -359,6 +359,36 @@ describe('createRun:外部 trace 续接', () => {
     expect(fresh.traceId).toMatch(TRACE_ID);
     expect(fresh.parentSpanId).toBeUndefined();
   });
+
+  it('混合对(空 traceId + 真 parentSpanId)同样不接:起自己的新 trace,不报 tracer 契约错', async () => {
+    const memory = memoryExporter();
+    const tracer = createTracer({ exporters: [memory] });
+    const step = createStep({
+      id: 'echo',
+      inputSchema: topicInput,
+      outputSchema: topicInput,
+      execute: ({ inputData }) => inputData,
+    });
+    const workflow = createWorkflow({
+      id: 'article',
+      inputSchema: topicInput,
+      outputSchema: topicInput,
+      tracer,
+    })
+      .then(step)
+      .commit();
+
+    // 与 agent 侧钉点对称(agent-observability 同题用例):半截续接(trace 空、parent 真)整对作废,
+    // run 起自己的新 trace——真 parentSpanId 静默丢弃,而不是走到 tracer 的契约错
+    expectSuccess(
+      await workflow
+        .createRun({ traceId: '', parentSpanId: 'b'.repeat(16) })
+        .start({ inputData: { topic: 'ts' } }).result,
+    );
+    const run = spanOfType(memory, WORKFLOW_RUN_SPAN);
+    expect(run.traceId).toMatch(TRACE_ID);
+    expect(run.parentSpanId).toBeUndefined();
+  });
 });
 
 describe('hideInput / hideOutput:沿 trace 继承', () => {

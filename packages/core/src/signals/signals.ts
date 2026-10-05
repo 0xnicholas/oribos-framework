@@ -15,6 +15,7 @@ import type { ModelMessage } from '../model/contract.js';
 import { assertMemoryTarget, resolveThreadId } from '../memory/identity.js';
 import type { Memory } from '../memory/index.js';
 import type { Tracer } from '../observability/index.js';
+import { normalizeTraceContinuation } from '../observability/span.js';
 import { materialize, teeOutputObject } from '../output-object.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 
@@ -249,15 +250,20 @@ export function createSignals(config: SignalsConfig): Signals {
     event: AgentStepBoundaryEvent,
   ): ModelMessage[] {
     const injected = state.pending.splice(0);
-    if (injected.length > 0 && tracer !== undefined && event.traceId !== '' && event.spanId !== '') {
+    if (injected.length === 0 || tracer === undefined) return injected;
+    // The boundary event's ids carry the `''` = "no trace" encoding — read through the
+    // convention's one home; only a pair surviving normalization whole has a live run span to
+    // hang the event span off.
+    const continuation = normalizeTraceContinuation(event.traceId, event.spanId);
+    if (continuation.traceId !== undefined && continuation.parentSpanId !== undefined) {
       tracer.startSpan({
         name: 'signal',
         // An open span-type literal, deliberately not one of the framework's seven constants
         // (the anchor: no new span-type constant — `SpanType` is an open string by design).
         type: 'signal',
         isEvent: true,
-        traceId: event.traceId,
-        parentSpanId: event.spanId,
+        traceId: continuation.traceId,
+        parentSpanId: continuation.parentSpanId,
         input: injected,
         attributes: { threadId: state.threadId, resource: target.resource },
       });

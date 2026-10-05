@@ -2,6 +2,7 @@ import { resolveDynamicArgument } from '../agent/dynamic.js';
 import type { RequestContext } from '../agent/types.js';
 import { WORKFLOW_RUN_SPAN, WORKFLOW_STEP_SPAN } from '../observability/index.js';
 import type { Span, Tracer } from '../observability/index.js';
+import { normalizeTraceContinuation } from '../observability/span.js';
 import type { StandardSchema } from '../standard-schema.js';
 import { abortableSleep, throwIfAborted } from './abort.js';
 import type {
@@ -254,22 +255,17 @@ function toWorkflowTracing(
 
 /**
  * Resolves the run span's trace continuation: a resume continues the trace its snapshot pinned (the
- * run's own trace, started before the suspension); a start continues what the caller passed to
- * `createRun`. Empty strings mean "no trace", the agent run options' convention: an empty `traceId`
- * voids the whole pair (a parent outside a trace means nothing), an empty `parentSpanId` only drops
- * the parent. A real parent id without a trace id is left for the tracer to reject loudly.
+ * run's own trace, started before the suspension — the snapshot's write side already dropped the
+ * empty-string "no trace" encoding, so a resumed id never needs normalizing); a start continues
+ * what the caller passed to `createRun`, normalized by the convention's one home
+ * (`normalizeTraceContinuation` in observability, next to the `NoOpSpan` encoding).
  */
 function toTraceContinuation(options: WalkOptions): WalkTraceContinuation {
   const resuming = options.resume?.traceId;
   if (resuming !== undefined) return { traceId: resuming };
   const trace = options.trace;
-  if (trace === undefined || trace.traceId === '') return {};
-  return {
-    ...(trace.traceId === undefined ? {} : { traceId: trace.traceId }),
-    ...(trace.parentSpanId === undefined || trace.parentSpanId === ''
-      ? {}
-      : { parentSpanId: trace.parentSpanId }),
-  };
+  if (trace === undefined) return {};
+  return normalizeTraceContinuation(trace.traceId, trace.parentSpanId);
 }
 
 /** The run-end event of a terminal outcome — the stream's last event. */

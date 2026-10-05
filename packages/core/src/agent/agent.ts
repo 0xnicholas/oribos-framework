@@ -7,6 +7,8 @@ import { loadRunWorkingMemory } from '../memory/working-memory.js';
 import type { RunWorkingMemory } from '../memory/working-memory.js';
 import { AGENT_RUN_SPAN, MEMORY_RECALL_SPAN } from '../observability/index.js';
 import type { Tracer } from '../observability/index.js';
+import { normalizeTraceContinuation } from '../observability/span.js';
+import { withSpan } from '../observability/tracer.js';
 import { materialize } from '../output-object.js';
 import { NEVER_ABORTED } from '../run-context.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
@@ -338,14 +340,9 @@ function toMaxSteps(maxSteps: number | undefined): number {
  *
  * The trace continuation and hiding options (`AgentRunOptions.traceId` / `parentSpanId` /
  * `hideInput` / `hideOutput`) are consumed here, at root creation: only the tracer and the root span
- * travel on to the loop.
- *
- * Empty-string continuation ids mean "no trace", not a parent with an empty id: the tool context
- * encodes an untraced call as `traceId: ''` / `spanId: ''` (`NoOpSpan` / no tracer), and an as-tool
- * delegation passes them through verbatim — such a run starts its own trace instead of hanging off
- * a nonexistent parent (multi-agent composition). An empty trace id voids the
- * whole pair (a parent outside a trace means nothing); an empty parent id only drops the parent.
- * A real parent id without any trace id is still left for the tracer to reject loudly.
+ * travel on to the loop. The continuation pair is normalized by the convention's one home
+ * (`normalizeTraceContinuation`): an as-tool delegation passes the tool context's ids through
+ * verbatim, and their empty-string "no trace" encoding must not become a broken span.
  */
 function toTracing(
   tracer: Tracer | undefined,
@@ -354,17 +351,13 @@ function toTracing(
   runId: string,
 ): AgentTracing | undefined {
   if (tracer === undefined) return undefined;
-  const traceId = options.traceId === '' ? undefined : options.traceId;
-  const parentSpanId =
-    options.traceId === '' || options.parentSpanId === '' ? undefined : options.parentSpanId;
   return {
     tracer,
     runSpan: tracer.startSpan({
       name: agentName,
       type: AGENT_RUN_SPAN,
       attributes: { agentName, runId },
-      ...(traceId === undefined ? {} : { traceId }),
-      ...(parentSpanId === undefined ? {} : { parentSpanId }),
+      ...normalizeTraceContinuation(options.traceId, options.parentSpanId),
       ...(options.hideInput === undefined ? {} : { hideInput: options.hideInput }),
       ...(options.hideOutput === undefined ? {} : { hideOutput: options.hideOutput }),
     }),
@@ -468,30 +461,24 @@ function toRunMemory(
  * (automatic instrumentation): once per run, before the input processors. The
  * span hangs under the run's root span — the explicit parent passed down the execution tree, no
  * AsyncLocalStorage — carrying the query as input and the recalled messages as output (storage
- * envelope included). A failed recall records the error on the span and propagates, so the run
- * fails with it; without tracing the recall runs directly and no span object is created.
+ * envelope included). The wrap-one-await lifecycle (absent short-circuit, output update, error +
+ * rethrow, end on every path) is `withSpan`'s skeleton: a failed recall records the error on the
+ * span and propagates, so the run fails with it; without tracing the recall runs directly and no
+ * span object is created.
  */
 async function recallWithSpan(
   runMemory: AgentRunMemory,
   tracing: AgentTracing | undefined,
 ): Promise<StoredMessage[]> {
-  const recall = () => runMemory.memory.recall({ threadId: runMemory.threadId });
-  if (tracing === undefined) return recall();
-  const span = tracing.tracer.startSpan({
-    name: runMemory.threadId,
-    type: MEMORY_RECALL_SPAN,
-    parent: tracing.runSpan,
-    input: { threadId: runMemory.threadId },
-    attributes: { threadId: runMemory.threadId },
-  });
-  try {
-    const messages = await recall();
-    span.update({ output: messages });
-    return messages;
-  } catch (error) {
-    span.error(error);
-    throw error;
-  } finally {
-    span.end();
-  }
+  return withSpan(
+    tracing?.tracer,
+    {
+      name: runMemory.threadId,
+      type: MEMORY_RECALL_SPAN,
+      ...(tracing === undefined ? {} : { parent: tracing.runSpan }),
+      input: { threadId: runMemory.threadId },
+      attributes: { threadId: runMemory.threadId },
+    },
+    () => runMemory.memory.recall({ threadId: runMemory.threadId }),
+  );
 }

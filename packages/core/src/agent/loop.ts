@@ -15,6 +15,7 @@ import type { ModelFallbackFailure } from '../model/fallback.js';
 import { normalizeStream } from '../model/normalize.js';
 import { AGENT_STEP_SPAN, MEMORY_SAVE_SPAN, TOOL_CALL_SPAN } from '../observability/index.js';
 import type { Span, Tracer } from '../observability/index.js';
+import { withSpan } from '../observability/tracer.js';
 import { formatIssues, messageOf, validateSchema } from '../standard-schema-runtime.js';
 import type { Memory, MemoryThreadRef } from '../memory/index.js';
 import type { Tool, ToolContext } from '../tools/index.js';
@@ -539,8 +540,9 @@ export async function* runAgentLoop(
  * step's `memory-save` span (automatic instrumentation): the span hangs under
  * the span of the step that produced the messages — the explicit parent passed down, no
  * AsyncLocalStorage — carrying the batch as input and the messages as persisted (envelope
- * included) as output. A failed save records the error on the span and propagates, so the run
- * fails with it; without a tracer the save runs directly and no span object is created.
+ * included) as output. The wrap-one-await lifecycle is `withSpan`'s skeleton: a failed save
+ * records the error on the span and propagates, so the run fails with it; without a tracer the
+ * save runs directly and no span object is created.
  */
 async function saveStepMessages(
   loopMemory: AgentRunMemory,
@@ -548,31 +550,22 @@ async function saveStepMessages(
   stepSpan: Span | undefined,
   tracing: AgentTracing | undefined,
 ): Promise<void> {
-  const save = () =>
-    loopMemory.memory.save({
-      thread: loopMemory.thread,
-      resource: loopMemory.resource,
-      messages,
-    });
-  if (tracing === undefined) {
-    await save();
-    return;
-  }
-  const span = tracing.tracer.startSpan({
-    name: loopMemory.threadId,
-    type: MEMORY_SAVE_SPAN,
-    ...(stepSpan === undefined ? {} : { parent: stepSpan }),
-    input: messages,
-    attributes: { threadId: loopMemory.threadId, resourceId: loopMemory.resource },
-  });
-  try {
-    span.update({ output: await save() });
-  } catch (error) {
-    span.error(error);
-    throw error;
-  } finally {
-    span.end();
-  }
+  await withSpan(
+    tracing?.tracer,
+    {
+      name: loopMemory.threadId,
+      type: MEMORY_SAVE_SPAN,
+      ...(stepSpan === undefined ? {} : { parent: stepSpan }),
+      input: messages,
+      attributes: { threadId: loopMemory.threadId, resourceId: loopMemory.resource },
+    },
+    () =>
+      loopMemory.memory.save({
+        thread: loopMemory.thread,
+        resource: loopMemory.resource,
+        messages,
+      }),
+  );
 }
 
 /**
