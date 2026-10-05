@@ -1,6 +1,6 @@
 {
   "name": "@oribos/sqlite",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Oribos SQLite storage adapter — the four storage ports over one embedded file (node:sqlite, zero dependencies).",
   "license": "Apache-2.0",
   "type": "module",

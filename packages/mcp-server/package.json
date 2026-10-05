@@ -1,6 +1,6 @@
 {
   "name": "@oribos/mcp-server",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Oribos MCP server — expose the Tool container over MCP (HTTP fetch handler + stdio).",
   "license": "Apache-2.0",
   "type": "module",

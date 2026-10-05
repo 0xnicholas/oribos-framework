@@ -1,6 +1,6 @@
 {
   "name": "@oribos/mcp-client",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Oribos MCP client — bridge remote MCP tools into the Tool container (Streamable HTTP + stdio).",
   "license": "Apache-2.0",
   "type": "module",
