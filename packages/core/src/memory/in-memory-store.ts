@@ -61,7 +61,7 @@ export function createInMemoryStore(): WorkingMemoryStore {
 
     deleteThread: async (id) => {
       threads.delete(id);
-      // 级联删该 thread 的消息;resource 级数据(工作记忆)不动
+      // Cascade-delete the thread's messages; resource-level data (working memory) is untouched.
       for (const [messageId, message] of messages) {
         if (message.threadId === id) messages.delete(messageId);
       }
@@ -101,7 +101,7 @@ export function createInMemoryStore(): WorkingMemoryStore {
         pool = pool.filter((message) => compareMessagesDesc(message, cursor) > 0);
       }
       pool.sort(compareMessagesDesc);
-      // limit 锚定最新端:先在倒序池里切页,asc 只翻转呈现顺序
+      // limit anchors the newest end: page the descending pool first; asc only flips presentation order.
       const page = query.limit === undefined ? pool : pool.slice(0, query.limit);
       if (query.order === 'asc') page.reverse();
       return page.map(copy);

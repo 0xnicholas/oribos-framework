@@ -65,7 +65,7 @@ storage.memory              // MemoryStore(条件对已实现 → supportsWorkin
 storage.workflowSnapshots   // WorkflowSnapshotStore + compareAndSave / deleteSnapshot / listSnapshots
 storage.agentRunSnapshots   // AgentRunSnapshotStore + deleteSnapshot / listSuspended
 storage.schedules           // ScheduleStore
-await storage.init()        // 幂等:打开 + pragma + 迁移
+storage.init()               // 同步 void;幂等:打开 + pragma + 迁移
 storage.close()             // 幂等;close 后再用任何 port 方法抛错
 ```
 

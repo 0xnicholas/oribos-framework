@@ -40,7 +40,9 @@ interface AgentRunSnapshotStore {
 ## Signals(基础层)
 
 ```ts
-const signals = createSignals({ agent, memory? })
+const signals = createSignals({ agent, memory?, tracer? })  // tracer = 注入事件落 isEvent span 的缝(组合根分发,见「Observability 锚点」)
+signals.stream(input, options?)                     // agent run 入口:per-call memory 身份注册 thread(调用即注册,run 仍懒启动);无身份直通不注册;同 thread 活跃 run 唯一
+signals.generate(input, options?)                   // stream + await 终值,同 agent.generate
 signals.sendMessage({ thread, resource }, input)    // 活跃=注入当前 run;空闲=唤醒新 run
 signals.queueMessage({ thread, resource }, input)   // 等当前 run 完再开(保序)
 signals.sendSignal({ thread, resource }, { type, ... })  // 系统信号注入,type 开放
@@ -64,6 +66,8 @@ schedules.save({
 await schedules.tick({ now? })                      // listDue → 逐个触发并推进 nextFireAt
 schedules.startTicker({ intervalMs })               // 可选进程内便利件,单进程语义
 ```
+
+- **save 校验**:`save` 以当前时刻调一次 `next(from)` 重锚 `nextFireAt`;返回 Invalid Date 显式报错(`null` = 不再触发)。
 
 - **target 两形态**:threadless = `agent.generate(input)`;threaded = `sendSignal` 注入(复用基础 signals,要求 thread + resource)。
 - **平台 cron 一等形态**:Cloudflare Cron Triggers / Vercel Cron 打暴露 `tick` 的 HTTP endpoint;mastra 式轮询调度器 + 存储 CAS 认领**不做**(多实例安全交平台 cron 的恰好一次语义或部署方)。
