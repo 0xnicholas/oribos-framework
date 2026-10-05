@@ -154,7 +154,7 @@ const workflow = createWorkflow({ id: 'expense-approval', inputSchema, outputSch
 const run = workflow.createRun({ runId: 'run-1' });
 const out = run.start({ inputData: report });
 for await (const event of out) { /* run-start / step-start / step-end / run-end */ }
-const settled = await out.result; // { status: 'success' | 'failed' | 'suspended', … }
+const settled = await out.result; // { status: 'success' | 'suspended', … }
 
 // Later — even in another process, with a persistent snapshot store:
 const outcome = await workflow
@@ -302,7 +302,8 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 
 ```bash
 pnpm install
-pnpm verify    # typecheck + build + tests + dist / runtime-deps checks
+pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surface checks
+               # (not the byte / dependency budgets — those are CI gates, see below)
 ```
 
 The offline examples are gated too — the same gate CI runs, one step after `verify`:
