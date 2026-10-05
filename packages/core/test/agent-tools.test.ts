@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { Agent } from '@oribos/core/agent';
 import { createTool } from '@oribos/core/tools';
-import { fakeModel } from './helpers/fake-model.js';
+import { fakeModel } from '@oribos/testing';
 
 /**
  * 工具容器 → 发给模型的工具列表(M1-06 #27,tools.md):容器键即工具名;每个工具的

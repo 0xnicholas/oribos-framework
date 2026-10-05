@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModelContractError } from '@oribos/core/model';
 import type { Chunk } from '@oribos/core/model';
+import { fakeModel } from '@oribos/testing';
+import type { FakeResponse } from '@oribos/testing';
 import { assistant } from './helpers/agent.js';
-import { fakeModel } from './helpers/fake-model.js';
-import type { FakeResponse } from './helpers/fake-model.js';
 import { collect } from './helpers/collect.js';
 import { describeOutputObjectContract } from './helpers/output-object-contract.js';
 import { UNKNOWN_USAGE } from './helpers/usage.js';
@@ -12,7 +12,7 @@ import { UNKNOWN_USAGE } from './helpers/usage.js';
  * stream() 输出对象双消费(M1-05 #26):同一个对象既可 `for await` 消费核心自有 chunk 协议流,
  * 又可 await 其终值 getter(text / toolCalls / toolResults / usage / steps / finishReason);
  * `generate()` = `stream()` + await 终值,单一代码路径、行为一致(agent.md「执行语义」)。断言只走
- * 公开面(@oribos/core/agent)与脚本化假模型接缝(@see helpers/fake-model.ts),不触内部实现。
+ * 公开面(@oribos/core/agent)与脚本化假模型接缝(@see @oribos/testing),不触内部实现。
  *
  * 共享泵的行为矩阵(懒启动 / 缓冲 / 错误序 / abandon / 提前 settle / 迭代器同一性)由
  * helpers/output-object-contract.ts 钉住,本文件以拉源(generator)一侧喂它;推源

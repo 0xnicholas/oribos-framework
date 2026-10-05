@@ -38,7 +38,8 @@
     "access": "public"
   },
   "devDependencies": {
-    "@oribos/core": "workspace:*"
+    "@oribos/core": "workspace:*",
+    "@oribos/testing": "workspace:*"
   },
   "dependencies": {
     "croner": "10.0.1"

@@ -17,10 +17,10 @@ import {
   memoryExporter,
 } from '@oribos/core/observability';
 import type { StandardSchema } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { captureRejection, expectAssignable } from './helpers/assertions.js';
 import { INSTRUCTIONS } from './helpers/agent.js';
 import { collect } from './helpers/collect.js';
-import { fakeModel } from './helpers/fake-model.js';
 import { spanOfType } from './helpers/spans.js';
 import { UNKNOWN_USAGE } from './helpers/usage.js';
 
@@ -29,7 +29,7 @@ import { UNKNOWN_USAGE } from './helpers/usage.js';
  * 走 Standard Schema 契约(ADR-0003)——schema 经 `~standard.jsonSchema` 出 JSON Schema 随
  * `responseFormat` 下发给模型;run 终值文本按 JSON 解析并 strict 校验,合规结果落输出对象的
  * `object`,不合规即显式报错(无 errorStrategy 多选一)。断言只走公开面(@oribos/core/agent)与
- * 脚本化假模型接缝(@see helpers/fake-model.ts):假模型录制的 call options 就是"模型收到的
+ * 脚本化假模型接缝(@see @oribos/testing):假模型录制的 call options 就是"模型收到的
  * responseFormat"。类型级断言(object 类型从 schema 推出)也在本文件。
  */
 

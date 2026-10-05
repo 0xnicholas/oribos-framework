@@ -1,0 +1,20 @@
+{
+  "name": "@oribos/testing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oribos testing — the canonical scripted fake model shared by workspace test suites; private, never published, consumed from src.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  }
+}

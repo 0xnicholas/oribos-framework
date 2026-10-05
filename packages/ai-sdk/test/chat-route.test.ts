@@ -5,8 +5,8 @@ import { createTool } from '@oribos/core/tools';
 import { createDurableAgent } from '@oribos/core/durable-agent';
 import type { ModelPrompt } from '@oribos/core/model';
 import { createChatRoute } from '@oribos/ai-sdk';
-import { scriptedModel } from './helpers/model.js';
-import type { ScriptedStep } from './helpers/model.js';
+import { fakeModel } from '@oribos/testing';
+import type { FakeResponse } from '@oribos/testing';
 
 /** A POST the way `useChat`'s DefaultChatTransport sends it. */
 function chatRequest(body: unknown, init: RequestInit = {}): Request {
@@ -38,11 +38,11 @@ function sseFrames(body: string): unknown[] {
     .map((data) => JSON.parse(data));
 }
 
-function agent(script: readonly ScriptedStep[], tools?: Record<string, ReturnType<typeof createTool>>) {
+function agent(script: readonly FakeResponse[], tools?: Record<string, ReturnType<typeof createTool>>) {
   return new Agent({
     name: 'desk',
     instructions: 'You are concise.',
-    model: scriptedModel(script),
+    model: fakeModel(script),
     memory: new Memory(),
     ...(tools === undefined ? {} : { tools }),
   });
@@ -95,7 +95,7 @@ describe('createChatRoute', () => {
   });
 
   it('streams a run: official headers, start without messageId, body frames, finish with usage, [DONE]', async () => {
-    const model = scriptedModel([
+    const model = fakeModel([
       { text: ['Hel', 'lo!'], usage: { inputTokens: 3, outputTokens: 5 } },
     ]);
     const route = createChatRoute({
@@ -134,11 +134,11 @@ describe('createChatRoute', () => {
       },
     ]);
     // The run ran memory-authoritatively against the thread named by the body id.
-    expect(model.calls.length).toBe(1);
+    expect(model.streamCalls.length).toBe(1);
   });
 
   it('feeds the model the tail user message only — client-sent history is never replayed', async () => {
-    const model = scriptedModel([{ text: 'ok' }]);
+    const model = fakeModel([{ text: 'ok' }]);
     const route = createChatRoute({
       agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory: new Memory() }),
       identity: IDENTITY,
@@ -154,7 +154,7 @@ describe('createChatRoute', () => {
       }),
     );
     expect(response.status).toBe(200);
-    const prompt = model.calls[0]!.prompt as ModelPrompt;
+    const prompt = model.streamCalls[0]!.prompt as ModelPrompt;
     const userTurns = prompt.filter((message) => message.role === 'user');
     expect(userTurns.length).toBe(1);
     expect(JSON.stringify(userTurns)).not.toContain('older client-side message');
@@ -162,7 +162,7 @@ describe('createChatRoute', () => {
   });
 
   it('decodes data-URL file parts of the tail user message into model file parts', async () => {
-    const model = scriptedModel([{ text: 'seen' }]);
+    const model = fakeModel([{ text: 'seen' }]);
     const route = createChatRoute({
       agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory: new Memory() }),
       identity: IDENTITY,
@@ -183,7 +183,7 @@ describe('createChatRoute', () => {
       }),
     );
     expect(response.status).toBe(200);
-    const prompt = model.calls[0]!.prompt as ModelPrompt;
+    const prompt = model.streamCalls[0]!.prompt as ModelPrompt;
     const content = prompt.find((message) => message.role === 'user')!.content as unknown as Array<{
       type: string;
       data?: { type: string; data?: Uint8Array };
@@ -264,7 +264,7 @@ describe('createChatRoute', () => {
   });
 
   it('resolves the thread from identity when provided, ignoring the body id', async () => {
-    const model = scriptedModel([{ text: 'ok' }]);
+    const model = fakeModel([{ text: 'ok' }]);
     const memory = new Memory();
     const route = createChatRoute({
       agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory }),
@@ -307,7 +307,7 @@ describe('createChatRoute', () => {
   it('propagates the request signal to the run', async () => {
     const controller = new AbortController();
     controller.abort(new Error('client went away'));
-    const model = scriptedModel([{ text: 'never' }]);
+    const model = fakeModel([{ text: 'never' }]);
     const route = createChatRoute({
       agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory: new Memory() }),
       identity: IDENTITY,

@@ -4,8 +4,8 @@ import type { RequestContext } from '@oribos/core/agent';
 import { ModelContractError } from '@oribos/core/model';
 import { createTool } from '@oribos/core/tools';
 import type { Tool, ToolContext } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { assistant, assistantWithTools } from './helpers/agent.js';
-import { fakeModel } from './helpers/fake-model.js';
 import { collect } from './helpers/collect.js';
 
 /**
@@ -15,7 +15,7 @@ import { collect } from './helpers/collect.js';
  * 抛错 / output 校验失败三线(另加未知工具)统一转为 error 工具结果回喂,run 不中止;工具 execute
  * 拿到六件套(未挂 tracer 时 traceId / spanId 为空串;挂上后为真值,断言见
  * `agent-observability.test.ts`)。断言只走公开面(@oribos/core 子路径导出)与
- * 脚本化假模型接缝(@see helpers/fake-model.ts):假模型录制的 prompt 就是"模型看到的历史"。
+ * 脚本化假模型接缝(@see @oribos/testing):假模型录制的 prompt 就是"模型看到的历史"。
  */
 
 /** 参考工具:zod 双接口 schema,输入 city 输出 celsius。 */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizePart, normalizeStream } from '@oribos/core/model';
 import type { Chunk, ModelFinishReason, ModelStreamPart, ModelUsage } from '@oribos/core/model';
-import { fakeModel } from './helpers/fake-model.js';
+import { fakeModel } from '@oribos/testing';
 import { collect } from './helpers/collect.js';
 
 /**

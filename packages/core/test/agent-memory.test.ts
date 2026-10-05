@@ -4,8 +4,8 @@ import type { AgentMemoryOptions, ProcessInputArgs, RequestContext } from '@orib
 import { Memory, createInMemoryStore } from '@oribos/core/memory';
 import type { MemoryStore, SaveMessage } from '@oribos/core/memory';
 import { createTool } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { captureRejection } from './helpers/assertions.js';
-import { fakeModel } from './helpers/fake-model.js';
 
 /**
  * Agent 的 memory 集成(#40,docs/architecture/memory.md 身份模型节 + 消息历史时机/顺序语义 +

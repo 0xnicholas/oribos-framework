@@ -5,8 +5,8 @@ import { Memory } from '@oribos/core/memory';
 import { AGENT_RUN_SPAN, createTracer, memoryExporter } from '@oribos/core/observability';
 import { createSignals } from '@oribos/core/signals';
 import { createTool } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { INSTRUCTIONS } from './helpers/agent.js';
-import { fakeModel } from './helpers/fake-model.js';
 import { eventsOfType, kinds, spanOfType } from './helpers/spans.js';
 
 /**

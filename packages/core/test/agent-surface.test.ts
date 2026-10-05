@@ -13,8 +13,8 @@ import { Memory } from '@oribos/core/memory';
 import { ModelContractError, ModelSpecificationVersionError } from '@oribos/core/model';
 import type { Model } from '@oribos/core/model';
 import { createTracer } from '@oribos/core/observability';
+import { fakeModel } from '@oribos/testing';
 import { captureError, expectAssignable } from './helpers/assertions.js';
-import { fakeModel } from './helpers/fake-model.js';
 
 /**
  * Agent 五字段配置表面与解析期模型断言(M1-04 #25 / M1-10 #31,ADR-0004/0005):

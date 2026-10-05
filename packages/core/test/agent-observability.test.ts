@@ -13,7 +13,7 @@ import {
 } from '@oribos/core/observability';
 import { createTool } from '@oribos/core/tools';
 import type { ToolContext } from '@oribos/core/tools';
-import { fakeModel } from './helpers/fake-model.js';
+import { fakeModel } from '@oribos/testing';
 import { SPAN_ID, TRACE_ID, eventsOfType, kinds, spanOfType, withSpanIdProbe } from './helpers/spans.js';
 
 /**

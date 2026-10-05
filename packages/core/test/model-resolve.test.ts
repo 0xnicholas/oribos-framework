@@ -5,8 +5,8 @@ import {
   ModelSpecificationVersionError,
   assertModel,
 } from '@oribos/core/model';
+import { fakeModel } from '@oribos/testing';
 import { captureError } from './helpers/assertions.js';
-import { fakeModel } from './helpers/fake-model.js';
 
 /**
  * 模型解析期的 specificationVersion 硬断言(ADR-0004):不匹配必须显式报错,并指点

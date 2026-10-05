@@ -16,7 +16,7 @@ import {
   memoryExporter,
 } from '@oribos/core/observability';
 import { createTool } from '@oribos/core/tools';
-import { fakeModel } from './helpers/fake-model.js';
+import { fakeModel } from '@oribos/testing';
 import { collect } from './helpers/collect.js';
 import { spanOfType } from './helpers/spans.js';
 
@@ -32,7 +32,7 @@ import { spanOfType } from './helpers/spans.js';
  * - `processError`:provider / 工具错误时,返回 `{ error }` 替换错误;provider 错误替换 run 终错,工具
  *   错误替换进入 error 工具结果的错误;不做 abort/retry,取消(abort)不触发。
  *
- * 断言只走公开面(@oribos/core/agent)与脚本化假模型接缝(@see helpers/fake-model.ts):假模型录制的
+ * 断言只走公开面(@oribos/core/agent)与脚本化假模型接缝(@see @oribos/testing):假模型录制的
  * prompt 就是"模型看到的历史",是改写能力的最终证据。
  */
 

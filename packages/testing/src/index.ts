@@ -11,7 +11,9 @@ import type {
 import type { JsonValue, Model, ModelCallOptions } from '@oribos/core/model';
 
 /**
- * 脚本化假模型 —— M1 测试的规范接缝(替代一切真实 LLM,见 issue #21 测试决策)。
+ * 脚本化假模型 —— 框架测试的规范模型接缝(替代一切真实 LLM,见 issue #21 测试决策)。
+ * 正本居本包(#120):core / ai-sdk / croner 的测试共用此一份,usage 记录形状与
+ * finishReason 编码全仓唯一;离线 example 的教学桩自留(桩本身是教材),不消费本包。
  *
  * 实现真实 `@ai-sdk/provider` 的 LanguageModelV4 接口(编译期由该类型保证 spec 保真),
  * 同时结构上满足框架的 vendor 契约 `Model`:按脚本逐次回答,并记录每次调用的
@@ -53,7 +55,7 @@ export interface FakeResponse {
   toolResults?: readonly FakeToolResult[];
   /** unified finish reason;缺省为有工具调用时的 `'tool-calls'`,否则 `'stop'`。 */
   finishReason?: LanguageModelV4FinishReason['unified'];
-  /** finish part 上报告的 token 数。 */
+  /** finish part 上报告的 token 数(唯一的 usage 记录形状)。 */
   usage?: { inputTokens?: number; outputTokens?: number };
   /** 以该值直接拒绝调用(尚无任何输出),用于 fallback 等场景。 */
   fail?: unknown;
@@ -61,6 +63,8 @@ export interface FakeResponse {
   errorAfter?: unknown;
   /** 省略 finish part:模拟违背流契约的 provider(无 finish 也无 error)。 */
   omitFinish?: boolean;
+  /** 回答的节拍:流式调用在首 part 前与每个 part 之后各等待这么久(keep-alive 等节奏测试)。 */
+  delayMs?: number;
 }
 
 /** 假模型:除模型契约外,暴露录制的调用参数供断言。 */
@@ -77,6 +81,8 @@ export interface FakeModelOptions {
   /** model id,缺省 `'fake-model'`。 */
   modelId?: string;
 }
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * 按脚本回答的假模型。脚本逐次消费,耗尽后再被调用会显式报错(暴露漏写脚本的测试)。
@@ -120,6 +126,7 @@ export function fakeModel(
     generateCalls.push(call);
     const response = takeResponse('doGenerate');
     if (response.fail !== undefined) throw response.fail;
+    if (response.delayMs !== undefined && response.delayMs > 0) await sleep(response.delayMs);
     return toGenerateResult(response, resolveToolCall);
   };
 
@@ -269,9 +276,15 @@ function toStream(
     });
   }
 
+  // delayMs 节拍:首 part 前等待一次,之后每个 part 之间各等一次(keep-alive 测试的慢流)。
+  const delayMs = response.delayMs ?? 0;
   return new ReadableStream<LanguageModelV4StreamPart>({
-    start(controller) {
-      for (const part of parts) controller.enqueue(part);
+    async start(controller) {
+      if (delayMs > 0) await sleep(delayMs);
+      for (const part of parts) {
+        controller.enqueue(part);
+        if (delayMs > 0) await sleep(delayMs);
+      }
       controller.close();
     },
   });

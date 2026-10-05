@@ -8,51 +8,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { Agent } from '@oribos/core/agent';
-import type { Model, ModelCallOptions, ModelStreamPart } from '@oribos/core/model';
+import type { ModelCallOptions } from '@oribos/core/model';
 import { createInMemoryScheduleStore, createSchedules } from '@oribos/core/schedules';
 import { cron } from '@oribos/croner';
+import { fakeModel } from '@oribos/testing';
+import type { FakeModel } from '@oribos/testing';
 
 const REPORT = 'Daily report: 3 orders open.';
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** A minimal scripted model (the vendor contract): one fixed report per call, no network. */
-function scriptedReporter(): Model & { readonly calls: ModelCallOptions[] } {
-  const calls: ModelCallOptions[] = [];
-  return {
-    specificationVersion: 'v4',
-    provider: 'example',
-    modelId: 'scripted-mini',
-    calls,
-    doGenerate: async () => {
-      throw new Error('this test only streams');
-    },
-    doStream: async (options) => {
-      calls.push(options);
-      const parts: ModelStreamPart[] = [
-        { type: 'stream-start', warnings: [] },
-        { type: 'text-start', id: 'text-0' },
-        { type: 'text-delta', id: 'text-0', delta: REPORT },
-        { type: 'text-end', id: 'text-0' },
-        {
-          type: 'finish',
-          finishReason: { unified: 'stop', raw: 'stop' },
-          usage: {
-            inputTokens: { total: 8, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
-            outputTokens: { total: 6, text: undefined, reasoning: undefined },
-          },
-        },
-      ];
-      return {
-        stream: new ReadableStream<ModelStreamPart>({
-          start(controller) {
-            for (const part of parts) controller.enqueue(part);
-            controller.close();
-          },
-        }),
-      };
-    },
-  };
-}
 
 /** The user text a captured model call was handed. */
 function userText(call: ModelCallOptions): string {
@@ -63,9 +26,12 @@ function userText(call: ModelCallOptions): string {
     .join('');
 }
 
-/** A real reporting agent over the scripted model — the target `tick` fires. */
-function reporter(): { agent: Agent; model: Model & { readonly calls: ModelCallOptions[] } } {
-  const model = scriptedReporter();
+/** A real reporting agent over the canonical scripted model (`@oribos/testing`) — the target `tick` fires. */
+function reporter(): { agent: Agent; model: FakeModel } {
+  const model = fakeModel([{ text: REPORT, usage: { inputTokens: 8, outputTokens: 6 } }], {
+    provider: 'example',
+    modelId: 'scripted-mini',
+  });
   return {
     agent: new Agent({ name: 'reporter', instructions: 'Report.', model }),
     model,
@@ -107,14 +73,14 @@ describe('save → tick, with the occurrence function built by croner', () => {
 
     // One millisecond early: nothing fires, nothing advances.
     await schedules.tick({ now: new Date(saved.nextFireAt! - 1) });
-    expect(model.calls).toEqual([]);
+    expect(model.streamCalls).toEqual([]);
     expect((await storage.get('daily-report'))!.nextFireAt).toBe(saved.nextFireAt);
 
     // At the due instant the target runs the agent — its own `generate(input)`, model call included
     // — and the occurrence re-anchors to the next 09:00: +24h, since Shanghai stays on UTC+8.
     await schedules.tick({ now: new Date(saved.nextFireAt!) });
-    expect(model.calls).toHaveLength(1);
-    expect(userText(model.calls[0]!)).toContain('write the daily report');
+    expect(model.streamCalls).toHaveLength(1);
+    expect(userText(model.streamCalls[0]!)).toContain('write the daily report');
     expect((await storage.get('daily-report'))!.nextFireAt).toBe(saved.nextFireAt! + DAY_MS);
   });
 
@@ -132,6 +98,6 @@ describe('save → tick, with the occurrence function built by croner', () => {
     expect(saved.nextFireAt).toBeNull();
 
     await schedules.tick({ now: new Date('2030-01-01T00:00:00Z') });
-    expect(model.calls).toEqual([]);
+    expect(model.streamCalls).toEqual([]);
   });
 });

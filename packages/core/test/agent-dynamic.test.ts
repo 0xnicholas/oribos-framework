@@ -5,14 +5,14 @@ import type { RequestContext } from '@oribos/core/agent';
 import { ModelSpecificationVersionError } from '@oribos/core/model';
 import type { Model } from '@oribos/core/model';
 import { createTool } from '@oribos/core/tools';
-import { fakeModel } from './helpers/fake-model.js';
+import { fakeModel } from '@oribos/testing';
 
 /**
  * 动态参数与 RequestContext(M1-10 #31,ADR-0005):instructions / model / tools / description 四个
  * 配置字段接受静态值或 `(ctx) => T | Promise<T>` 函数,每次执行按请求上下文逐次解析;RequestContext
  * 是纯对象——框架写入 `signal` / `runId`,其余是用户 per-call 传入的开放属性袋,在动态参数解析与工具
  * ctx 中都是同一份。断言只走公开面(@oribos/core/agent 子路径)与脚本化假模型接缝
- * (@see helpers/fake-model.ts)。
+ * (@see @oribos/testing)。
  */
 describe('动态参数:逐次解析', () => {
   it('instructions 函数形状每次 run 解析一次:两次调用按各自上下文拿到不同指令', async () => {

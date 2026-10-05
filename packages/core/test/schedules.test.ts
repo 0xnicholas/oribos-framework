@@ -9,8 +9,8 @@ import {
 } from '@oribos/core/schedules';
 import { createSignals } from '@oribos/core/signals';
 import { createTool } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { assistant, INSTRUCTIONS } from './helpers/agent.js';
-import { fakeModel } from './helpers/fake-model.js';
 
 afterEach(() => {
   vi.useRealTimers();

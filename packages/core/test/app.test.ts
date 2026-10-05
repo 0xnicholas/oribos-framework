@@ -27,9 +27,9 @@ import type {
   WorkflowRunSnapshot,
   WorkflowSnapshotStore,
 } from '@oribos/core/workflows';
+import { fakeModel } from '@oribos/testing';
 import { expectAssignable, expectSuspended } from './helpers/assertions.js';
 import { INSTRUCTIONS } from './helpers/agent.js';
-import { fakeModel } from './helpers/fake-model.js';
 import { spanOfType, withSpanIdProbe } from './helpers/spans.js';
 
 /**

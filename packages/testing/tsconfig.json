@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@oribos/core": ["../../packages/core/src/index.ts"],
+      "@oribos/core/*": ["../../packages/core/src/*/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

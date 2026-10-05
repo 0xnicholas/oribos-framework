@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@oribos/core": "workspace:*",
+    "@oribos/testing": "workspace:*",
     "ai": "7.0.123"
   }
 }

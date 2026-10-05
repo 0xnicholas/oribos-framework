@@ -12,8 +12,8 @@ import {
 import type { ExportedSpan } from '@oribos/core/observability';
 import { createTool } from '@oribos/core/tools';
 import type { Tool } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { captureRejection } from './helpers/assertions.js';
-import { fakeModel } from './helpers/fake-model.js';
 import { SPAN_ID, TRACE_ID } from './helpers/spans.js';
 
 /**

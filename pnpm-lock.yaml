@@ -164,11 +164,18 @@ importers:
       '@oribos/core':
         specifier: workspace:*
         version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
       ai:
         specifier: 7.0.123
         version: 7.0.123(zod@4.6.5)
 
-  packages/core: {}
+  packages/core:
+    devDependencies:
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/croner:
     dependencies:
@@ -179,6 +186,9 @@ importers:
       '@oribos/core':
         specifier: workspace:*
         version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/mcp-client:
     dependencies:
@@ -230,6 +240,8 @@ importers:
       '@oribos/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/testing: {}
 
 packages:
 

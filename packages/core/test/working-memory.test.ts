@@ -6,9 +6,9 @@ import { Memory, createInMemoryStore } from '@oribos/core/memory';
 import type { MemoryStore, SaveMessage } from '@oribos/core/memory';
 import type { ModelMessage } from '@oribos/core/model';
 import { createTool } from '@oribos/core/tools';
+import { fakeModel } from '@oribos/testing';
 import { captureRejection } from './helpers/assertions.js';
 import { INSTRUCTIONS } from './helpers/agent.js';
-import { fakeModel } from './helpers/fake-model.js';
 
 /**
  * 工作记忆(#41,docs/architecture/memory.md 工作记忆节 + 配置表面节):resource 作用域、

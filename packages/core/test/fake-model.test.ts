@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { LanguageModelV4StreamPart, LanguageModelV4Usage } from '@ai-sdk/provider';
-import { fakeModel } from './helpers/fake-model.js';
+import { fakeModel } from '@oribos/testing';
 import { collect } from './helpers/collect.js';
 
 /**
- * 假模型底座自身的契约:`@ai-sdk/provider` 的真实类型保证其 spec 保真(见 helpers/fake-model.ts),
- * 本文件钉住它发出的流结构、脚本消费与录制行为——M1 后续测试全部站在这个接缝上。
+ * 规范假模型底座自身的契约钉点:`@ai-sdk/provider` 的真实类型保证其 spec 保真(见 @oribos/testing),
+ * 本文件钉住它发出的流结构、脚本消费与录制行为——全部消费方套件都站在这个接缝上(#120:底座
+ * 居 `@oribos/testing` 共享包、包内不放测试,本文件留在消费侧盯防这个 seam 的原始流形状)。
  */
 
 const noUsage: LanguageModelV4Usage = {

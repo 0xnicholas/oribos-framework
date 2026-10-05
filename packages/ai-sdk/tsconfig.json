@@ -4,7 +4,8 @@
     "paths": {
       "@oribos/core": ["../../packages/core/src/index.ts"],
       "@oribos/core/*": ["../../packages/core/src/*/index.ts"],
-      "@oribos/ai-sdk": ["./src/index.ts"]
+      "@oribos/ai-sdk": ["./src/index.ts"],
+      "@oribos/testing": ["../../packages/testing/src/index.ts"]
     }
   },
   "include": ["src", "test"]

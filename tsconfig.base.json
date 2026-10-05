@@ -27,7 +27,8 @@
       "@oribos/mcp-client": ["./packages/mcp-client/src/index.ts"],
       "@oribos/mcp-server": ["./packages/mcp-server/src/index.ts"],
       "@oribos/otlp": ["./packages/otlp/src/index.ts"],
-      "@oribos/sqlite": ["./packages/sqlite/src/index.ts"]
+      "@oribos/sqlite": ["./packages/sqlite/src/index.ts"],
+      "@oribos/testing": ["./packages/testing/src/index.ts"]
     },
     "noEmit": true
   }
