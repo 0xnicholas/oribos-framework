@@ -22,6 +22,7 @@ import { runProcessInput } from './processors.js';
 import type { Processor } from './processors.js';
 import { createAgentStream } from './stream.js';
 import { toStructuredResponseFormat } from './structured-output.js';
+import { AGENT_RUN_OPTION_KEYS } from './types.js';
 import type {
   AgentConfig,
   AgentGenerateResult,
@@ -291,33 +292,28 @@ function toCallOptions(
 /**
  * The request context of one run (the definition surface): the user's per-call
  * properties plus framework-written `signal` / `runId`, which are written last so a per-call
- * property cannot hijack them. The framework-owned run options (`maxSteps` / `modelSettings` /
- * `providerOptions` / `stepBoundary` / `resume`) are execution controls, not context, and are left
- * out of the bag. The run id is generated per run; without a per-call `signal` the context carries a
- * never-aborting one, so tools always receive an `AbortSignal`.
+ * property cannot hijack them. The framework-owned run options are execution controls, not
+ * context, and are left out of the bag — the exclusion list is derived from
+ * `AGENT_RUN_OPTION_KEYS`, whose single source
+ * of truth is the closed `AgentRunOptionFields` interface (an exhaustiveness assertion in
+ * `types.ts` keeps the two in lockstep at compile time). The run id is generated per run; without a
+ * per-call `signal` the context carries a never-aborting one, so tools always receive an
+ * `AbortSignal`.
  *
  * One object per run serves both readers: every dynamic argument resolves against it, and tools
  * receive it as `ctx.requestContext`.
  */
 function toRequestContext(options: AgentRunOptions): RequestContext {
-  const {
-    modelSettings: _modelSettings,
-    providerOptions: _providerOptions,
-    maxSteps: _maxSteps,
-    traceId: _traceId,
-    parentSpanId: _parentSpanId,
-    hideInput: _hideInput,
-    hideOutput: _hideOutput,
-    structuredOutput: _structuredOutput,
-    memory: _memory,
-    stepBoundary: _stepBoundary,
-    resume: _resume,
-    signal,
-    ...bag
-  } = options;
+  // A full shallow copy first (the rest-spread semantics the hand-written destructuring had:
+  // own enumerable symbol properties of the user's bag pass through too), then the framework keys
+  // are deleted out of it — the array, not a second hand-written list, drives the exclusion.
+  const bag: Record<string, unknown> = { ...options };
+  for (const key of AGENT_RUN_OPTION_KEYS) {
+    delete bag[key];
+  }
   return {
     ...bag,
-    signal: signal ?? NEVER_ABORTED,
+    signal: options.signal ?? NEVER_ABORTED,
     runId: crypto.randomUUID(),
   };
 }

@@ -121,11 +121,16 @@ export type DynamicArgument<T> = T | ((ctx: RequestContext) => T | Promise<T>);
 export type ModelInput = DynamicArgument<Model | readonly Model[]>;
 
 /**
- * Per-call execution options. The open bag below is the user's per-call request context
- * (`RequestContext`'s user properties): it is what dynamic arguments resolve against, and the very
- * same object is handed to tool contexts.
+ * The framework-owned run option fields — execution controls, never request context. They live
+ * behind this closed interface so `keyof` can enumerate them: carried directly on
+ * `AgentRunOptions`, the open index signature would make `keyof` collapse to `string` and the
+ * exhaustiveness assertion below unwritable. `toRequestContext` (`agent.ts`) derives its exclusion
+ * list from `AGENT_RUN_OPTION_KEYS`, which the assertion keeps in lockstep with this interface —
+ * a field added here without its key there fails the build, naming the key.
+ *
+ * @internal
  */
-export interface AgentRunOptions {
+export interface AgentRunOptionFields {
   /** Passthrough bag for the model call (temperature, maxOutputTokens, …). */
   readonly modelSettings?: ModelSettings;
   /** Provider-specific options, forwarded to the model call untouched. */
@@ -193,9 +198,64 @@ export interface AgentRunOptions {
    * therefore only records the continued step; nothing is recalled and no history is re-saved.
    */
   readonly resume?: AgentRunResume | undefined;
+}
+
+/**
+ * Per-call execution options. The open bag below is the user's per-call request context
+ * (`RequestContext`'s user properties): it is what dynamic arguments resolve against, and the very
+ * same object is handed to tool contexts.
+ */
+export type AgentRunOptions = AgentRunOptionFields & {
   /** User per-call request context properties. */
   readonly [key: string]: unknown;
-}
+};
+
+/**
+ * The runtime mirror of `AgentRunOptionFields`: `toRequestContext` derives its exclusion list from
+ * this array (the closed interface is the single source of truth, and the exhaustiveness assertion
+ * below fails the build when the two drift apart).
+ *
+ * Internal seam — not exported from any entry.
+ */
+export const AGENT_RUN_OPTION_KEYS = [
+  'modelSettings',
+  'providerOptions',
+  'signal',
+  'maxSteps',
+  'traceId',
+  'parentSpanId',
+  'hideInput',
+  'hideOutput',
+  'structuredOutput',
+  'memory',
+  'stepBoundary',
+  'resume',
+] as const;
+
+/** Exact type identity (the `<T>() =>` trick — mutual assignability is not enough). */
+type Equals<Left, Right> =
+  (<T>() => T extends Left ? 1 : 2) extends <T>() => T extends Right ? 1 : 2 ? true : false;
+
+/** Constraint carrier of the exhaustiveness assertion (`AgentRunOptionKeysExhaustive`). */
+type AssertExhaustive<Check extends [true, never, never]> = Check;
+
+/**
+ * The exclusion list's exhaustiveness assertion: `AGENT_RUN_OPTION_KEYS` must mirror
+ * `keyof AgentRunOptionFields` exactly. On drift the tuple no longer satisfies the
+ * `[true, never, never]` constraint, so the package fails to compile and the error names the
+ * drifting key in the `Exclude<…>` slots (`[false, 'missedByKeys', 'extraInKeys']`) — a new
+ * framework run option cannot silently leak into every dynamic resolver's and tool's
+ * `ctx.requestContext`. Type-level only: nothing is emitted. Exported from the module so the
+ * compiler evaluates it (an unused local alias would be flagged instead); not exported from any
+ * entry.
+ */
+export type AgentRunOptionKeysExhaustive = AssertExhaustive<
+  [
+    Equals<keyof AgentRunOptionFields, (typeof AGENT_RUN_OPTION_KEYS)[number]>,
+    Exclude<keyof AgentRunOptionFields, (typeof AGENT_RUN_OPTION_KEYS)[number]>,
+    Exclude<(typeof AGENT_RUN_OPTION_KEYS)[number], keyof AgentRunOptionFields>,
+  ]
+>;
 
 /**
  * The agent loop's step-boundary seam (signals and the harness's relations to the other
