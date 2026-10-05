@@ -22,7 +22,7 @@ await durable.resume(runId, { approved: true })     // 恢复
 
 - **审批闸**:模型返回 tool-calls 后、执行前,若工具命中 `approval: { tools: [...] }` 清单 → run 挂起:loop 快照(消息列表 + step 计数 + 挂起点 + suspendPayload + traceId)写 port,`finishReason: 'suspended'`。审批声明在 durable 层——Tool 四字段定义不动(#13 核心零权限)。
 - **resume 语义**:`approved: true` → 执行该工具继续 loop;`approved: false` → 以「用户拒绝」工具结果**回喂模型**继续(与工具错误回喂同构),不终止 run。
-- **挂起语义只在 durable 包装内存在**:裸 agent 无快照、不产生 `'suspended'`,核心 agent loop 本体不变。Harness 持有 agent,不是反之(ADR-0005 砍单表)。
+- **挂起语义只在 durable 包装内存在**:裸 agent 无快照、**不传 `stepBoundary` seam 时**不产生 `'suspended'`(该 seam 是公开 run option,显式传入即得),核心 agent loop 本体不变。Harness 持有 agent,不是反之(ADR-0005 砍单表)。
 - **裁单**:崩溃自动恢复(每步 running 检查点 + 重放)、resumable stream 事件缓存、`observe()`、多副本恢复与 leader election、boot 时 recoverAll、工具 `execute` 内 `suspend()`(通用挂起,background tasks 的机器,已延后入雾)。「列出待审批 run」归 adapter 可选扩展(下节)。
 
 ### AgentRunSnapshotStore

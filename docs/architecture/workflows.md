@@ -72,7 +72,7 @@ await run.resume({ step, resumeData? })   // 见「suspend/resume 与快照」
 | --- | --- | --- |
 | `.then(step)` | 顺序执行;上一步 output(校验后)作为下一步 input | 透传 |
 | `.parallel([a,b])` | 全并发,无并发上限;满同步点(离场前等全部臂落定);任一步失败且无挂起则整块失败;挂起优先于同窗兄弟失败 | `{ [step.id]: output }` |
-| `.branch([[cond,step]...])` | 按定义序求值,第一个真分支执行;各分支 IO schema 一致;无真分支时输出空 keyed 对象 `{}`(tip 值不穿透) | keyed 对象,只有一个 key 有值 |
+| `.branch([[cond,step]...])` | 按定义序求值,第一个真分支执行;各分支 IO schema 一致是**调用方保证**(类型层不强制),不一致由下游步的输入边界校验拦截;无真分支时输出空 keyed 对象 `{}`(tip 值不穿透) | keyed 对象,只有一个 key 有值 |
 | `.foreach(step, {concurrency})` | 输入必须是数组;默认 concurrency=1(须为正整数);>1 用并发闸,保序收集;满同步点(失败或挂起后不再开新迭代,在飞迭代落定后离场);任一次迭代失败且无挂起则整块失败 | 输出数组 |
 | `.dowhile` / `.dountil(step, cond)` | 循环至条件不满足/满足;dowhile 迭代**前**求值(可 0 次迭代)、dountil 迭代**后**求值(至少 1 次);输出 = 最后一次迭代的输出 | 透传 |
 | `.sleep(ms\|fn)` | 进程内 setTimeout + AbortSignal,**非 durable**(进程死即丢);fn 动态算时长(收 `RequestContext`) | — |
@@ -82,7 +82,7 @@ await run.resume({ step, resumeData? })   // 见「suspend/resume 与快照」
 **收 suspend/resume,形态 = suspend 控制信号 + step 边界 JSON 快照 + storage port**(ADR-0006)。
 
 - `suspend(payload)` 在 execute 内调用:当前 step 标记 suspended → 快照写 port → 引擎展开退出;run 状态 = `suspended`。suspend 是控制信号不是失败:不经过 step 重试,也不落 failed 记录。
-- 快照 = JSON 可序列化的 `{ runId, status, input, stepResults, position }`(stepResults 记录每步 status / output / 起止时间 / suspendPayload;position 即 mastra 的 startIdx 等价物)。**JSON-only 约束**:大数据只存引用。
+- 快照 = JSON 可序列化的 `{ runId, status, input, stepResults, position }`(stepResults 记录每步 status / output / 起止时间 / suspendPayload;position 即 mastra 的 startIdx 等价物)。**JSON-only 是 port 契约,默认内存实现不执法**:`structuredClone` 拒函数但放行 Map / Set / Date / 循环——核心内存默认收下的快照仍可能过不去 JSON 后端的 adapter;大数据只存引用。
 - 恢复 = `run.resume({ step, resumeData? })`:load 快照 → resumeData 过 resumeSchema → 从 position 重进同一个 for 循环。time-travel / restart / restartAllActiveWorkflowRuns 是同一机制的变种,**全部裁出 v1**;引擎只暴露「load → 重进」原语,durable 重启归 Harness(#18)。
 - 持久化时机:有 storage 时**每个条目完成后** + suspend + 终态,固定写;无 shouldPersistSnapshot / prune 钩子。"每个条目"而非字面的"每个 step":块的子 step 随块一起记录(#49/#50 已钉块只按 step id 记一条),条目完成才是记录表变化的时刻;sleep 不产生记录但条目完成照写。
 - resume 并发去重:进程内锁,键域 = 快照的持久化身份 (store, runId)(#119);跨进程 CAS = adapter 可选扩展(`compareAndSave`,见 `docs/architecture/storage.md`)。
@@ -140,7 +140,7 @@ interface WorkflowSnapshotStore {
 - **失败**:失败 step 的 `step-end` 以 `status: 'failed'` 落地,随后**迭代器以 run 的错误 reject**(与 agent 流同一惯例,不设 failed 的 `run-end`);`result` 与迭代器同错、同一次执行。
 - **挂起**:挂起 step 的 `step-end` 为 `suspended`,`run-end` 为 `suspended`;恢复段走 `resume` 的 promise,不是同一条流的续写。
 - **事件与 span 各记一边**:`step-start` 的 `input` 是**到达边界的原值**(校验前),`workflow-step` span 的 input 是**边界校验后的值**(`execute` 实际收到的)——校验失败时 span 无 input、error 落它。**块内 step 的 suspend 读 `suspended`**(#54 修订 #52 的“读 failed”):该边界真能挂起 run,事件、记录、快照同读法;未被信封点名的挂起迭代(如 foreach 并发多挂起的非首个)事件照读 `suspended`(执行视角),记录不落(块聚合)。
-- 消费者提前 break:停止事件缓冲,run 照跑完(`result` 仍落定);懒启动不变(首个 `next()` 或首次读 `result` 才开始执行)。
+- 事件缓冲**无界、无背压**:消费者慢于生产时缓冲持续增长,消费节奏是消费者侧责任。消费者提前 break:停止事件缓冲,run 照跑完(`result` 仍落定);懒启动不变(首个 `next()` 或首次读 `result` 才开始执行)。
 
 ## 错误、重试与状态机
 

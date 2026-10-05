@@ -86,7 +86,7 @@ type ModelInput =
 - `start` 帧**不带** `messageId`——客户端持有自生成的 assistant 消息 id(`body.messageId` 是尾条消息 id,不作 UI id 用)。
 - **HTTP 机制**:body 白名单 `id` / `messages` / `trigger` / `messageId`(只读前两者;`modelSettings` / `maxSteps` 等永不从 body 读);400(JSON 无效 / 尾条非 user / `id` 缺失)与 405 给具体原因,首帧前失败 500(默认脱敏 + `onError`,真错误进 tracer),错误体统一 `{ error: string }`;首帧后失败 → `error` 帧 + `finish { finishReason: 'error' }` + `[DONE]`(HTTP 200);响应头 = 官方 5 件套;`keepAliveMs` 默认关(被代理缓冲的部署显式打开);同 thread 并发不设锁(thread 导向机制是 signals,本路由是请求-响应适配器)。
 - **取消**:`request.signal` 直传 run 的 `signal`,响应流 `cancel()` 同接 abort;无恢复端点(AI SDK `resume: true` 与 abort 不互容,核心 resumable stream 已裁)。
-- **终帧**:`finish { finishReason, messageMetadata? }`;`finishReason` 映射 `stop→stop` / `length→length` / `tool-calls→tool-calls` / `error→error` / `suspended→other`;`messageMetadata = { usage?, suspended? }`(usage = run 累计)。
+- **终帧**:`finish { finishReason, messageMetadata? }`;`finishReason` 映射 `stop→stop` / `length→length` / `tool-calls→tool-calls` / `error→error` / `suspended→other`;`messageMetadata = { usage, suspended? }`(usage 恒写,= run 累计;suspended 仅挂起时)。
 
 ### 挂起表达(durable agent)
 

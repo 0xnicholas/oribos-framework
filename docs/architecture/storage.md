@@ -165,7 +165,7 @@ port 是框架唯一面向「生态作者」的契约,稳定性与核心同步:*
 | **CUT-ST3** harness 专属存储域(lease / notifications / thread-state) | `AgentRunSnapshotStore` / `ScheduleStore` 已落;lease / PubSub 归能力包,inbox 裁出 | 有意分叉 | 挂起快照与调度 = 两个最小 port(#18 已裁)(ADR-0011);`harness.md` CUT-H3 行互引 |
 | **CUT-ST4** PG / Redis 等第一方 adapter | 统一 adapter 家族 + 作者指南(上文) | 有意分叉 | 第一方清单只收内存 + SQLite;后端生态归社区(ADR-0010);延后清单「适配器生态」 |
 | **CUT-ST5** CAS 进基础 port | SQLite 已实现 `compareAndSave`;基础 port 只留 `load` / `save` | 有意分叉 | 可选扩展 + 能力标志;内存版不必假装支持(ADR-0010) |
-| **CUT-ST6** 核心托管连接生命周期(进程 hook / settled 式) | adapter 自拥 `init?()` / `close?()`(`@oribos/sqlite` 已落),应用调用(**组合根代管未落 → 必须项 M-9** 改判为「不代管」) | 有意分叉 | 核心永不隐式 init / close;生命周期归 adapter 与应用(ADR-0010 / 0002) |
+| **CUT-ST6** 核心托管连接生命周期(进程 hook / settled 式) | adapter 自拥 `init?()` / `close?()`(`@oribos/sqlite` 已落),应用调用;组合根**不代管** | 有意分叉 | 核心永不隐式 init / close;生命周期归 adapter 与应用(ADR-0010 / 0002) |
 
 ## 与其它子系统的关系
 
@@ -173,7 +173,7 @@ port 是框架唯一面向「生态作者」的契约,稳定性与核心同步:*
 - **Memory(#12,已定)**:钉 `MemoryStore` 需求(6+2);其条件 2 即能力标志模式的首个实例。
 - **Observability(#14,已定)**:无 storage port;span 经 exporter 出进程。
 - **Harness(#18,已定)**:`AgentRunSnapshotStore` 与 `ScheduleStore` 两个新 port 定义见 `docs/architecture/harness.md`,进统一 adapter 家族;lease / PubSub / notifications / thread-state 域不建。
-- **组合根(ADR-0002)**:可选薄注入点;持有 adapter 时可代管其 `init`/`close`,子系统独立 `new` 仍是一等用法。
+- **组合根(ADR-0002)**:可选薄注入点;**不代管** adapter 的 `init`/`close`——核心永不隐式 init / close,生命周期归 adapter 与应用;子系统独立 `new` 仍是一等用法。
 
 ## 依赖预算
 

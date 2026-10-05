@@ -30,9 +30,9 @@ interface AgentConfig {
 ## 执行语义
 
 - **输入**:`string | Message[]`,Message **直通模型契约的 vendor prompt 类型**——不发明自有消息格式,内部流转与 Memory 存储同一格式;spec 升级时格式跟随,由模型层的 major 跟随策略兜底。
-- **输出对象**:`stream()` 返回的对象同时支持两种消费:`for await` 消费 chunk 协议流,`await` 其 promise getter(`text` / `object` / `toolCalls` / `toolResults` / `usage` / `steps` / `finishReason`)拿最终结果。**`generate()` 内部 = `stream()` + await 终值,单一代码路径**,不存在双实现。
+- **输出对象**:`stream()` 返回的对象同时支持两种消费:`for await` 消费 chunk 协议流,`await` 其 promise getter(`text` / `object` / `toolCalls` / `toolResults` / `usage` / `steps` / `finishReason`)拿最终结果。**`generate()` 内部 = `stream()` + await 终值,单一代码路径**,不存在双实现。chunk 在消费者慢于生产时**无界缓冲、无背压**——消费节奏是消费者侧责任(提前 break 只丢缓冲,run 照跑完)。
 - **术语两层**:**run**(一次 generate/stream 调用的完整执行)> **step**(一轮模型调用 + 工具执行;fallback 链的多次模型尝试同属这一轮,不另成 step);mastra 的第三层 model step 不收。
-- **finishReason**:`'stop' | 'length' | 'tool-calls' | 'error' | 'suspended'`(`tool-calls` 表示 maxSteps 耗尽时模型仍要求工具调用;`'suspended'` 只在 `createDurableAgent` 包装内由审批闸产生,裸 agent 不出现——见 `docs/architecture/harness.md`)。
+- **finishReason**:`'stop' | 'length' | 'tool-calls' | 'error' | 'suspended'`(`tool-calls` 表示 maxSteps 耗尽时模型仍要求工具调用;`'suspended'` 只在 `createDurableAgent` 包装内由审批闸产生,裸 agent **不传 `stepBoundary` seam 时**不出现(该 seam 是公开 run option,显式传入即产生)——见 `docs/architecture/harness.md`)。
 - **steps[]**:每步的 text / toolCalls / toolResults / usage 轻量记录,调试、Observability、Workflow 快照共用;`usage` 另有全 run 累计值。
 - **执行选项**:`maxSteps`(默认 5)/ `modelSettings`(temperature 等透传袋)/ `providerOptions`(透传)/ `signal`(AbortSignal,沿工具调用与动态参数解析传播)/ `traceId?` + `parentSpanId?`(trace 续接,见 `docs/architecture/observability.md`;as-tool 组合经工具 ctx 六件套取值)/ `hideInput?` + `hideOutput?`(本次 run 的擦除覆盖,透传为 root span 的创建选项,见 `docs/architecture/observability.md`)。
 - **structuredOutput**:一等支持 run option `structuredOutput: { schema }`,schema 走 Standard Schema 契约(ADR-0003):经 `~standard.jsonSchema` 出 JSON Schema(draft-07,与工具 schema 同一转换)随每次模型调用下发为 `responseFormat`,run 终值文本(processors 改写后的权威记录)按 JSON 解析并校验,结果落 `object`;校验策略固定 strict(失败即报错,抛携带原文与 issues 的 `StructuredOutputError`,不做 errorStrategy 多选一)。不传即纯文本路径:不发 `responseFormat`,`object` 为 `undefined`。
