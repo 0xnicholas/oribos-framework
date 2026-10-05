@@ -8,14 +8,15 @@ Ultralight TypeScript agent framework. Compose only what you use — run anywher
 
 > **Status:** pre-1.0. Agents, memory, workflows, the harness trio — durable agents, signals,
 > schedules — and the six M5 capability packages are implemented and verified
-> ([roadmap](docs/ROADMAP.md)). **0.5.0 is published**: all seven packages are on npm
-> ([`@balsats/core`](https://www.npmjs.com/package/@balsats/core) plus the six capability
-> packages), out together under a single `v0.5.0` tag — released under the then-current
-> `@balsats/*` scope, before the project took the name Oribos. It carries all of M1–M5, which is
-> everything this README describes; 0.1.0 / 0.2 / 0.3 are **not** published separately. The
-> `@oribos/*` scope, together with the OTel attribute family, environment-variable prefix and
-> service name, ships with the next release ([ADR-0013](docs/adr/0013-naming-and-branding.md)).
-> See [Capability packages](#capability-packages-m5) for the core-external packages.
+> ([roadmap](docs/ROADMAP.md)). **0.6.0 is published**: all seven packages are on npm
+> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the six capability
+> packages), out together under a single `v0.6.0` tag — the first release under the
+> `@oribos/*` scope, carrying the renamed wire surface (OTel attribute family,
+> environment-variable prefix, service name; [ADR-0013](docs/adr/0013-naming-and-branding.md)).
+> It covers everything this README describes (M1–M5 plus a hardening pass). It supersedes
+> 0.5.0, which was published under the previous `@balsats/*` scope and has since been
+> unpublished — install `@oribos/*` instead. 0.1.0 / 0.2 / 0.3 are **not** published
+> separately. See [Capability packages](#capability-packages-m5) for the core-external packages.
 
 ## Why Oribos
 
@@ -45,10 +46,9 @@ from the AI SDK provider ecosystem — no adapters, no registries.
 npm install @oribos/core zod @ai-sdk/openai
 ```
 
-This is the install line from the next release on. Until `@oribos/*` is out, the published 0.5.0
-packages are installed under the previous scope: `npm install @balsats/core zod @ai-sdk/openai`.
-See [Status](#status) for what 0.5.0 covers. To work on this repo itself, follow
-[Development](#development).
+Requires `0.6.0` or later — the first `@oribos/*` release; the earlier 0.5.0 line was published
+under the previous `@balsats/*` scope and has since been unpublished. See [Status](#status)
+for what 0.6.0 covers. To work on this repo itself, follow [Development](#development).
 
 ## Quick start
 
@@ -248,9 +248,9 @@ Capability packages that carry external dependencies ship as separate `@oribos/<
 packages — install only what you use. All six are implemented and verified: unit tests in
 `pnpm verify`, five end-to-end examples covering all six (see [Examples](#examples)), and
 minified byte budgets plus dependency-closure baselines where there is a dependency to measure
-([roadmap](docs/ROADMAP.md), M5). All six ship in the `0.5.0` release — all seven packages went
-out together under the then-current `@balsats/*` scope, and publish as `@oribos/*` from the next
-release (see [Status](#status)):
+([roadmap](docs/ROADMAP.md), M5). All six ship in the `0.6.0` release — all seven packages went
+out together under the `@oribos/*` scope, the first Oribos-named release (see
+[Status](#status)):
 
 | Package | What it gives you | Spec |
 | --- | --- | --- |
