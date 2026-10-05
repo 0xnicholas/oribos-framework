@@ -1480,3 +1480,70 @@ describe('公开面:suspend/resume 的形状与类型(断言在编译期,tsc 阶
     }
   });
 });
+
+describe('快照写失败语义(P-11,workflows.md「suspend/resume 与快照」写失败语义)', () => {
+  it('非 failed 终态的写失败随 run 失败:suspended 快照写抛错,run 以该错误拒绝', async () => {
+    const saveDown = new Error('store save down');
+    const recorded: string[] = [];
+    const store: WorkflowSnapshotStore = {
+      load: async () => null,
+      save: async (_runId, snapshot) => {
+        if (snapshot.status === 'suspended') throw saveDown;
+        recorded.push(snapshot.status);
+      },
+    };
+    const { workflow } = approvalWorkflow({ storage: store });
+
+    const error = await captureRejection(async () =>
+      workflow
+        .createRun()
+        .start({ inputData: { topic: 'ts' } })
+        .result.then(() => undefined),
+    );
+
+    // 挂起快照的写失败顶掉挂起信封:run 以 save 错误失败
+    expect(error).toBe(saveDown);
+    // draft 的 running 边界写已成功;run 失败后 failed 终态写照常补上(终态真相不丢)
+    expect(recorded).toEqual(['running', 'failed']);
+  });
+
+  it('failed 终态那一写是 best-effort:store 同时失败时,run 自身的错误永远原样上抛', async () => {
+    const boom = new Error('step exploded');
+    const saveDown = new Error('store save down');
+    const attempts: string[] = [];
+    const store: WorkflowSnapshotStore = {
+      load: async () => null,
+      save: async (_runId, snapshot) => {
+        attempts.push(snapshot.status);
+        if (snapshot.status === 'failed') throw saveDown;
+      },
+    };
+    const broken = createStep({
+      id: 'broken',
+      inputSchema: topicInput,
+      outputSchema: draftOutput,
+      execute: () => {
+        throw boom;
+      },
+    });
+    const workflow = createWorkflow({
+      id: 'article',
+      inputSchema: topicInput,
+      outputSchema: draftOutput,
+      storage: store,
+    })
+      .then(broken)
+      .commit();
+
+    const error = await captureRejection(async () =>
+      workflow
+        .createRun()
+        .start({ inputData: { topic: 'ts' } })
+        .result.then(() => undefined),
+    );
+
+    // save 失败不替换 run 自身的错误——调用方被承诺的真相是后者
+    expect(error).toBe(boom);
+    expect(attempts).toEqual(['failed']);
+  });
+});

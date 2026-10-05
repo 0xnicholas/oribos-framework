@@ -433,6 +433,47 @@ describe('branch:按定义序求值,第一个真分支执行', () => {
     expect(error).toBeInstanceOf(WorkflowValidationError);
     expect((error as WorkflowValidationError).stepId).toBe('strict-lane');
   });
+
+  it('臂间 schema 不一致是调用方保证(DOC-4):不一致的臂由下游步的输入边界校验拦截', async () => {
+    // branch 行(workflows.md「控制流算子」):各分支 IO schema 一致类型层不强制;不一致时
+    // 拦截点 = 下游步的固定输入边界(三处校验点之一),不是臂自身的边界。
+    const oddLane = createStep({
+      id: 'odd-lane',
+      inputSchema: draftOut,
+      outputSchema: z.object({ other: z.number() }),
+      execute: () => ({ other: 1 }),
+    });
+    const record = createStep({
+      id: 'lane-record',
+      inputSchema: z.object({ 'fast-lane': laneOut.optional(), 'odd-lane': laneOut.optional() }),
+      outputSchema: z.object({ lane: z.string().optional() }),
+      execute: ({ inputData }) => ({ lane: inputData['fast-lane']?.lane ?? inputData['odd-lane']?.lane }),
+    });
+    const branched = createWorkflow({
+      id: 'article',
+      inputSchema: topicInput,
+      outputSchema: z.object({ lane: z.string().optional() }),
+    })
+      .then(draft)
+      .branch([
+        [() => false, fastLane],
+        [() => true, oddLane],
+      ])
+      // 静态声明的不一致会被 .then 的 type-state 品牌拦在编译期;DOC-4 钉的是品牌之后的运行期
+      // 后站——类型被擦除的调用方(手写字面量 / 动态构图,仓内惯例 `as never`)由下游步的固定
+      // 输入边界拦截。
+      .then(record as never)
+      .commit();
+
+    const error = await captureRejection(async () =>
+      branched.createRun().start({ inputData: { topic: 'ts' } }).result.then(() => undefined),
+    );
+
+    // odd-lane 的输出 { other: 1 } 不满足下游按「两臂同形」假设声明的 inputSchema → run failed,
+    // 错误钉在下游步(校验拦截点),臂自身的输入 / 输出边界都已通过
+    expect(error).toBeInstanceOf(WorkflowValidationError);
+    expect((error as WorkflowValidationError).stepId).toBe('lane-record');
+  });
 });
 
 describe('foreach:数组输入 + 自写并发闸 + 保序收集', () => {

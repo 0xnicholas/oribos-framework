@@ -884,3 +884,73 @@ describe('processError:provider / 工具错误时观察并可替换错误', () =
     expect(processError).not.toHaveBeenCalled();
   });
 });
+
+describe('钩子自身抛错(AG-40):即 run 失败,不再交给 processError(处理器不互相处理)', () => {
+  it('processInput 抛错:run 以该错误拒绝,模型调用未发起,processError 零调用', async () => {
+    const boom = new Error('processInput boom');
+    const model = fakeModel([{ text: 'ok' }]);
+    const processError = vi.fn();
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: INSTRUCTIONS,
+      model,
+      processors: [
+        {
+          processInput: () => {
+            throw boom;
+          },
+        },
+        { processError },
+      ],
+    });
+
+    await expect(agent.generate('Hi.')).rejects.toBe(boom);
+    expect(processError).not.toHaveBeenCalled();
+    expect(model.streamCalls).toHaveLength(0);
+  });
+
+  it('processOutputStep 抛错:run 以该错误拒绝,processError 零调用', async () => {
+    const boom = new Error('processOutputStep boom');
+    const model = fakeModel([{ text: 'ok' }]);
+    const processError = vi.fn();
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: INSTRUCTIONS,
+      model,
+      processors: [
+        {
+          processOutputStep: () => {
+            throw boom;
+          },
+        },
+        { processError },
+      ],
+    });
+
+    await expect(agent.generate('Hi.')).rejects.toBe(boom);
+    expect(processError).not.toHaveBeenCalled();
+  });
+
+  it('processError 抛错:run 以钩子抛出的错误拒绝(非原错误),链上后续 processError 不再被喂', async () => {
+    const original = new Error('provider down');
+    const boom = new Error('processError boom');
+    const model = fakeModel([{ fail: original }]);
+    const downstream = vi.fn();
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: INSTRUCTIONS,
+      model,
+      processors: [
+        {
+          processError: () => {
+            throw boom;
+          },
+        },
+        { processError: downstream },
+      ],
+    });
+
+    await expect(agent.generate('Hi.')).rejects.toBe(boom);
+    expect(downstream).not.toHaveBeenCalled();
+  });
+});

@@ -318,4 +318,101 @@ describe('createChatRoute', () => {
     // Aborted before the first frame: the pull fails, the route answers 500 (nobody is reading).
     expect(response.status).toBe(500);
   });
+
+  // M-2(批 2)补钉:M-52 终帧 `finishReason` 逐值映射(model.md「路由:createChatRoute」终帧表)。
+  // `stop` / `error` / `suspended → other` 三值已由上文「streams a run」「finishes with "error"…」
+  // 「expresses a durable suspension…」三例钉死;此处补齐两个透传值,并随钉 `messageMetadata.usage`
+  // 恒写(M-9 改实:usage = run 累计,恒在)。
+
+  it('maps a "length" terminal finishReason straight through to the finish frame', async () => {
+    const route = createChatRoute({
+      agent: agent([
+        { text: 'cut off', finishReason: 'length', usage: { inputTokens: 3, outputTokens: 2 } },
+      ]),
+      identity: IDENTITY,
+    });
+    const response = await route(chatRequest({ id: 't1', messages: [userMessage('u1', 'hi')] }));
+    expect(response.status).toBe(200);
+    const frames = sseFrames(await response.text()) as Array<{ type: string }>;
+    expect(frames.at(-1)).toEqual({
+      type: 'finish',
+      finishReason: 'length',
+      messageMetadata: { usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } },
+    });
+  });
+
+  it('maps a "tool-calls" terminal finishReason (maxSteps exhausted) straight through', async () => {
+    // 路由永不从 body 读 maxSteps:耗尽默认上限 5,末步工具照常执行,截断信号归框架。
+    const step: FakeResponse = {
+      toolCalls: [{ toolName: 'ping', input: {} }],
+      usage: { inputTokens: 1, outputTokens: 1 },
+    };
+    const route = createChatRoute({
+      agent: agent([step, step, step, step, step], {
+        ping: createTool({ description: 'Pings.', execute: () => 'pong' }),
+      }),
+      identity: IDENTITY,
+    });
+    const response = await route(chatRequest({ id: 't1', messages: [userMessage('u1', 'go')] }));
+    expect(response.status).toBe(200);
+    const frames = sseFrames(await response.text()) as Array<{ type: string }>;
+    expect(frames.some((frame) => frame.type === 'tool-output-available')).toBe(true);
+    expect(frames.at(-1)).toEqual({
+      type: 'finish',
+      finishReason: 'tool-calls',
+      messageMetadata: { usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 } },
+    });
+  });
+
+  // M-2(批 2)补钉:M-51 取消直通——`request.signal` 中止即 run 中止(原因同一对象随 abort 接力
+  // 到 run 的 signal),响应流 `cancel()` 同接 abort。上方「propagates the request signal to
+  // the run」只覆盖请求前已中止的 500 路径;此处钉在途取消与客户端断连两条。
+
+  it('aborting request.signal mid-stream aborts the run with the same reason, then finalizes error + [DONE]', async () => {
+    const controller = new AbortController();
+    const reason = new Error('client went away');
+    const seen: unknown[] = [];
+    const model = fakeModel([{ text: ['Hel', 'lo'], abortAfter: 3 }]);
+    const route = createChatRoute({
+      agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory: new Memory() }),
+      identity: IDENTITY,
+      onError: (error) => {
+        seen.push(error);
+        return 'sanitized';
+      },
+    });
+    const response = await route(
+      chatRequest({ id: 't1', messages: [userMessage('u1', 'hi')] }, { signal: controller.signal }),
+    );
+    expect(response.status).toBe(200);
+
+    controller.abort(reason);
+    const body = await response.text();
+
+    // 中断点前已吐的增量照常交付,其后的脚本部分永不发出(桩的 abortAfter 语义)
+    const frames = sseFrames(body) as Array<{ type: string; delta?: string }>;
+    expect(frames.filter((frame) => frame.type === 'text-delta').map((frame) => frame.delta)).toEqual(['Hel']);
+    // 直通证据:run 的 signal 已中止,onError 收到的错误与 request.signal.reason 是同一对象
+    expect(model.streamCalls[0]?.abortSignal?.aborted).toBe(true);
+    expect(seen).toEqual([reason]);
+    // 首帧后失败的收尾:脱敏 error 帧 + finish error + [DONE],HTTP 200 不变
+    expect(frames.at(-2)).toEqual({ type: 'error', errorText: 'sanitized' });
+    expect(frames.at(-1)).toEqual({ type: 'finish', finishReason: 'error' });
+    expect(body.endsWith('data: [DONE]\n\n')).toBe(true);
+  });
+
+  it('cancelling the response stream aborts the run (client disconnect)', async () => {
+    const model = fakeModel([{ text: ['Hel', 'lo'], abortAfter: 3 }]);
+    const route = createChatRoute({
+      agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory: new Memory() }),
+      identity: IDENTITY,
+    });
+    const response = await route(chatRequest({ id: 't1', messages: [userMessage('u1', 'hi')] }));
+    expect(response.status).toBe(200);
+
+    await response.body!.cancel();
+
+    // 响应流 cancel() 同接 abort:run 的 signal(即模型调用收到的 signal)随之中止
+    expect(model.streamCalls[0]?.abortSignal?.aborted).toBe(true);
+  });
 });
