@@ -2,6 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent } from '@oribos/core/agent';
 import { Memory } from '@oribos/core/memory';
 import {
+  AGENT_RUN_SPAN,
+  AGENT_STEP_SPAN,
+  createTracer,
+  memoryExporter,
+} from '@oribos/core/observability';
+import {
   createInMemoryScheduleStore,
   createSchedules,
   type ScheduleRecord,
@@ -11,6 +17,7 @@ import { createSignals } from '@oribos/core/signals';
 import { createTool } from '@oribos/core/tools';
 import { fakeModel } from '@oribos/testing';
 import { assistant, INSTRUCTIONS } from './helpers/agent.js';
+import { withSpanIdProbe } from './helpers/spans.js';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -436,5 +443,46 @@ describe('schedules:startTicker(进程内便利件)', () => {
     expect(() => schedules.startTicker({ intervalMs: 0 })).toThrow(/intervalMs/);
     expect(() => schedules.startTicker({ intervalMs: -1 })).toThrow(/intervalMs/);
     expect(() => schedules.startTicker({ intervalMs: Number.NaN })).toThrow(/intervalMs/);
+  });
+});
+
+describe('schedules:tick 自身不产生 span(SEM-D7 / H-48,#134)', () => {
+  // tick 的全部动作 = 列到期 → 触发 target → 重锚 nextFireAt;自身不开观测口
+  // (SchedulesConfig 无 tracer 槽)。钉点:拍里出现的 span 全部归属被触发 run 自己的 trace。
+  it('挂 tracer 的 target 被触发:导出的 span 恰为 run 自身两个、同属一条 trace;不挂 tracer 时整拍不创建 span 对象', async () => {
+    const exported = memoryExporter();
+    const tracer = createTracer({ exporters: [exported] });
+    const model = fakeModel([{ text: 'Ran.' }]);
+    const traced = new Agent({ name: 'assistant', instructions: INSTRUCTIONS, model, tracer });
+    const schedules = createSchedules({ agents: { assistant: traced } });
+    await schedules.save({
+      id: 'daily',
+      next: () => new Date(0),
+      target: { agent: 'assistant', input: 'Go!' },
+    });
+
+    await schedules.tick({ now: new Date(60_000) });
+
+    // target 确实被触发;拍里导出的 span 恰为该 run 的 agent-run + agent-step,
+    // 同属一条 trace——tick 自己没有添一个(多一个 = 类型或 trace 对不上)
+    expect(model.streamCalls).toHaveLength(1);
+    const spans = exported.spans();
+    expect(spans.map((span) => span.type)).toEqual([AGENT_RUN_SPAN, AGENT_STEP_SPAN]);
+    expect(new Set(spans.map((span) => span.traceId)).size).toBe(1);
+
+    // 反方向:target 不挂 tracer 时,整拍(触发 + 重锚)不触碰 span id 生成——
+    // span / trace id 由 crypto.getRandomValues 生成,无 span 对象创建即一次都不被碰到
+    const quietModel = fakeModel([{ text: 'Ran.' }]);
+    const quiet = createSchedules({ agents: { assistant: assistant(quietModel) } });
+    await quiet.save({
+      id: 'daily',
+      next: () => new Date(0),
+      target: { agent: 'assistant', input: 'Go!' },
+    });
+
+    const { spanIdsCreated } = await withSpanIdProbe(() => quiet.tick({ now: new Date(60_000) }));
+
+    expect(quietModel.streamCalls).toHaveLength(1);
+    expect(spanIdsCreated).toBe(false);
   });
 });

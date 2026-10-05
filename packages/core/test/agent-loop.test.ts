@@ -679,3 +679,65 @@ describe('Agent loop:并发 run 互不串(#131)', () => {
     expect(runSpanA.attributes).toMatchObject({ runId: contextA?.runId });
   });
 });
+
+describe('Agent loop:同一步多工具串行执行(SEM-A2,#134)', () => {
+  it('第二个工具在第一个 settle 前不启动:gate 按住第一个期间第二个零调用,放行后按调用序执行并入', async () => {
+    const gate = deferred<string>();
+    /** 工具 execute 的启动顺序录制(gated 假工具,与「并发 run」例同一手法)。 */
+    const started: string[] = [];
+    const model = fakeModel([
+      {
+        toolCalls: [
+          { toolCallId: 'call-1', toolName: 'first', input: {} },
+          { toolCallId: 'call-2', toolName: 'second', input: {} },
+        ],
+      },
+      { text: 'done' },
+    ]);
+    const secondExecute = vi.fn(() => {
+      started.push('second');
+      return 'second-done';
+    });
+    const agent = assistantWithTools(model, {
+      first: createTool({
+        description: 'First, held by the gate.',
+        execute: () => {
+          started.push('first');
+          return gate.promise;
+        },
+      }),
+      second: createTool({ description: 'Second.', execute: secondExecute }),
+    });
+
+    const run = agent.generate('Go.');
+    // 第一个工具已启动、被 gate 按在执行中间;此时若 loop 并发执行,第二个早已启动
+    await vi.waitFor(() => expect(started).toEqual(['first']));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // 钉点(变异敏感):第一个 settle 之前,第二个的 execute 一次都不应被调用
+    expect(secondExecute).not.toHaveBeenCalled();
+
+    gate.resolve('first-done');
+    const result = await run;
+
+    // 放行后第二个才启动;启动序 = 调用序,结果按调用序并入本步
+    expect(started).toEqual(['first', 'second']);
+    expect(secondExecute).toHaveBeenCalledTimes(1);
+    expect(result.steps[0]?.toolResults).toEqual([
+      {
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        toolName: 'first',
+        output: 'first-done',
+        isError: false,
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'call-2',
+        toolName: 'second',
+        output: 'second-done',
+        isError: false,
+      },
+    ]);
+    expect(result.finishReason).toBe('stop');
+  });
+});

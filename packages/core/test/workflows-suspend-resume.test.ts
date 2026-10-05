@@ -1547,3 +1547,80 @@ describe('快照写失败语义(P-11,workflows.md「suspend/resume 与快照」�
     expect(attempts).toEqual(['failed']);
   });
 });
+
+describe('条件内 suspend():显式报错(SEM-B16,#134)', () => {
+  // 条件拿到的 ctx 包没有 step 身份(walker 以 step === undefined 组装,branch 条件与
+  // dowhile/dountil 条件同一路),其 suspend 由 suspendOutsideStep 顶替:抛普通 Error
+  // (非挂起信号),run 以该错误失败——不是挂起。
+  const OUTSIDE_STEP_MESSAGE =
+    'suspend() is not available in a branch or loop condition — only a step can suspend a run';
+
+  it('branch 条件与循环条件里调 suspend():run 以同一 suspendOutsideStep 错误失败,臂 / 循环体不执行', async () => {
+    const armExecute = vi.fn((ctx: StepContext<string>) => `arm:${ctx.inputData}`);
+    const arm = createStep({
+      id: 'arm',
+      inputSchema: z.string(),
+      outputSchema: z.string(),
+      execute: armExecute,
+    });
+    const secondCond = vi.fn(() => true);
+    const other = createStep({
+      id: 'other',
+      inputSchema: z.string(),
+      outputSchema: z.string(),
+      execute: () => 'other',
+    });
+    const sink = createStep({
+      id: 'sink',
+      inputSchema: z.object({ arm: z.string().optional(), other: z.string().optional() }),
+      outputSchema: z.string(),
+      execute: (ctx) => ctx.inputData.arm ?? ctx.inputData.other ?? 'none',
+    });
+    const branchy = createWorkflow({
+      id: 'branch-cond-suspend',
+      inputSchema: z.string(),
+      outputSchema: z.string(),
+    })
+      .branch([
+        [(ctx) => ctx.suspend({ question: 'branch condition?' }), arm],
+        [secondCond, other],
+      ])
+      .then(sink)
+      .commit();
+
+    const branchError = await captureRejection(async () =>
+      branchy.createRun().start({ inputData: 'x' }).result.then(() => undefined),
+    );
+
+    // 裸 Error(无自定义错误类),消息逐字钉死;run 是失败,不是 suspended 信封;
+    // 抛出点在条件求值环里:臂不执行、后续条件不再求值
+    expect(branchError.name).toBe('Error');
+    expect(branchError.message).toBe(OUTSIDE_STEP_MESSAGE);
+    expect(armExecute).not.toHaveBeenCalled();
+    expect(secondCond).not.toHaveBeenCalled();
+
+    const bodyExecute = vi.fn((ctx: StepContext<string>) => ctx.inputData);
+    const body = createStep({
+      id: 'body',
+      inputSchema: z.string(),
+      outputSchema: z.string(),
+      execute: bodyExecute,
+    });
+    const loopy = createWorkflow({
+      id: 'loop-cond-suspend',
+      inputSchema: z.string(),
+      outputSchema: z.string(),
+    })
+      .dowhile(body, (ctx) => ctx.suspend({ question: 'loop condition?' }))
+      .commit();
+
+    const loopError = await captureRejection(async () =>
+      loopy.createRun().start({ inputData: 'x' }).result.then(() => undefined),
+    );
+
+    // 循环条件同一路:dowhile 前置检查(iterationCount 0)即失败,循环体一次都不执行
+    expect(loopError.name).toBe('Error');
+    expect(loopError.message).toBe(OUTSIDE_STEP_MESSAGE);
+    expect(bodyExecute).not.toHaveBeenCalled();
+  });
+});
