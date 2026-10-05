@@ -7,7 +7,7 @@ import type { AgentRunSnapshotStore } from './durable-agent/snapshot.js';
 import { createInMemoryStore } from './memory/in-memory-store.js';
 import { Memory } from './memory/memory.js';
 import type { MemoryStore } from './memory/store.js';
-import type { Tracer } from './observability/index.js';
+import type { Logger, Tracer } from './observability/index.js';
 import { createInMemoryScheduleStore } from './schedules/in-memory-store.js';
 import { createSchedules } from './schedules/schedules.js';
 import type { Schedules, SchedulesConfig } from './schedules/schedules.js';
@@ -24,9 +24,8 @@ import type { WorkflowBuilder, WorkflowConfig } from './workflows/workflow.js';
  * `@oribos/core` — composition root.
  *
  * `createApp` is the optional thin assembly point of ADR-0002: it hands cross-cutting dependencies
- * — the observability tracer and the four storage ports — to the subsystems attached to it, so they
- * do not each have to be wired by hand. The `logger` slot lands with a later milestone (its spec is
- * not written yet).
+ * — the observability tracer, the logger channel and the four storage ports — to the subsystems
+ * attached to it, so they do not each have to be wired by hand.
  *
  * A subsystem built through the app is wired exactly as if it had been passed the dependencies
  * themselves; one built without the app (`new Agent(...)`) stays a first-class usage, and an app
@@ -65,6 +64,14 @@ export interface AppConfig {
    * standalone `new Agent(...)`: no span object is ever created.
    */
   readonly tracer?: Tracer | undefined;
+  /**
+   * The logger channel distributed to the workflows built through this app (`App.workflow`): the
+   * committed definition carries it as `Workflow.logger`. The seam is open on the workflow
+   * subsystem only — the agent spec pins its own seam set (tracer/processors), and a channel with
+   * no consumer is not welded onto a config. The kernel writes no logs of its own; the channel is
+   * the one designated path the observability spec reserves for them.
+   */
+  readonly logger?: Logger | undefined;
   /** The storage slots, one per port; absent slots fall back to the core's in-memory defaults. */
   readonly storage?: AppStorageConfig | undefined;
 }
@@ -82,10 +89,11 @@ export interface App {
    */
   agent(config: AgentConfig): Agent;
   /**
-   * Opens a workflow builder with the app's tracer and workflow snapshot store distributed to it —
-   * the committed definition snapshots through the `storage.workflow` slot without the caller
-   * passing one. `WorkflowConfig.tracer` / `WorkflowConfig.storage` win when the config brings
-   * their own: explicit assembly is never taken over.
+   * Opens a workflow builder with the app's tracer, logger channel and workflow snapshot store
+   * distributed to it — the committed definition exposes the logger as `Workflow.logger` and
+   * snapshots through the `storage.workflow` slot without the caller passing either.
+   * `WorkflowConfig.tracer` / `WorkflowConfig.logger` / `WorkflowConfig.storage` win when the
+   * config brings their own: explicit assembly is never taken over.
    */
   workflow<TInputSchema extends StandardSchema, TOutputSchema extends StandardSchema>(
     config: WorkflowConfig<TInputSchema, TOutputSchema>,
@@ -119,6 +127,7 @@ export interface App {
  */
 export function createApp(config: AppConfig = {}): App {
   const tracer = config.tracer;
+  const logger = config.logger;
   const memoryStore = config.storage?.memory ?? createInMemoryStore();
   /**
    * The one `Memory` every agent and signals facade built through this app shares: signals requires
@@ -145,6 +154,7 @@ export function createApp(config: AppConfig = {}): App {
       return createWorkflow({
         ...workflowConfig,
         tracer: workflowConfig.tracer ?? tracer,
+        logger: workflowConfig.logger ?? logger,
         storage: workflowConfig.storage ?? workflowStorage,
       });
     },

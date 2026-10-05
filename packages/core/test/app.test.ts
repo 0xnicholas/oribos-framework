@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createApp } from '@oribos/core';
-import type { App, AppConfig } from '@oribos/core';
+import type { App, AppConfig, Logger } from '@oribos/core';
 import { Agent } from '@oribos/core/agent';
 import type { AgentConfig } from '@oribos/core/agent';
 import {
@@ -146,11 +146,18 @@ describe('不挂组合根:一等用法与零开销', () => {
 });
 
 describe('组合根类型表面', () => {
-  it('AppConfig 全字段可选;logger 的位不提前开', () => {
+  it('AppConfig 全字段可选;logger 槽按 Logger 类型开(规范已定)', () => {
     expectAssignable<AppConfig>({});
     expectAssignable<AppConfig>({ tracer: createTracer({ exporters: [] }) });
-    // @ts-expect-error logger 的位留给后续里程碑(规范未定 logger)
+    // console 即合法 Logger(四级方法结构):用户自带 logger 直吃
+    expectAssignable<AppConfig>({ logger: console });
+    // @ts-expect-error logger 槽按类型开:缺级别方法的对象不收
     expectAssignable<AppConfig>({ logger: {} });
+  });
+
+  it('logger 缝只开在 workflow:AgentConfig 不收(logger 不焊死字段)', () => {
+    // @ts-expect-error AgentConfig 缝集 = tracer/processors(agent.md 钦定):logger 不开缝
+    expectAssignable<AgentConfig>({ name: 'a', instructions: INSTRUCTIONS, model: fakeModel([]), logger: console });
   });
 
   it('AppConfig.storage 四槽各可选,形状即四个 port', () => {
@@ -349,6 +356,34 @@ describe('createApp:storage 槽分发(组合根建出的子系统缺省吃槽)',
         { type: 'text', text: 'wake' },
       ]);
     });
+  });
+});
+
+describe('createApp:logger 通道分发(缝只开 workflow)', () => {
+  it('app.workflow() 建出的 committed 定义携带组合根 logger:Workflow.logger 可见,配置自带显式优先', () => {
+    const app = createApp({ logger: console });
+
+    const distributed = app
+      .workflow({ id: 'log-channel', inputSchema: topicInput, outputSchema: articleOutput })
+      .commit();
+    expect(distributed.logger).toBe(console);
+
+    const own: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const explicit = app
+      .workflow({
+        id: 'log-channel-own',
+        inputSchema: topicInput,
+        outputSchema: articleOutput,
+        logger: own,
+      })
+      .commit();
+    expect(explicit.logger).toBe(own);
+
+    // 通道缺席:不挂 logger 的 app 建出的定义与独立 createWorkflow 同一形状(undefined)
+    const absent = createApp()
+      .workflow({ id: 'log-channel-absent', inputSchema: topicInput, outputSchema: articleOutput })
+      .commit();
+    expect(absent.logger).toBeUndefined();
   });
 });
 

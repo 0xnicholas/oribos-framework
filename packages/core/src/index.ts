@@ -6,3 +6,4 @@
  */
 export { createApp } from './app.js';
 export type { App, AppConfig, AppStorageConfig } from './app.js';
+export type { Logger } from './observability/index.js';

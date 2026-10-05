@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { RequestContext } from '@oribos/core/agent';
 import { createTracer } from '@oribos/core/observability';
+import type { Logger } from '@oribos/core/observability';
 import { createStep, createWorkflow } from '@oribos/core/workflows';
 import type { Step, StepContext, WorkflowSnapshotStore } from '@oribos/core/workflows';
 import { expectAssignable } from './helpers/assertions.js';
@@ -272,8 +273,9 @@ describe('createWorkflow:builder 七算子条目化 + commit 冻结', () => {
     ]);
   });
 
-  it('commit:返回冻结的普通对象,定义字段原样(tracer / storage 挂接点、createRun 运行面在位)', () => {
+  it('commit:返回冻结的普通对象,定义字段原样(tracer / logger / storage 挂接点、createRun 运行面在位)', () => {
     const tracer = createTracer({ exporters: [] });
+    const logger: Logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
     const storage: WorkflowSnapshotStore = {
       load: async () => null,
       save: async () => {},
@@ -287,6 +289,7 @@ describe('createWorkflow:builder 七算子条目化 + commit 冻结', () => {
       'entries',
       'id',
       'inputSchema',
+      'logger',
       'outputSchema',
       'storage',
       'tracer',
@@ -296,12 +299,14 @@ describe('createWorkflow:builder 七算子条目化 + commit 冻结', () => {
     expect(wf.inputSchema).toBe(inputSchema);
     expect(wf.outputSchema).toBe(outputSchema);
     expect(wf.tracer).toBeUndefined();
+    expect(wf.logger).toBeUndefined();
     expect(wf.storage).toBeUndefined();
 
-    const wired = createWorkflow({ id: 'wired', inputSchema, outputSchema, tracer, storage })
+    const wired = createWorkflow({ id: 'wired', inputSchema, outputSchema, tracer, logger, storage })
       .then(draft)
       .commit();
     expect(wired.tracer).toBe(tracer);
+    expect(wired.logger).toBe(logger);
     expect(wired.storage).toBe(storage);
   });
 

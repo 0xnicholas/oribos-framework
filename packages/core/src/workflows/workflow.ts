@@ -1,4 +1,4 @@
-import type { Tracer } from '../observability/index.js';
+import type { Logger, Tracer } from '../observability/index.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 import type { BranchCondition, LoopCondition, SleepDuration, WorkflowEntry } from './entry.js';
 import { createWorkflowRun } from './run.js';
@@ -34,6 +34,12 @@ export interface WorkflowConfig<
    */
   readonly tracer?: Tracer | undefined;
   /**
+   * The logger channel this definition carries (the composition root distributes it); absent =
+   * no logger is attached. The kernel writes no logs of its own — the channel is the one
+   * designated path the observability spec reserves for them.
+   */
+  readonly logger?: Logger | undefined;
+  /**
    * Snapshot store for suspend/resume; absent = the run is purely in memory (the core's in-memory
    * default keeps the snapshots for this process only).
    */
@@ -57,6 +63,8 @@ export interface Workflow<
   readonly outputSchema: TOutputSchema;
   /** The distributed tracer; `undefined` when none was attached. */
   readonly tracer: Tracer | undefined;
+  /** The distributed logger channel; `undefined` when none was attached. */
+  readonly logger: Logger | undefined;
   /** The snapshot store; `undefined` when none was attached (the run then defaults to in-memory). */
   readonly storage: WorkflowSnapshotStore | undefined;
   /** The frozen, flat entry list the walker interprets. */
@@ -198,6 +206,7 @@ export function createWorkflow<
       inputSchema: config.inputSchema,
       outputSchema: config.outputSchema,
       tracer: config.tracer,
+      logger: config.logger,
       storage: config.storage,
       entries: Object.freeze(entries),
     };

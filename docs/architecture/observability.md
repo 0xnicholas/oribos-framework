@@ -5,7 +5,7 @@
 
 ## 定位
 
-观测子系统回答一个问题:run 内部发生了什么。设计遵守轻量轴:**内核自有最小 span 模型、核心零 OTel 依赖,OTel 映射外置为单一 OTLP 能力包**。北极星是出口收敛——内核怎么建模是自己的事,送出去的都是 GenAI semconv 形状,Langfuse / LangSmith / 各家 OTel 后端直接可收。v1 只定 tracing;metrics 不做、logs 走组合根已有的 logger 通道。
+观测子系统回答一个问题:run 内部发生了什么。设计遵守轻量轴:**内核自有最小 span 模型、核心零 OTel 依赖,OTel 映射外置为单一 OTLP 能力包**。北极星是出口收敛——内核怎么建模是自己的事,送出去的都是 GenAI semconv 形状,Langfuse / LangSmith / 各家 OTel 后端直接可收。v1 只定 tracing;metrics 不做、logs 走组合根的 logger 通道(`createApp({ logger })` 槽,经 `app.workflow()` 分发、committed 定义以 `Workflow.logger` 暴露;内核自身无 log 埋点,通道是 logs 的唯一钦定路径,OTel logs 维持砍单)。
 
 内核不自建 OTel span 的原因(ADR-0009):GenAI semconv 全部属性均为 Development 稳定性,JS 侧 `gen_ai.*` 常量只在 incubating export——把内核焊在 OTel 上是把变更风险请进核心;mastra 与 Vercel AI SDK 的实际选择同为「内核自有模型 + OTel 外置可选包」。
 
