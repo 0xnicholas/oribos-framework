@@ -257,3 +257,51 @@ describe('thread 生命周期(自动创建 / ref 元数据 / 归属)', () => {
     await expect(store.listMessages({ threadId: 'thread-1' })).resolves.toHaveLength(1);
   });
 });
+
+describe('同 thread 并发写(#131)', () => {
+  it('并发 save 同一 thread:不丢消息、按调用序读回;另一 thread 的并发写不串', async () => {
+    const store = createInMemoryStore();
+    const memory = new Memory({ storage: store });
+
+    // 「非事务 read-modify-write」口径(memory.md 工作记忆节的同一措辞,消息历史的 save 同形):
+    // save 内部的 ensureThread(getThreadById → saveThread)不是事务——并发首写同一新 thread
+    // 时各写者都读到 null、都 upsert 同内容的 thread 记录,last-write-wins 只落在 thread 的
+    // updatedAt 等字段上;消息侧 saveMessages 按唯一 id 落库。本用例钉住的正是这条边界——
+    // 不丢消息、不串 thread——而不是更强的隔离级别。
+    // 顺序可断言的原因:save 在首个 await 之前同步生成 id / createdAt,故并发 save 的信封
+    // 顺序 = 调用序,recall 按 createdAt 正序读回即调用序。
+    const textsA = Array.from({ length: 8 }, (_, index) => `a-${index}`);
+    const textsB = Array.from({ length: 8 }, (_, index) => `b-${index}`);
+    const interleaved = textsA.flatMap((text, index) => [
+      { thread: 'thread-1', text },
+      { thread: 'thread-2', text: textsB[index]! },
+    ]);
+    await Promise.all(
+      interleaved.map(({ thread, text }) =>
+        memory.save({ thread, resource: 'user-1', messages: [userMessage(text)] }),
+      ),
+    );
+
+    // 不丢消息:16 条全部落库;不串 thread:各自 recall 只见自己的,按调用序
+    const thread1 = await memory.recall({ threadId: 'thread-1', limit: 100 });
+    const thread2 = await memory.recall({ threadId: 'thread-2', limit: 100 });
+    expect(thread1.map((message) => message.content)).toEqual(
+      textsA.map((text) => [{ type: 'text', text }]),
+    );
+    expect(thread2.map((message) => message.content)).toEqual(
+      textsB.map((text) => [{ type: 'text', text }]),
+    );
+    // 信封由各自调用盖章;16 个 id 互不相同(不丢是真不丢,不是 upsert 撞 id 恰好蒙对)
+    expect(
+      thread1.every((message) => message.threadId === 'thread-1' && message.resourceId === 'user-1'),
+    ).toBe(true);
+    expect(
+      thread2.every((message) => message.threadId === 'thread-2' && message.resourceId === 'user-1'),
+    ).toBe(true);
+    expect(new Set([...thread1, ...thread2].map((message) => message.id)).size).toBe(16);
+
+    // thread 记录:两个 thread 各一条,归属 user-1(并发首写不产生重复或错配)
+    expect((await store.getThreadById('thread-1'))?.resourceId).toBe('user-1');
+    expect((await store.getThreadById('thread-2'))?.resourceId).toBe('user-1');
+  });
+});

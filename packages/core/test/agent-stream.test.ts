@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Agent } from '@oribos/core/agent';
 import { ModelContractError } from '@oribos/core/model';
 import type { Chunk } from '@oribos/core/model';
 import { fakeModel } from '@oribos/testing';
 import type { FakeResponse } from '@oribos/testing';
 import { assistant } from './helpers/agent.js';
+import { captureRejection } from './helpers/assertions.js';
 import { collect } from './helpers/collect.js';
 import { describeOutputObjectContract } from './helpers/output-object-contract.js';
 import { UNKNOWN_USAGE } from './helpers/usage.js';
@@ -274,5 +276,50 @@ describe('Agent.stream:错误路径', () => {
 
     await expect(result.text).rejects.toThrow('cancelled by host');
     expect(model.streamCalls).toHaveLength(0);
+  });
+});
+
+describe('Agent.stream:流中途 abort(#131)', () => {
+  // 规范锚点:agent.md「执行语义」——已取消的 run 不触发 processError;「Agent loop」——
+  // 取消是 run 的结局,不是链失败,不切换 fallback。钉住这四条,run 的取消语义才可守卫。
+  it('已吐 chunk 照常交付;run 以 abort 原因拒绝;不触发 processError;fallback 链不续', async () => {
+    const reason = new Error('cancelled by consumer');
+    const controller = new AbortController();
+    // abortAfter 的 part 计数含全部 part:stream-start / text-start / delta×2 发出后挂起,
+    // 第三个 delta('tail')与 finish 永不发出(钩子语义见 @oribos/testing)
+    const primary = fakeModel([{ text: ['par', 'tial', 'tail'], abortAfter: 4 }], {
+      modelId: 'primary',
+    });
+    const backup = fakeModel([{ text: 'never used' }], { modelId: 'backup' });
+    const processError = vi.fn();
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: 'You are concise.',
+      model: [primary, backup],
+      processors: [{ processError }],
+    });
+
+    const result = agent.stream('Say hi.', { signal: controller.signal });
+    const received: Chunk[] = [];
+    const error = await captureRejection(async () => {
+      for await (const chunk of result) {
+        received.push(chunk);
+        // 收到首个 delta 即中止;中断点钉在流上,中止前已吐的 chunk 照常交付
+        if (chunk.type === 'text-delta') controller.abort(reason);
+      }
+    });
+
+    expect(received).toEqual([
+      { type: 'text-delta', textDelta: 'par' },
+      { type: 'text-delta', textDelta: 'tial' },
+    ]);
+    // run 以 abort 原因拒绝:同一个对象,不包装、不替换;终值 promise 同样拒绝
+    expect(error).toBe(reason);
+    await expect(result.text).rejects.toBe(reason);
+    // 已取消的 run 不触发 processError(source 'model' 的三类终错不含取消)
+    expect(processError).not.toHaveBeenCalled();
+    // fallback 链不续:取消不是链失败,次候选从未被调用
+    expect(primary.streamCalls).toHaveLength(1);
+    expect(backup.streamCalls).toHaveLength(0);
   });
 });

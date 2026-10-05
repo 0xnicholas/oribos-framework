@@ -19,6 +19,10 @@ import type { JsonValue, Model, ModelCallOptions } from '@oribos/core/model';
  * 同时结构上满足框架的 vendor 契约 `Model`:按脚本逐次回答,并记录每次调用的
  * call options,供测试断言"模型收到的 prompt"(instructions 动态解析、工具 schema 下发、
  * 三线错误回喂、maxSteps 截断、fallback 切换时机……)。
+ *
+ * 流中可中断钩子(#131):`FakeResponse.abortAfter` 让一条回答在发出前 N 个 part 后挂起,
+ * 直到本次调用的 abortSignal 中止,流随即以携带 `signal.reason` 的 error part 收尾——真实
+ * provider 对中途取消的反应;中断点之后脚本的其余 part 永不发出。缺省不启用,存量脚本行为不变。
  */
 
 /** 脚本中的一次工具调用。 */
@@ -65,6 +69,13 @@ export interface FakeResponse {
   omitFinish?: boolean;
   /** 回答的节拍:流式调用在首 part 前与每个 part 之后各等待这么久(keep-alive 等节奏测试)。 */
   delayMs?: number;
+  /**
+   * 流中可中断钩子(仅 doStream):发出前 N 个 part 后挂起——part 计数含 stream-start 等
+   * 全部 part——直到本次调用的 abortSignal 中止,流随即以携带 `signal.reason` 的 error part
+   * 收尾(真实 provider 对中途取消的反应:已吐 part 照常交付,无 finish part);中断点之后
+   * 脚本的其余 part 永不发出。要求调用携带 abortSignal(它就是中断源),否则 doStream 显式报错。
+   */
+  abortAfter?: number;
 }
 
 /** 假模型:除模型契约外,暴露录制的调用参数供断言。 */
@@ -135,7 +146,20 @@ export function fakeModel(
     streamCalls.push(call);
     const response = takeResponse('doStream');
     if (response.fail !== undefined) throw response.fail;
-    return { stream: toStream(response, resolveToolCall) };
+    if (response.abortAfter !== undefined) {
+      if (!Number.isInteger(response.abortAfter) || response.abortAfter < 0) {
+        throw new Error(
+          `fake model: abortAfter must be a non-negative integer, got ${String(response.abortAfter)}.`,
+        );
+      }
+      if (call.abortSignal === undefined) {
+        throw new Error(
+          'fake model: abortAfter requires the call to carry an abortSignal — the signal is the ' +
+            "interruption source, so the run under test must be given one (`signal`).",
+        );
+      }
+    }
+    return { stream: toStream(response, resolveToolCall, call.abortSignal) };
   };
 
   const contract: LanguageModelV4 = {
@@ -225,6 +249,7 @@ function toGenerateResult(
 function toStream(
   response: FakeResponse,
   resolveToolCall: ResolveToolCall,
+  abortSignal: AbortSignal | undefined,
 ): ReadableStream<LanguageModelV4StreamPart> {
   const parts: LanguageModelV4StreamPart[] = [{ type: 'stream-start', warnings: [] }];
 
@@ -278,14 +303,34 @@ function toStream(
 
   // delayMs 节拍:首 part 前等待一次,之后每个 part 之间各等一次(keep-alive 测试的慢流)。
   const delayMs = response.delayMs ?? 0;
+  const abortAfter = response.abortAfter;
   return new ReadableStream<LanguageModelV4StreamPart>({
     async start(controller) {
       if (delayMs > 0) await sleep(delayMs);
-      for (const part of parts) {
+      for (const [index, part] of parts.entries()) {
+        // 流中可中断(doStream 已保证 signal 在场):中断点处先等 abort,再以 error part 报告
+        // 中止——reason 原样承载,与真实 provider 把取消暴露为流错误同形;已吐 part 留在队列里
+        // 照常交付(error part 排队在其后,不走 controller.error 的清队列语义),中断点之后
+        // 脚本的其余 part 永不发出。
+        if (abortAfter !== undefined && index === abortAfter) {
+          const signal = abortSignal as AbortSignal;
+          await aborted(signal);
+          controller.enqueue({ type: 'error', error: signal.reason });
+          controller.close();
+          return;
+        }
         controller.enqueue(part);
         if (delayMs > 0) await sleep(delayMs);
       }
       controller.close();
     },
+  });
+}
+
+/** 等一个 AbortSignal 触发;已中止的 signal 立即返回。 */
+function aborted(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    signal.addEventListener('abort', () => resolve(), { once: true });
   });
 }

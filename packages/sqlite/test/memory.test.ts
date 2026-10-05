@@ -6,7 +6,7 @@
  * `messages` foreign key that the reference does not have.
  */
 import { describe, expect, it } from 'vitest';
-import { supportsWorkingMemory } from '@oribos/core/memory';
+import { Memory, supportsWorkingMemory } from '@oribos/core/memory';
 import type { StoredMessage, StoredThread } from '@oribos/core/memory';
 import type { SqliteStorage } from '@oribos/sqlite';
 import { caught, memoryStorage, messageOf } from './helpers.js';
@@ -266,6 +266,55 @@ describe('memory messages', () => {
     const error = await caught(storage.memory.saveMessages([message('m', 'ghost', 0)]));
     expect(error).toBeInstanceOf(Error);
     expect(messageOf(error)).toMatch(/FOREIGN KEY|constraint/i);
+  });
+
+  it('concurrent saves to one thread lose nothing and stay call-ordered; a second thread is untouched (#131)', async () => {
+    const storage = memoryStorage();
+    const memory = new Memory({ storage: storage.memory });
+    const user = (text: string): { role: 'user'; content: [{ type: 'text'; text: string }] } => ({
+      role: 'user',
+      content: [{ type: 'text', text }],
+    });
+
+    // The non-transactional read-modify-write boundary, stated honestly: Memory.save's
+    // ensureThread (getThreadById → saveThread) is no transaction — concurrent first writes of
+    // the same new thread both read null and both upsert the identical row, so last-write-wins
+    // lands on the thread record's updatedAt alone; the message side is saveMessages, one
+    // transaction per batch keyed by unique ids. This pins exactly that boundary — no lost
+    // messages, no cross-thread bleed — not a stronger isolation level. (Order is assertable
+    // because save assigns id/createdAt synchronously before its first await, so concurrent
+    // envelopes follow call order.)
+    const textsA = Array.from({ length: 8 }, (_, index) => `a-${index}`);
+    const textsB = Array.from({ length: 8 }, (_, index) => `b-${index}`);
+    const interleaved = textsA.flatMap((text, index) => [
+      { thread: 'th1', text },
+      { thread: 'th2', text: textsB[index]! },
+    ]);
+    await Promise.all(
+      interleaved.map(({ thread, text }) =>
+        memory.save({ thread, resource: 'r1', messages: [user(text)] }),
+      ),
+    );
+
+    const thread1 = await memory.recall({ threadId: 'th1', limit: 100 });
+    const thread2 = await memory.recall({ threadId: 'th2', limit: 100 });
+    expect(thread1.map((m) => m.content)).toEqual(
+      textsA.map((text) => [{ type: 'text', text }]),
+    );
+    expect(thread2.map((m) => m.content)).toEqual(
+      textsB.map((text) => [{ type: 'text', text }]),
+    );
+    expect(
+      thread1.every((m) => m.threadId === 'th1' && m.resourceId === 'r1'),
+    ).toBe(true);
+    expect(
+      thread2.every((m) => m.threadId === 'th2' && m.resourceId === 'r1'),
+    ).toBe(true);
+    expect(new Set([...thread1, ...thread2].map((m) => m.id)).size).toBe(16);
+
+    // One thread row each, owned by r1 — concurrent first writes neither duplicate nor misassign.
+    expect((await storage.memory.getThreadById('th1'))?.resourceId).toBe('r1');
+    expect((await storage.memory.getThreadById('th2'))?.resourceId).toBe('r1');
   });
 });
 

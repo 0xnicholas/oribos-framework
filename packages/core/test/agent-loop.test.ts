@@ -1,12 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { Agent } from '@oribos/core/agent';
 import type { RequestContext } from '@oribos/core/agent';
 import { ModelContractError } from '@oribos/core/model';
+import {
+  AGENT_RUN_SPAN,
+  AGENT_STEP_SPAN,
+  TOOL_CALL_SPAN,
+  createTracer,
+  memoryExporter,
+} from '@oribos/core/observability';
 import { createTool } from '@oribos/core/tools';
 import type { Tool, ToolContext } from '@oribos/core/tools';
 import { fakeModel } from '@oribos/testing';
 import { assistant, assistantWithTools } from './helpers/agent.js';
 import { collect } from './helpers/collect.js';
+import { TRACE_ID, spanOfType } from './helpers/spans.js';
 
 /**
  * 内建工具 loop 与三线错误回喂(M1-07 #28):模型返回 tool-call 时 loop 执行工具并把结果以
@@ -25,6 +34,15 @@ function weatherTool(execute: (input: { city: string }) => unknown): Tool {
     inputSchema: z.object({ city: z.string() }),
     execute,
   });
+}
+
+/** 外部可控的 deferred:测试用它把 run 按在工具执行中间(与 signals.test.ts 同一手法)。 */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((onValue) => {
+    resolve = onValue;
+  });
+  return { promise, resolve };
 }
 
 describe('Agent loop:多轮工具调用', () => {
@@ -581,5 +599,83 @@ describe('Agent loop:模型流契约', () => {
 
     await expect(collect(result)).rejects.toBeInstanceOf(ModelContractError);
     await expect(result.finishReason).rejects.toBeInstanceOf(ModelContractError);
+  });
+});
+
+describe('Agent loop:并发 run 互不串(#131)', () => {
+  it('同一 agent 两个并发 run:steps / usage / traceId 各自独立,prompt 互不染', async () => {
+    const exported = memoryExporter();
+    const tracer = createTracer({ exporters: [exported] });
+    const gate = deferred<void>();
+    const execute = vi.fn((_input: unknown, _ctx: ToolContext) => gate.promise);
+    const model = fakeModel([
+      // run A 第一步:要工具,工具按在 gate 上(制造两个 run 真实交叠的活跃窗口)
+      {
+        text: 'A checking.',
+        toolCalls: [{ toolCallId: 'call-a', toolName: 'wait', input: {} }],
+        usage: { inputTokens: 1, outputTokens: 2 },
+      },
+      // run B 的唯一一步:在窗口内完整跑完
+      { text: 'B answer.', usage: { inputTokens: 10, outputTokens: 20 } },
+      // run A 第二步:gate 放行后才发起
+      { text: 'A final.', usage: { inputTokens: 3, outputTokens: 4 } },
+    ]);
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: 'You are concise.',
+      model,
+      tools: { wait: createTool({ description: 'Waits for the gate.', execute }) },
+      tracer,
+    });
+
+    const runA = agent.generate('question A');
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    // run A 停在工具执行中间;run B 在此期间完整跑完
+    const resultB = await agent.generate('question B');
+    gate.resolve();
+    const resultA = await runA;
+
+    // 终值互不串:各自的 text / steps / usage / toolCalls 都是自己的
+    expect(resultB.text).toBe('B answer.');
+    expect(resultB.steps).toHaveLength(1);
+    expect(resultB.usage).toEqual({ inputTokens: 10, outputTokens: 20, totalTokens: 30 });
+    expect(resultB.toolCalls).toEqual([]);
+    expect(resultA.text).toBe('A final.');
+    expect(resultA.steps.map((step) => step.text)).toEqual(['A checking.', 'A final.']);
+    expect(resultA.usage).toEqual({ inputTokens: 4, outputTokens: 6, totalTokens: 10 });
+    expect(resultA.toolCalls).toEqual([
+      { type: 'tool-call', toolCallId: 'call-a', toolName: 'wait', input: {} },
+    ]);
+
+    // prompt 互不染:B 的模型调用只见自己的输入;A 的第二步只见自己的历史
+    expect(model.streamCalls[1]?.prompt).toEqual([
+      { role: 'system', content: 'You are concise.' },
+      { role: 'user', content: [{ type: 'text', text: 'question B' }] },
+    ]);
+    const secondCallOfA = JSON.stringify(model.streamCalls[2]?.prompt);
+    expect(secondCallOfA).toContain('question A');
+    expect(secondCallOfA).not.toContain('question B');
+
+    // traceId 互不串:两个 run 各起一条 trace,各自的 step span 挂在自己的 trace 下;
+    // 窗口内执行的工具,其 span 与 ctx 身份都属 run A
+    const runs = exported.spans().filter((span) => span.type === AGENT_RUN_SPAN);
+    const runSpanOf = (question: string) => {
+      const span = runs.find((candidate) => JSON.stringify(candidate.input).includes(question));
+      if (span === undefined) throw new Error(`no run span for '${question}'`);
+      return span;
+    };
+    const runSpanA = runSpanOf('question A');
+    const runSpanB = runSpanOf('question B');
+    expect(runSpanA.traceId).toMatch(TRACE_ID);
+    expect(runSpanA.traceId).not.toBe(runSpanB.traceId);
+    const stepsOf = (traceId: string) =>
+      exported
+        .spans()
+        .filter((span) => span.type === AGENT_STEP_SPAN && span.traceId === traceId);
+    expect(stepsOf(runSpanA.traceId)).toHaveLength(2);
+    expect(stepsOf(runSpanB.traceId)).toHaveLength(1);
+    expect(spanOfType(exported, TOOL_CALL_SPAN).traceId).toBe(runSpanA.traceId);
+    const contextA = execute.mock.calls[0]?.[1];
+    expect(runSpanA.attributes).toMatchObject({ runId: contextA?.runId });
   });
 });

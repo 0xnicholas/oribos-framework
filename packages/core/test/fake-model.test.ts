@@ -128,6 +128,43 @@ describe('fakeModel:脚本化假模型', () => {
     ).rejects.toThrow('cancelled by test');
   });
 
+  it('abortAfter:前 N 个 part 照常下发;abort 后流以携带 signal.reason 的 error part 收尾', async () => {
+    const reason = new Error('cancelled by consumer');
+    const controller = new AbortController();
+    const model = fakeModel([{ text: ['Hel', 'lo', 'world'], abortAfter: 4 }]);
+
+    const { stream } = await model.doStream({ prompt: [], abortSignal: controller.signal });
+    const reader = stream.getReader();
+    // 中断点在第 5 个 part 之前:stream-start / text-start / 两个 delta 已吐,照常读走
+    const delivered: LanguageModelV4StreamPart[] = [];
+    for (let read = 0; read < 4; read += 1) {
+      delivered.push((await reader.read()).value as LanguageModelV4StreamPart);
+    }
+    expect(delivered).toEqual([
+      { type: 'stream-start', warnings: [] },
+      { type: 'text-start', id: 'text-0' },
+      { type: 'text-delta', id: 'text-0', delta: 'Hel' },
+      { type: 'text-delta', id: 'text-0', delta: 'lo' },
+    ]);
+
+    controller.abort(reason);
+    // 流以 error part 报告中止,reason 原样承载(同一个对象);此后流结束,
+    // 'world' delta / text-end / finish 都不复存在
+    expect(await reader.read()).toEqual({ done: false, value: { type: 'error', error: reason } });
+    expect((await reader.read()).done).toBe(true);
+  });
+
+  it('abortAfter 的校验:必须是非负整数,且调用必须携带 abortSignal(中断源),否则显式报错', async () => {
+    const gated = fakeModel([{ text: 'hi', abortAfter: 1 }]);
+    await expect(gated.doStream({ prompt: [] })).rejects.toThrow(/abortSignal/);
+
+    const controller = new AbortController();
+    const invalid = fakeModel([{ text: 'hi', abortAfter: 1.5 }]);
+    await expect(
+      invalid.doStream({ prompt: [], abortSignal: controller.signal }),
+    ).rejects.toThrow(/abortAfter/);
+  });
+
   it('doGenerate 从同一脚本构造 content / finishReason / usage', async () => {
     const model = fakeModel([
       {

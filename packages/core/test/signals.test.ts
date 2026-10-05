@@ -75,6 +75,48 @@ describe('signals:注入(活跃 = 注入当前 run,下一 step 生效)', () => {
       { type: 'text', text: 'New info!' },
     ]);
   });
+
+  it('并发 sendMessage 打向同一活跃 run:按到达顺序注入下一 step,各自落历史恰好一次(#131)', async () => {
+    const model = fakeModel([
+      { text: 'Working.', toolCalls: [{ toolCallId: 'call-1', toolName: 'wait', input: {} }] },
+      { text: 'Done.' },
+    ]);
+    const memory = new Memory();
+    const gate = deferred<void>();
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: INSTRUCTIONS,
+      model,
+      memory,
+      tools: { wait: gateTool(gate.promise) },
+    });
+    const signals = createSignals({ agent, memory });
+
+    const text = signals.stream('Start.', { memory: TARGET }).text;
+    await vi.waitFor(() => expect(model.streamCalls).toHaveLength(1));
+    // 并发投递:deliver 先入 pending(同步)、再落历史(异步)——到达顺序 = 调用顺序,与并发无关
+    await Promise.all([
+      signals.sendMessage(TARGET, 'info-1'),
+      signals.sendMessage(TARGET, 'info-2'),
+    ]);
+    gate.resolve();
+    expect(await text).toBe('Done.');
+
+    // 两条都注入下一 step 的 prompt 尾部,按到达顺序
+    expect(model.streamCalls[1]?.prompt.slice(-2)).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'info-1' }] },
+      { role: 'user', content: [{ type: 'text', text: 'info-2' }] },
+    ]);
+    // 并发写同一 thread 落历史:两条各存恰好一次,不丢不重
+    const stored = await memory.recall({ threadId: 't1' });
+    const storedTexts = stored.flatMap((message) =>
+      typeof message.content === 'string'
+        ? [message.content]
+        : message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])),
+    );
+    expect(storedTexts.filter((text) => text === 'info-1')).toHaveLength(1);
+    expect(storedTexts.filter((text) => text === 'info-2')).toHaveLength(1);
+  });
 });
 
 describe('signals:排队(queueMessage = 排队保序)', () => {
@@ -134,6 +176,41 @@ describe('signals:排队(queueMessage = 排队保序)', () => {
       role: 'user',
       content: [{ type: 'text', text: 'queued while idle' }],
     });
+  });
+
+  it('并发 queueMessage 打向活跃 run:续跑 run 的输入按到达顺序保序(#131)', async () => {
+    const model = fakeModel([
+      { text: 'Working.', toolCalls: [{ toolCallId: 'call-1', toolName: 'wait', input: {} }] },
+      { text: 'First done.' },
+      { text: 'Continuation noted.' },
+    ]);
+    const memory = new Memory();
+    const gate = deferred<void>();
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: INSTRUCTIONS,
+      model,
+      memory,
+      tools: { wait: gateTool(gate.promise) },
+    });
+    const signals = createSignals({ agent, memory });
+
+    const text = signals.stream('Start.', { memory: TARGET }).text;
+    await vi.waitFor(() => expect(model.streamCalls).toHaveLength(1));
+    // 并发投递:入队是同步的 queue.push——到达顺序 = 调用顺序,与并发无关
+    await Promise.all([
+      signals.queueMessage(TARGET, 'q-1'),
+      signals.queueMessage(TARGET, 'q-2'),
+    ]);
+    gate.resolve();
+    expect(await text).toBe('First done.');
+
+    // 续跑 run = 第三个模型调用:排队的两条按到达顺序作其输入(此前历史已 recall)
+    await vi.waitFor(() => expect(model.streamCalls).toHaveLength(3));
+    expect(model.streamCalls[2]?.prompt.slice(-2)).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'q-1' }] },
+      { role: 'user', content: [{ type: 'text', text: 'q-2' }] },
+    ]);
   });
 });
 
