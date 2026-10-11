@@ -297,6 +297,7 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 - [`docs/architecture/`](docs/architecture/README.md) — the architecture specs, one per subsystem
 - [`docs/adr/`](docs/adr/) — the decisions behind the specs
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — milestone plan, release cadence and the v1.0 gate
+- [`skills/`](skills/) — an installable agent skill for coding agents building with Oribos
 
 ## Development
 

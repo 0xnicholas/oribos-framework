@@ -189,6 +189,8 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 - **修订(发现面同步,2026-10-11)**:[#155](https://github.com/0xnicholas/oribos-framework/issues/155) 交付——GitHub 仓面 description 按正典重写(品类语言 + 能力广度枚举 + 零依赖事实担纲;旧 ultralight 口径退役)+ topics 补足 8 枚(`ai-agents` / `llm` / `typescript` / `agent-framework` / `ai-sdk` / `mcp` / `workflows` / `durable-execution`;homepage 留空待域名根裁决,地图 #153 Fog);七包 `package.json` 补 `keywords`(npm 搜索发现面,贴品类与能力、不点名竞品、不写数字;随下次发布生效,线上 0.6.0 元数据不可原地改沿既有口径)。manifest-only + 仓面元数据,`src` 零改动,`pnpm verify` 全绿(**947 例 / 72 文件**)。依据 [#155](https://github.com/0xnicholas/oribos-framework/issues/155) 决议评论。
 
+- **修订(#84 触发评估 + skills 包首发,2026-10-11)**:[#156](https://github.com/0xnicholas/oribos-framework/issues/156) 裁定——**skills 包本期动手**(采用与上手面正属目的地、无外部前置、内容源已就位);**npm 内嵌文档维持等待**(manifest 契约已产出但离线消费诉求零信号、发布管线成本真实,触发保持 #84 口径);**`.well-known` 维持不发布**(草案未进 agentskills 主规范,skills 包发出后文档站侧动作归 oribos-docs 动线)。[#157](https://github.com/0xnicholas/oribos-framework/issues/157) 交付——`skills/oribos/SKILL.md` 首发(import map + 最小配方 + 防臆造清单,内容提炼自正典文档、指路 docs.oribos.dev / CONTEXT / `docs/architecture/` / `examples/`,数字不对外、不点名竞品)+ `skills/README.md` 消费说明 + 根 README 指路行;与代码同仓随版本 tag 发布,npm tarball 不含(七包 `files` 面不动,字节/依赖预算无涉);不加 CI 闸门(文档面先例,漂移风险由指路正典吸收)。纯文档票 `src` 零改动,`pnpm verify` 全绿(**947 例 / 72 文件**)。依据 [#156](https://github.com/0xnicholas/oribos-framework/issues/156) / [#157](https://github.com/0xnicholas/oribos-framework/issues/157) 决议评论。
+
 ### 发布后核对单(M-7)
 
 发布动作已由「七包 `prepublishOnly` 跑 `verify`」前置(逐包、打包前):闸门全绿且当次构建就绪才打包,闸门红则该包不发布。发布完成(owner 手工 `pnpm -r publish --no-git-checks`)后按下表逐项核对——**本段是核对单的单一真相源,别处不复制**;七包 = `core` / `ai-sdk` / `croner` / `mcp-client` / `mcp-server` / `otlp` / `sqlite`,`<ver>` = 当次版本,命令在仓库根跑。
