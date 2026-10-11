@@ -3,8 +3,8 @@
 Oribos's workflow engine in one scripted session: an **operator-built definition frozen into a flat
 entry list**, a **for-loop walker** interpreting it, an **agent wrapped into a step**, and an
 **approval gate** where the run suspends into a JSON snapshot and a fresh run object resumes the
-walk. Oribos is an ultralight TypeScript agent framework — compose only what you use, run anywhere,
-no runtime baggage.
+walk. Oribos is a TypeScript agent framework — zero runtime dependencies — compose only what you
+use, run anywhere.
 
 The example is a single file (`src/index.ts`) with a fixed script — no interactive input. It drives
 one workflow over a real OpenAI model and walks three acts:

@@ -1,7 +1,7 @@
 # minimal-agent
 
-The smallest runnable Oribos example. Oribos is an ultralight TypeScript agent framework — compose
-only what you use, run anywhere, no runtime baggage.
+The smallest runnable Oribos example. Oribos is a TypeScript agent framework — zero
+runtime dependencies, compose only what you use, run anywhere.
 
 This example defines a five-field agent (`name` / `instructions` / `model` / `tools`) with one
 tool and runs one `stream()` round-trip. The output object supports both consumption styles:

@@ -153,9 +153,7 @@ non-object `structuredContent` as `{ result: … }` (the era's schema requires a
 back as `isError: true` tool results — the SDK normalizes them, this package adds no layer and
 rewrites no message. An unknown tool is a protocol error instead, as MCP requires.
 
-## Lightweight
-
-Same axis as the rest of Oribos — install only what you use:
+## Install only what you use
 
 - dependency closure: `@modelcontextprotocol/server` plus its core / zod closure, recorded in
   `deps-budget.json`, where count and unpacked size are watched in CI

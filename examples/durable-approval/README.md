@@ -3,8 +3,8 @@
 Oribos's durable agent in one scripted session: a **tool call that needs a human** is held at the
 loop's step boundary, the run's **loop snapshot** goes to an `AgentRunSnapshotStore`, the run lands
 `finishReason: 'suspended'`, and `resume(runId, { approved })` continues it — executing the held
-call, or answering it with a rejection result the model replans from. Oribos is an ultralight
-TypeScript agent framework — compose only what you use, run anywhere, no runtime baggage.
+call, or answering it with a rejection result the model replans from. Oribos is a TypeScript
+agent framework with zero runtime dependencies — compose only what you use, run anywhere.
 
 The example is a single file (`src/index.ts`) with a fixed script — no interactive input. It drives
 one refund desk over a real OpenAI model and walks five acts:

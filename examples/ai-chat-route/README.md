@@ -2,8 +2,8 @@
 
 One `useChat()`-compatible HTTP route around a durable agent: [`@oribos/ai-sdk`](../../packages/ai-sdk/)'s
 `createChatRoute` speaks the AI SDK UI message stream, memory is the conversation authority, and a gated
-tool call suspends inside the stream — the application resumes it out-of-band. Oribos is an ultralight
-TypeScript agent framework — compose only what you use, run anywhere, no runtime baggage.
+tool call suspends inside the stream — the application resumes it out-of-band. Oribos is a TypeScript
+agent framework with zero runtime dependencies — compose only what you use, run anywhere.
 
 The example hosts the route on plain `node:http` (`src/index.ts`; any web-standard host works the same
 way — the route speaks `Request → Response`) and plays the client with raw `fetch`, exactly the bytes

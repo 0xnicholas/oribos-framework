@@ -3,8 +3,8 @@
 One tool container, served over MCP and bridged back: [`@oribos/mcp-server`](../../packages/mcp-server/)
 serves three tools over the protocol, [`@oribos/mcp-client`](../../packages/mcp-client/) connects and turns
 the remote list back into the framework's `Record<string, Tool>` — the same shape an agent's `tools:`
-takes. Oribos is an ultralight TypeScript agent framework — compose only what you use, run anywhere, no
-runtime baggage.
+takes. Oribos is a TypeScript agent framework with zero runtime dependencies — compose only what you
+use, run anywhere.
 
 The example is a single file (`src/index.ts`) that plays both roles in one script, over both transports:
 HTTP (default) and stdio (`MCP_TRANSPORT=stdio` re-execs the script as the server child, which the client

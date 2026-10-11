@@ -1,6 +1,8 @@
 # Oribos
 
-Ultralight TypeScript agent framework. Compose only what you use — run anywhere, no runtime baggage.
+Build AI agents that run for days. Oribos is a TypeScript agent framework — agents, memory,
+workflows, and the harness trio (durable agents, signals, schedules) — with zero runtime
+dependencies: compose only what you use, run anywhere.
 
 > **Oribos** is the umbrella brand; this repository — **oribos-framework** — is its framework
 > subproject. Packages publish under the `@oribos/*` scope (starting with `@oribos/core`), and future
@@ -19,8 +21,6 @@ Ultralight TypeScript agent framework. Compose only what you use — run anywher
 > separately. See [Capability packages](#capability-packages-m5) for the core-external packages.
 
 ## Why Oribos
-
-Oribos's differentiating axis is **lightweight**, in two precise senses:
 
 - **Compose only what you use.** Every subsystem ships behind its own subpath export
   (`@oribos/core/agent`, `/tools`, `/memory`, `/workflows`, …). What you don't import costs you
@@ -315,8 +315,8 @@ pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools
 It runs the four offline entries serially, streams each one's output and exits non-zero if any fails
 (`pnpm build` first: examples consume the packages through their built exports).
 
-The byte budget (minified size per export path) is checked in CI on every PR — "lightweight" is a
-checked property, not a slogan — and it is a warning, not a merge blocker
+The byte budget (minified size per export path) is checked in CI on every PR — a checked
+property, not a slogan — and it is a warning, not a merge blocker
 ([ADR-0001](docs/adr/0001-lightweight-definition.md)).
 
 ## License

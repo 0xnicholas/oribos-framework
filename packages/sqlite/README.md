@@ -101,7 +101,7 @@ surfaces unchanged and retry policy belongs to the deployment. Cross-process res
 is only correct when the caller uses `compareAndSave`; `':memory:'` databases are per-connection
 (testing and single-process only).
 
-## Lightweight
+## Install only what you use
 
 - dependencies: none — the driver is built into Node, so there is no `deps-budget.json` to watch
 - first-party code: the minified baseline is recorded in `byte-budget.json` and checked on every

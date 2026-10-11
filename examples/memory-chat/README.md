@@ -2,8 +2,8 @@
 
 Oribos's memory subsystem in one scripted session: **message history** across two threads of one
 resource, the `recall()` query, and **working memory** maintained by the model through a tool call.
-Oribos is an ultralight TypeScript agent framework — compose only what you use, run anywhere, no
-runtime baggage.
+Oribos is a TypeScript agent framework with zero runtime dependencies — compose only what you
+use, run anywhere.
 
 The example is a single file (`src/index.ts`) with a fixed script — no interactive input. It runs a
 concise concierge agent on a real OpenAI model and walks three acts:

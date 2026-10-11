@@ -1,7 +1,7 @@
 {
   "name": "@oribos/core",
   "version": "0.6.0",
-  "description": "Oribos core — ultralight TypeScript agent framework: model contract, agents, tools, and observability.",
+  "description": "Oribos core — TypeScript agent framework with zero runtime dependencies: model contract, agents, tools, and observability.",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,

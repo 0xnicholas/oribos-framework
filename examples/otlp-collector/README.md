@@ -3,8 +3,8 @@
 A traced agent run lands in a local OTLP collector as GenAI semantic-convention spans: a `node:http`
 collector plays the backend (Langfuse, LangSmith and any OTel collector speak the same wire), a scripted
 model drives a real agent run, and [`@oribos/otlp`](../../packages/otlp/) ships the run's spans over OTLP.
-Oribos is an ultralight TypeScript agent framework — compose only what you use, run anywhere, no runtime
-baggage.
+Oribos is a TypeScript agent framework with zero runtime dependencies — compose only what you
+use, run anywhere.
 
 One script (`src/index.ts`), no API key and no network beyond loopback. Two acts:
 

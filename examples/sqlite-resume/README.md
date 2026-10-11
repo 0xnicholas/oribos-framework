@@ -2,8 +2,8 @@
 
 A durable run that outlives the process that made it: the refund desk suspends in a worker process, its
 loop snapshot lands in SQLite through [`@oribos/sqlite`](../../packages/sqlite/), the worker exits — and a
-brand-new process opens its own connection to the same file and resumes the run. Oribos is an ultralight
-TypeScript agent framework — compose only what you use, run anywhere, no runtime baggage.
+brand-new process opens its own connection to the same file and resumes the run. Oribos is a TypeScript
+agent framework with zero runtime dependencies — compose only what you use, run anywhere.
 
 One script, two processes (`src/index.ts` re-execs itself as the worker), four acts:
 

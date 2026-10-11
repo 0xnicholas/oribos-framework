@@ -75,9 +75,7 @@ package, pinned exactly at `7.0.123` as a devDependency): tool calls arrive as
 metadata, and everything unreconstructible from the chunk protocol (reasoning, sources, approvals,
 data parts…) is simply not emitted.
 
-## Lightweight
-
-Same axis as the rest of Oribos — install only what you use:
+## Install only what you use
 
 - runtime dependencies: none beyond the `@oribos/core` peer (the declared-dependency gate is
   enforced in CI)

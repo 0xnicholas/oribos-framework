@@ -1,11 +1,11 @@
 # `@oribos/core`
 
-The core package of [Oribos](https://github.com/0xnicholas/oribos-framework) — an ultralight
-TypeScript agent framework: model contract, agents, tools, memory, workflows, observability,
-signals, durable agents and schedules, each behind its own subpath export. Compose only what you
-use: what you don't import costs you nothing, not in the dependency tree and not in concept space.
-Model instances come straight from the AI SDK provider ecosystem and tool schemas are Standard
-Schema dual interfaces, so the core itself carries no runtime dependencies.
+The core package of [Oribos](https://github.com/0xnicholas/oribos-framework) — a TypeScript
+agent framework with zero runtime dependencies: model contract, agents, tools, memory, workflows,
+observability, signals, durable agents and schedules, each behind its own subpath export. Compose
+only what you use: what you don't import costs you nothing, not in the dependency tree and not in
+concept space. Model instances come straight from the AI SDK provider ecosystem and tool schemas
+are Standard Schema dual interfaces.
 
 ```ts
 import { openai } from '@ai-sdk/openai';
@@ -88,7 +88,7 @@ Subsystems stay fully usable without it — a standalone `new Agent({ … })` wi
 is first-class, with zero span overhead. Explicit assembly wins: a config that brings its own
 `tracer` / `memory` / `storage` is never taken over.
 
-## Lightweight
+## Install only what you use
 
 - runtime dependencies: none — the zero-dependency redline is a hard CI gate over both the manifest
   and the built output ([ADR-0015](https://github.com/0xnicholas/oribos-framework/blob/main/docs/adr/0015-ci-lightweight-redlines.md))

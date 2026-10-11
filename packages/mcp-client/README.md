@@ -112,9 +112,7 @@ no elicitation/sampling handlers.
 On modern HTTP connections the SDK must drop tools whose `x-mcp-header` declarations are illegal
 (SPEC MUST, warned in console) — the snapshot can be smaller than what the server advertises.
 
-## Lightweight
-
-Same axis as the rest of Oribos — install only what you use:
+## Install only what you use
 
 - dependency closure: everything `@modelcontextprotocol/client` pulls in — its OAuth / SSE / stdio
   closure — recorded in `deps-budget.json`, where count and unpacked size are watched in CI

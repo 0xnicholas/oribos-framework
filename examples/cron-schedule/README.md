@@ -3,8 +3,8 @@
 One cron expression, from the host's definition to a fired run: `@oribos/croner`'s `cron()` returns
 exactly the `next` + `timezone` fragment `schedules.save()` takes, the occurrence function walks the
 schedule as pure computation, and `tick` fires what is due and advances the record. Oribos is an
-ultralight TypeScript agent framework — compose only what you use, run anywhere, no runtime
-baggage.
+TypeScript agent framework with zero runtime dependencies — compose only what you use, run
+anywhere.
 
 The example is a single file (`src/index.ts`) with a fixed script — no interactive input, **no API
 key and no network** (the reporting agent runs on a scripted model defined in the file). Five acts:

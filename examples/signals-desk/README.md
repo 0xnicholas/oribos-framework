@@ -3,8 +3,8 @@
 Oribos's signals subsystem in one scripted session: one support **thread** that everything lands in —
 a customer message that wakes an idle run, a message **injected** into the run while it is live, two
 queued messages that keep their order, a typed **system signal**, and a **scheduled trigger** fired
-by the schedules primitive. Oribos is an ultralight TypeScript agent framework — compose only what you
-use, run anywhere, no runtime baggage.
+by the schedules primitive. Oribos is a TypeScript agent framework — zero runtime dependencies —
+compose only what you use, run anywhere.
 
 The example is a single file (`src/index.ts`) with a fixed script — no interactive input. It drives a
 small shop's support desk over a real OpenAI model and walks five acts:
