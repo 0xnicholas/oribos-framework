@@ -1,6 +1,6 @@
 # 实施路线图
 
-Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件套 / 六能力包能力面,零运行时依赖)的粗粒度实施路线图:**只讲顺序、依赖与可验证产出,不含排期**。规范本体见 `docs/architecture/`(入口:`docs/architecture/README.md`),术语见 `CONTEXT.md`,决策依据见 `docs/adr/`。定位措辞两层结构(2026-10-11,ADR-0016):公开叙事 = 品类语言 + 能力广度 + 零依赖事实担纲(oribos-website 为正典),「轻量」退为内部轴名、不作公开身份词。本图由 [决策:粗粒度实施路线图](https://github.com/0xnicholas/oribos-framework/issues/16) 产出。
+Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件套 / 六能力包能力面,零运行时依赖)的粗粒度实施路线图:**只讲顺序、依赖与可验证产出,不含排期**。规范本体见 `docs/architecture/`(入口:`docs/architecture/README.md`),术语见 `CONTEXT.md`,决策依据见 `docs/adr/`。定位措辞两层结构(2026-10-11,ADR-0016):公开叙事 = 品类语言 + 能力广度 + 零依赖事实担纲(oribos-website 为正典),「轻量」退为内部轴名、不作公开身份词。(2026-10-11 转向重裁:ADR-0017 取代 ADR-0016——定位 = **转向追赶 mastra、轻量轴保留**;公开叙事面随转向再翻转、归后续叙事票,翻转前现行公开口径如实保留。)本图由 [决策:粗粒度实施路线图](https://github.com/0xnicholas/oribos-framework/issues/16) 产出。
 
 ## 切分原则
 
@@ -131,7 +131,7 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 - **与 1.0 门槛的关系**:倾向「与 1.0 门槛合并评估」——**本阶段不定义 1.0**(1.0 门槛自 M5 口径修订起搁置,见下「发布节奏与 v1.0 门槛」);若 0.6 收线后提升项自然构成门槛,另起 effort 正式定义。
 - **随 0.6 记账的既有破型**:品牌改名把 OTel 属性族 `balsa.*` → `oribos.*`、`service.name` 默认 `oribos`、console 前缀与 mcp-client vendor 同步——**线上 0.5.0 tarball 实测仍是 `balsa.*` / `balsa`**(`balsats` 一次换名只落在仓库、未随发布上线),故下一次发布承载的是**合并后的一次破型**,对 0.5.0 消费者是观测 wire 面破型(pre-1.0 窗口内落,ADR-0009 已注记)——与本节提升项无关,但同一发布承载。
 
-## 下一阶段(信号源建设期)
+## 信号源建设期(2026-10-11 即日终结:转向追赶 mastra)
 
 **裁决:0.7 不存在(2026-10-11)**——三路 0.7 候选池全空:mastra 侧定点刷新(`docs/research/mastra-gap-analysis.md` 第三版,快照 2026-10-11)+ 延后清单 20 能力行禁跟单核对零行满足重开条件([#145](https://github.com/0xnicholas/oribos-framework/issues/145));内部欠账三核账项逐项落定、无 0.7 内容候选([#146](https://github.com/0xnicholas/oribos-framework/issues/146));owner 无新输入。每项进版本必须答得出「为什么是现在」;三路皆答不出,**0.7 不立项**——空池是合法结论,不是缺口([#147](https://github.com/0xnicholas/oribos-framework/issues/147))。空池根因判读:需求侧重开条件以用户基数为前提,而 0.6.0 首发于 2026-10-05——**结构性静默(无信号源),不构成定位失败的证据**;定位根裁决 = **维持有意分叉,不转向追赶 mastra**([#151](https://github.com/0xnicholas/oribos-framework/issues/151),ADR-0016)。
 
@@ -140,6 +140,8 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 **版本口径**:**0.7 不立项、版本号不预占**——下一功能内容的唯一入口 = 延后清单重开条件被外部可观察信号满足(满足即单独评估,不自动进入路线图);内容到达时按内容定号。1.0 门槛沿既有口径(未定义、另起 effort),空池不构成其触发。
 
 依据 [Wayfinder 地图:定位裁决](https://github.com/0xnicholas/oribos-framework/issues/149)(调研票 #150 / 根裁决票 #151 / 处置票 #152)与 ADR-0016。
+
+**本期终结(2026-10-11,即日)**:owner 行使决定权硬转——定位重裁 = **转向追赶 mastra、轻量轴保留**([#158](https://github.com/0xnicholas/oribos-framework/issues/158);ADR-0017 取代 ADR-0016,ADR-0016 重开条件未满足、非条件翻案)。本期主题(采用与上手面建设、功能面一行不动)与「0.7 不存在」裁决随硬转**作废**——功能面入口不再是延后清单需求侧重开条件,而是「mastra 采用 = 需求证据(二手需求)」触发下的追赶面重估(重估不自动晋升;程序见 ADR-0017「翻案程序」);版本号不预占口径不变,下一功能版本按追赶面内容定号,1.0 门槛沿既有口径(未定义、另起 effort)。本期产出(公开叙事两层结构 #154、发现面 #155、skills 包 #157)为 dated 交付物保留、不撤销——采用与上手面在追赶定位下仍是正资产;叙事面随转向再翻转,归后续叙事票(公开记录第三次定位摆动,翻转文案须写明理由)。本节内容按 dated record 原样保留。
 
 ## 发布节奏与 v1.0 门槛
 
@@ -191,6 +193,8 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 - **修订(#84 触发评估 + skills 包首发,2026-10-11)**:[#156](https://github.com/0xnicholas/oribos-framework/issues/156) 裁定——**skills 包本期动手**(采用与上手面正属目的地、无外部前置、内容源已就位);**npm 内嵌文档维持等待**(manifest 契约已产出但离线消费诉求零信号、发布管线成本真实,触发保持 #84 口径);**`.well-known` 维持不发布**(草案未进 agentskills 主规范,skills 包发出后文档站侧动作归 oribos-docs 动线)。[#157](https://github.com/0xnicholas/oribos-framework/issues/157) 交付——`skills/oribos/SKILL.md` 首发(import map + 最小配方 + 防臆造清单,内容提炼自正典文档、指路 docs.oribos.dev / CONTEXT / `docs/architecture/` / `examples/`,数字不对外、不点名竞品)+ `skills/README.md` 消费说明 + 根 README 指路行;与代码同仓随版本 tag 发布,npm tarball 不含(七包 `files` 面不动,字节/依赖预算无涉);不加 CI 闸门(文档面先例,漂移风险由指路正典吸收)。纯文档票 `src` 零改动,`pnpm verify` 全绿(**947 例 / 72 文件**)。依据 [#156](https://github.com/0xnicholas/oribos-framework/issues/156) / [#157](https://github.com/0xnicholas/oribos-framework/issues/157) 决议评论。
 
+- **修订(定位硬转:转向追赶 mastra,2026-10-11)**:owner 行使决定权硬转(ADR-0016 自写重开条件**未满足**,非条件翻案;反方证据 #150 已呈并听完)——决策票 [#158](https://github.com/0xnicholas/oribos-framework/issues/158),**ADR-0017 取代 ADR-0016**(旧文不删不改,dated records)。**红线分叉点裁决 = 保轴**:轻量轴两层含义(按需组合 + 无运行时负担)原样保留,追赶面 = 与两含义兼容的 mastra 功能面子集(挡路的是「无运行时负担」而非零依赖闸门——能力包携外部依赖有 MCP/OTel 先例;OM 类常驻管线、voice、重型集成仍不可直行);废/改轴被否(= 品牌与产品实质更换,买到的恰是采用证据最薄的行、交出唯一有近义痛点证据的差异轴)。**被否三件处置**:ADR-0001 / ADR-0015 保留原样(CI 机器零改动,新功能行走既有闸门),ADR-0012 本体保留、演化门触发条款改受新纪律(supervisor 行进入首批重估,落点仍能力包优先)。**禁跟单纪律改写**:「mastra 已采用且未弃的功能面 = 需求证据(二手需求)」触发**重估**而非自动晋升;已弃方向(`.network()`)与纯营销动作不构成证据。**翻案程序**:延后清单 20 行需求侧重开条件全部作废按追赶面重估、出域档 7 行自动解封(重开条件 = 定位裁决改变,已满足;解封 = 进入重估非晋升)、110 行有意分叉逐行三态重判(维持 / 转追赶项 / 维持但理由改写)——执行归规划型地图,首批从与现有承载缝最近的行起步;实施沿两段式先例另开地图,`pnpm verify` 全绿是硬门。**目的重定义** = 追赶采用(检验:追赶面交付后采用曲线无实质起色,或 mastra 重大形态变化,本裁决可再翻案)。文档处置:上「下一阶段(信号源建设期)」段改题「信号源建设期(2026-10-11 即日终结)」收口、本期产出不撤销;本文件开头定位句补转向注记;下「延后清单」头注重开条件作废记账;`CONTEXT.md`「信号源建设期 / 重开条件 / 轻量」三条注记终态;叙事层(README / topics / skills / 仓 description)翻转**最后动**、归后续叙事票——公开记录第三次定位摆动,翻转文案须写明理由。纯文档票 src 零改动,`pnpm verify` 全绿(947 例 / 72 文件,与基线同数)。依据 [#158](https://github.com/0xnicholas/oribos-framework/issues/158) 决议评论。
+
 ### 发布后核对单(M-7)
 
 发布动作已由「七包 `prepublishOnly` 跑 `verify`」前置(逐包、打包前):闸门全绿且当次构建就绪才打包,闸门红则该包不发布。发布完成(owner 手工 `pnpm -r publish --no-git-checks`)后按下表逐项核对——**本段是核对单的单一真相源,别处不复制**;七包 = `core` / `ai-sdk` / `croner` / `mcp-client` / `mcp-server` / `otlp` / `sqlite`,`<ver>` = 当次版本,命令在仓库根跑。
@@ -212,6 +216,8 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 > 修订(2026-09-30,对比 ticket [#63](https://github.com/0xnicholas/oribos-framework/issues/63)):清单升级为四列表,重开条件统一为可观察、可累计的判定信号。
 
 > 修订(2026-10-02,判定票 [#106](https://github.com/0xnicholas/oribos-framework/issues/106)):能力项 20 行(延后档 13 + 出域档 7)逐条判定为**有意分叉**——全部**原地留**、重开条件不变;新增「承接」列指到规范表行(判定与理由的单一真相源在 `docs/architecture/*.md` 的「砍单与承载缝」表,本清单不复制理由)。
+
+> 修订(2026-10-11,决策票 [#158](https://github.com/0xnicholas/oribos-framework/issues/158) / ADR-0017):定位硬转——**本清单 20 能力行的需求侧重开条件全部作废**,「重开条件」的单一真相源地位随 ADR-0017 终结;新纪律 = 「mastra 已采用且未弃的功能面 = 需求证据(二手需求)」,触发**重估**而非自动晋升(轴兼容 + 承载缝逐行判定,程序见 ADR-0017「翻案程序」)。**出域档 7 行随裁决自动解封**(其重开条件 = 定位裁决改变,已满足;解封 = 进入重估,不是晋升)。重判执行归追赶面规划地图;行内容在重判落锤前原样保留(dated records)。
 
 ### 延后档(触发式)
 
