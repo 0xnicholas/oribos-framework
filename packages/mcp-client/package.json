@@ -2,6 +2,7 @@
   "name": "@oribos/mcp-client",
   "version": "0.6.0",
   "description": "Oribos MCP client — bridge remote MCP tools into the Tool container (Streamable HTTP + stdio).",
+  "keywords": ["ai-agents", "llm", "typescript", "mcp", "model-context-protocol", "mcp-client"],
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,

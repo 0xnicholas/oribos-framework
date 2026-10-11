@@ -2,6 +2,7 @@
   "name": "@oribos/croner",
   "version": "0.6.0",
   "description": "Oribos croner wrapper — cron expressions as a schedules.save() fragment (next + timezone), no dependencies beyond an exact-pinned croner, no core peer.",
+  "keywords": ["ai-agents", "llm", "typescript", "cron", "croner", "scheduling"],
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,

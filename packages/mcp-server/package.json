@@ -2,6 +2,7 @@
   "name": "@oribos/mcp-server",
   "version": "0.6.0",
   "description": "Oribos MCP server — expose the Tool container over MCP (HTTP fetch handler + stdio).",
+  "keywords": ["ai-agents", "llm", "typescript", "mcp", "model-context-protocol", "mcp-server"],
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
