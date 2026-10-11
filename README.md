@@ -1,5 +1,7 @@
 # Oribos
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Build AI agents that run for days. Oribos is a TypeScript agent framework — agents, memory,
 workflows, and the harness trio (durable agents, signals, schedules) — with zero runtime
 dependencies: compose only what you use, run anywhere.
