@@ -1,6 +1,6 @@
 # 实施路线图
 
-极致轻量 TypeScript/Node agent 框架的粗粒度实施路线图:**只讲顺序、依赖与可验证产出,不含排期**。规范本体见 `docs/architecture/`(入口:`docs/architecture/README.md`),术语见 `CONTEXT.md`,决策依据见 `docs/adr/`。本图由 [决策:粗粒度实施路线图](https://github.com/0xnicholas/oribos-framework/issues/16) 产出。
+Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件套 / 六能力包能力面,零运行时依赖)的粗粒度实施路线图:**只讲顺序、依赖与可验证产出,不含排期**。规范本体见 `docs/architecture/`(入口:`docs/architecture/README.md`),术语见 `CONTEXT.md`,决策依据见 `docs/adr/`。定位措辞两层结构(2026-10-11,ADR-0016):公开叙事 = 品类语言 + 能力广度 + 零依赖事实担纲(oribos-website 为正典),「轻量」退为内部轴名、不作公开身份词。本图由 [决策:粗粒度实施路线图](https://github.com/0xnicholas/oribos-framework/issues/16) 产出。
 
 ## 切分原则
 
@@ -82,9 +82,9 @@
 
 **实施完成(M5 收尾,2026-10-01)**:六包全部落码并核验(实施票 [#87](https://github.com/0xnicholas/oribos-framework/issues/87)–[#92](https://github.com/0xnicholas/oribos-framework/issues/92) 全关,bunfold 沿裁单不产包)——`@oribos/mcp-server` / `@oribos/mcp-client` / `@oribos/sqlite` / `@oribos/ai-sdk` / `@oribos/otlp` / `@oribos/croner`,各含单测 + 双预算基线(ai-sdk 空集基线;sqlite 零运行时依赖,沿脚本语义免 deps 基线,同 core)+ 最小英文 README;五 example 全跑通(`examples/mcp-tools` 双 transport / `sqlite-resume` 跨进程 / `ai-chat-route` / `otlp-collector` / `cron-schedule`,负例 exit 1);导出面核对:core 的 export-map / entry-points 测试在位(按设计只覆盖 core 导出表),产物面由 `check:dist` 逐包验真(七包 **16 子路径**全过);`check:runtime-deps` 白名单闸门全绿;`deps-budget` 六包逐包核对(五份基线 + sqlite 免基线)**全部在数、零黄灯**;字节预算 **16/16 零超支**;`pnpm verify` 全绿(**856 例 67 文件**)。发布交接口径见下「发布节奏与 v1.0 门槛」M5 收尾修订。依据 [实施:M5 收尾——verify 全绿核对 + 导出/预算总表 + ROADMAP/README 修订 + 发布交接口径](https://github.com/0xnicholas/oribos-framework/issues/93) 决议评论。
 
-## 下一阶段(完善)
+## 完善阶段(0.6,已收口)
 
-**目标形态 = 子系统完整判据**(不绑版本号):把八个子系统(模型 / Agent / 工具 / 工作流 / 记忆 / 观测 / 存储 / Harness)各自的「什么算完整」定死——规范承诺兑现 + 已记录砍单项清账 + 有意分叉写明 + 质量面达标——再以它为准判掉三份盘点:**有意分叉**写明理由并落各篇规范的「砍单与承载缝」表,**欠账**提升为下「必须项」表(自定触发 = 完整判据本身,验证面 = 兑现的第二半)。判定口径:二元结论(有意分叉 / 欠账)+ 两道门(写不出分叉理由的按欠账;写不出验证面的欠账不得提升)+ 禁跟单(mastra 有 / 以后有用 / 不贵)。术语见 `CONTEXT.md`(完整判据 / 自定触发 / 有意分叉·欠账 / 形状内语义差异 / 验证面)。
+**目标形态 = 子系统完整判据**(不绑版本号):把八个子系统(模型 / Agent / 工具 / 工作流 / 记忆 / 观测 / 存储 / Harness)各自的「什么算完整」定死——规范承诺兑现 + 已记录砍单项清账 + 有意分叉写明 + 质量面达标——再以它为准判掉三份盘点:**有意分叉**写明理由并落各篇规范的「砍单与承载缝」表,**欠账**提升为下「必须项」表(自定触发 = 完整判据本身,验证面 = 兑现的第二半)。判定口径:二元结论(有意分叉 / 欠账)+ 两道门(写不出分叉理由的按欠账;写不出验证面的欠账不得提升)+ 禁跟单(mastra 有 / 以后有用 / 不贵);**信号源条款(2026-10-11 增补,ADR-0016)**:禁跟单与需求侧重开条件原样不动——明文判读「无用户期纪律悬空」(需求侧重开条件以用户基数为前提,无用户期候选池静默是结构性的,不构成定位失败证据);轴级公开痛点证据(edge 部署受阻、框架 overhead 抱怨等)是定位/市场面工作的合法输入,**不构成延后清单功能行的晋升理由**。术语见 `CONTEXT.md`(完整判据 / 自定触发 / 有意分叉·欠账 / 形状内语义差异 / 验证面 / 信号源建设期)。
 
 **依据与产出**:本段由规划型地图 [Wayfinder 地图:完善现有功能](https://github.com/0xnicholas/oribos-framework/issues/102) 产出——判据票 [#104](https://github.com/0xnicholas/oribos-framework/issues/104)(八份完整判据 + 二元判定口径)、[决策:§3 形状内语义差异逐条判定](https://github.com/0xnicholas/oribos-framework/issues/105)、[决策:砍单表逐条判定](https://github.com/0xnicholas/oribos-framework/issues/106)、[决策:质量与债务处置](https://github.com/0xnicholas/oribos-framework/issues/107);事实底座 = `docs/research/completeness-audit.md`(审计报告:八篇规范 456 条承诺三方对账 + 60 行砍单复核 + §3 语义 33 条 + 质量/债务盘点)与 `docs/research/mastra-gap-analysis.md`(对比总账)。**实施地图 = [Wayfinder 地图:完善阶段实施](https://github.com/0xnicholas/oribos-framework/issues/130)**(批 2–4 八票,2026-10-04 开图)——本节只出必须项、顺序与验证面;每项的票据级大纲见 [任务:计划成文](https://github.com/0xnicholas/oribos-framework/issues/108) 决议评论。
 
@@ -131,6 +131,16 @@
 - **与 1.0 门槛的关系**:倾向「与 1.0 门槛合并评估」——**本阶段不定义 1.0**(1.0 门槛自 M5 口径修订起搁置,见下「发布节奏与 v1.0 门槛」);若 0.6 收线后提升项自然构成门槛,另起 effort 正式定义。
 - **随 0.6 记账的既有破型**:品牌改名把 OTel 属性族 `balsa.*` → `oribos.*`、`service.name` 默认 `oribos`、console 前缀与 mcp-client vendor 同步——**线上 0.5.0 tarball 实测仍是 `balsa.*` / `balsa`**(`balsats` 一次换名只落在仓库、未随发布上线),故下一次发布承载的是**合并后的一次破型**,对 0.5.0 消费者是观测 wire 面破型(pre-1.0 窗口内落,ADR-0009 已注记)——与本节提升项无关,但同一发布承载。
 
+## 下一阶段(信号源建设期)
+
+**裁决:0.7 不存在(2026-10-11)**——三路 0.7 候选池全空:mastra 侧定点刷新(`docs/research/mastra-gap-analysis.md` 第三版,快照 2026-10-11)+ 延后清单 20 能力行禁跟单核对零行满足重开条件([#145](https://github.com/0xnicholas/oribos-framework/issues/145));内部欠账三核账项逐项落定、无 0.7 内容候选([#146](https://github.com/0xnicholas/oribos-framework/issues/146));owner 无新输入。每项进版本必须答得出「为什么是现在」;三路皆答不出,**0.7 不立项**——空池是合法结论,不是缺口([#147](https://github.com/0xnicholas/oribos-framework/issues/147))。空池根因判读:需求侧重开条件以用户基数为前提,而 0.6.0 首发于 2026-10-05——**结构性静默(无信号源),不构成定位失败的证据**;定位根裁决 = **维持有意分叉,不转向追赶 mastra**([#151](https://github.com/0xnicholas/oribos-framework/issues/151),ADR-0016)。
+
+**本期主题 = 采用与上手面建设**:让利基找得到 oribos、让需求侧信号获得来源(术语见 `CONTEXT.md`「信号源建设期」)。**功能面一行不动,不 reopen 延后清单任何行**;oribos-website 叙事改版(2026-10-11)为该姿态首个已执行动作,由 #151 追认为 de jure。本期实施动作沿两段式先例另开地图,本段只定主题与口径。
+
+**版本口径**:**0.7 不立项、版本号不预占**——下一功能内容的唯一入口 = 延后清单重开条件被外部可观察信号满足(满足即单独评估,不自动进入路线图);内容到达时按内容定号。1.0 门槛沿既有口径(未定义、另起 effort),空池不构成其触发。
+
+依据 [Wayfinder 地图:定位裁决](https://github.com/0xnicholas/oribos-framework/issues/149)(调研票 #150 / 根裁决票 #151 / 处置票 #152)与 ADR-0016。
+
 ## 发布节奏与 v1.0 门槛
 
 - **M1 末发 0.1**:walking skeleton 尽早公开,最早验证子路径导出与字节预算的打包链路;**以定名为门**——首次发布前必须完成 [决策:项目命名与品牌](https://github.com/0xnicholas/oribos-framework/issues/20)。
@@ -172,6 +182,8 @@
 - **修订(P-1 落地,2026-10-05)**:必须项表 **P-1** 交付([#134](https://github.com/0xnicholas/oribos-framework/issues/134),cdda3da)——§3 语义钉子三条行为断言全落:**SEM-A2 同一步多工具串行** = gated 假工具把首工具按在执行中间,第二个工具的 `execute` 在第一个 settle 前**零调用**(变异核对:loop 改并发即红),放行后启动序 = 调用序、结果按序并入本步;**SEM-B16 条件内 `suspend()` 报错** = branch 条件与 dowhile 循环条件同一路(walker 以 `step === undefined` 组包,`suspend` 由 `suspendOutsideStep` 顶替),run 以裸 `Error` **失败而非挂起**,消息逐字钉死(「suspend() is not available in a branch or loop condition — only a step can suspend a run」),臂不执行、后续条件不再求值、循环体一次都不执行;**SEM-D7 / H-48 `tick` 自身无 span** = 挂 tracer 的 target 被触发后,导出 span 恰为该 run 的 `agent-run` + `agent-step` 两个、同属一条 trace(tick 没有添一个);反向不挂 tracer 时整拍(触发 + 重锚)不触碰 span id 生成(`withSpanIdProbe` 零开销探针)。纯断言票:公开包 `src` 零改动,`@oribos/testing` 正本桩未动(三条断言直接消费既有 `fakeModel` / `deferred` / 探针面);`pnpm verify` 全绿(**946 例 / 72 文件**,+3)。断言未暴露实装缺陷,无另开票。**批 2 自此收口**(M-1 / M-2 / M-3 / P-1 全交付);0.6 到达判据余发布票 [#139](https://github.com/0xnicholas/oribos-framework/issues/139)。依据 [#134](https://github.com/0xnicholas/oribos-framework/issues/134) 决议评论。
 
 - **修订(发布 0.6.0,2026-10-05)**:七包 **0.6.0** 已在 npm 上线(**`@oribos/*` scope 首发**,接替 `@balsats/*` 0.5.0)——未认证七端点全 200、`latest=0.6.0` ×7、`engines >=22.13.0`、peer 互指已改写 `^0.6.0`;线上 tarball 逐包 = `dist/`(非空)+ README + LICENSE;干净目录安装冒烟 16 面(core 根 + 9 子路径 + 六能力包)全过;单 tag `v0.6.0` → `034417a` + [GitHub Release](https://github.com/0xnicholas/oribos-framework/releases/tag/v0.6.0)(notes 覆盖七包 + 完善阶段 + 合并破型记账)。本发布承载 `balsa.*` → `oribos.*` 合并后一次 wire 面破型(线上 0.5.0 tarball 实测仍为 `balsa.*`,`balsats` 换名未随发布上线;pre-1.0 窗口,ADR-0009 已注记)。**`@balsats/*` 处置**:owner 有意下架(七包已全 404),deprecate 无对象、#139 票面该项作废。**插曲(如实记账)**:首发跑未带 bump,0.5.0(及 core / croner / mcp-server 三包 `0.0.0-stage` 占位)先行上线;registry 传播延迟曾致 otlp / sqlite 端点短窗 404、误判「未发出」;0.6.0 全量重发后 `latest` 全归位——杂版(0.5.0 ×7 + 0.0.0-stage ×3)撤除归 owner 动作(72h 窗口至 2026-10-08),结果另记。**口径收口**:README Status / Install / 能力包段随本行翻转为 0.6.0 已发布(沿 #99 先例)。依据 [#139](https://github.com/0xnicholas/oribos-framework/issues/139) 决议评论。
+
+- **修订(信号源建设期成文,2026-10-11)**:新增上「下一阶段(信号源建设期)」段——**0.7 不存在**的裁决如实记入(三路候选池全空:mastra 侧 [#145](https://github.com/0xnicholas/oribos-framework/issues/145) / 内部侧 [#146](https://github.com/0xnicholas/oribos-framework/issues/146) / owner 无输入;[#147](https://github.com/0xnicholas/oribos-framework/issues/147)),版本号不预占、1.0 门槛沿既有口径;本期主题 = 采用与上手面建设,**功能面一行不动、不 reopen 延后清单任何行**。纪律增补:上「完善阶段」判定口径行增补**信号源条款**(禁跟单与需求侧重开条件原样不动;明文「无用户期纪律悬空」判读 + 轴级公开痛点证据为定位/市场面工作的合法输入、不构成延后行晋升理由;ADR-0016)。定位句两层改写:本文件开头定位句按两层结构重写(公开叙事 = 品类语言 + 能力广度 + 零依赖事实担纲,oribos-website commit `788a563` 为正典;「轻量」退为内部轴名)——**框架 README 与 oribos-docs 的 ultralight 旧口径失同步,在此记账;同步动作归实施 effort,不进本票**。「完善阶段」段随 0.6.0 发布收口,标题由「下一阶段(完善)」改记为「完善阶段(0.6,已收口)」。依据 [Wayfinder 地图:定位裁决](https://github.com/0xnicholas/oribos-framework/issues/149) 处置票 [#152](https://github.com/0xnicholas/oribos-framework/issues/152)。
 
 ### 发布后核对单(M-7)
 
