@@ -178,4 +178,167 @@ describe('toAISdkStream', () => {
     expect(error).toBeUndefined();
     expect(frames).toEqual([]);
   });
+
+  describe('opt-in delta families (A4)', () => {
+    it('maps the full round trip: reasoning and tool-input deltas become their UI stream frames', async () => {
+      const { frames, error } = await collect(
+        toAISdkStream(
+          source(
+            { type: 'reasoning-delta', reasoningDelta: 'th' },
+            { type: 'reasoning-delta', reasoningDelta: 'ink' },
+            { type: 'text-delta', textDelta: 'Let me check.' },
+            { type: 'tool-input-start', toolCallId: 'call-1', toolName: 'weather' },
+            { type: 'tool-input-delta', toolCallId: 'call-1', inputDelta: '{"city' },
+            { type: 'tool-input-delta', toolCallId: 'call-1', inputDelta: ':"SF"}' },
+            { type: 'tool-input-end', toolCallId: 'call-1' },
+            { type: 'tool-call', toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } },
+            { type: 'finish', finishReason: 'tool-calls', usage },
+          ),
+        ),
+      );
+      expect(error).toBeUndefined();
+      expect(frames).toEqual([
+        { type: 'start-step' },
+        { type: 'reasoning-start', id: 'reasoning-0' },
+        { type: 'reasoning-delta', id: 'reasoning-0', delta: 'th' },
+        { type: 'reasoning-delta', id: 'reasoning-0', delta: 'ink' },
+        { type: 'reasoning-end', id: 'reasoning-0' },
+        { type: 'text-start', id: 'text-1' },
+        { type: 'text-delta', id: 'text-1', delta: 'Let me check.' },
+        { type: 'text-end', id: 'text-1' },
+        {
+          type: 'tool-input-start',
+          toolCallId: 'call-1',
+          toolName: 'weather',
+          providerExecuted: true,
+          dynamic: true,
+        },
+        { type: 'tool-input-delta', toolCallId: 'call-1', inputTextDelta: '{"city' },
+        { type: 'tool-input-delta', toolCallId: 'call-1', inputTextDelta: ':"SF"}' },
+        {
+          type: 'tool-input-available',
+          toolCallId: 'call-1',
+          toolName: 'weather',
+          input: { city: 'SF' },
+          providerExecuted: true,
+          dynamic: true,
+        },
+        { type: 'finish-step' },
+      ]);
+    });
+
+    it('opens a fresh reasoning block when reasoning resumes after text', async () => {
+      const { frames, error } = await collect(
+        toAISdkStream(
+          source(
+            { type: 'reasoning-delta', reasoningDelta: 'a' },
+            { type: 'text-delta', textDelta: 't' },
+            { type: 'reasoning-delta', reasoningDelta: 'b' },
+            { type: 'finish', finishReason: 'stop', usage },
+          ),
+        ),
+      );
+      expect(error).toBeUndefined();
+      expect(frames).toEqual([
+        { type: 'start-step' },
+        { type: 'reasoning-start', id: 'reasoning-0' },
+        { type: 'reasoning-delta', id: 'reasoning-0', delta: 'a' },
+        { type: 'reasoning-end', id: 'reasoning-0' },
+        { type: 'text-start', id: 'text-1' },
+        { type: 'text-delta', id: 'text-1', delta: 't' },
+        { type: 'text-end', id: 'text-1' },
+        { type: 'reasoning-start', id: 'reasoning-2' },
+        { type: 'reasoning-delta', id: 'reasoning-2', delta: 'b' },
+        { type: 'reasoning-end', id: 'reasoning-2' },
+        { type: 'finish-step' },
+      ]);
+    });
+
+    it('keeps two tool inputs streaming apart by toolCallId', async () => {
+      const { frames, error } = await collect(
+        toAISdkStream(
+          source(
+            { type: 'tool-input-start', toolCallId: 'c1', toolName: 'a' },
+            { type: 'tool-input-start', toolCallId: 'c2', toolName: 'b' },
+            { type: 'tool-input-delta', toolCallId: 'c1', inputDelta: '{"x":1}' },
+            { type: 'tool-input-delta', toolCallId: 'c2', inputDelta: '{"y":2}' },
+            { type: 'tool-input-end', toolCallId: 'c1' },
+            { type: 'tool-input-end', toolCallId: 'c2' },
+            { type: 'tool-call', toolCallId: 'c1', toolName: 'a', input: { x: 1 } },
+            { type: 'tool-call', toolCallId: 'c2', toolName: 'b', input: { y: 2 } },
+            { type: 'finish', finishReason: 'tool-calls', usage },
+          ),
+        ),
+      );
+      expect(error).toBeUndefined();
+      expect(frames).toEqual([
+        { type: 'start-step' },
+        { type: 'tool-input-start', toolCallId: 'c1', toolName: 'a', providerExecuted: true, dynamic: true },
+        { type: 'tool-input-start', toolCallId: 'c2', toolName: 'b', providerExecuted: true, dynamic: true },
+        { type: 'tool-input-delta', toolCallId: 'c1', inputTextDelta: '{"x":1}' },
+        { type: 'tool-input-delta', toolCallId: 'c2', inputTextDelta: '{"y":2}' },
+        { type: 'tool-input-available', toolCallId: 'c1', toolName: 'a', input: { x: 1 }, providerExecuted: true, dynamic: true },
+        { type: 'tool-input-available', toolCallId: 'c2', toolName: 'b', input: { y: 2 }, providerExecuted: true, dynamic: true },
+        { type: 'finish-step' },
+      ]);
+    });
+
+    it('emits no frame for tool-input-end — the UI vocabulary has none; the chunk only closes converter state', async () => {
+      const { frames, error } = await collect(
+        toAISdkStream(
+          source(
+            { type: 'tool-input-start', toolCallId: 'c1', toolName: 'a' },
+            { type: 'tool-input-delta', toolCallId: 'c1', inputDelta: '{}' },
+            { type: 'tool-input-end', toolCallId: 'c1' },
+            { type: 'tool-call', toolCallId: 'c1', toolName: 'a', input: {} },
+            { type: 'finish', finishReason: 'tool-calls', usage },
+          ),
+        ),
+      );
+      expect(error).toBeUndefined();
+      expect(frames).toEqual([
+        { type: 'start-step' },
+        { type: 'tool-input-start', toolCallId: 'c1', toolName: 'a', providerExecuted: true, dynamic: true },
+        { type: 'tool-input-delta', toolCallId: 'c1', inputTextDelta: '{}' },
+        { type: 'tool-input-available', toolCallId: 'c1', toolName: 'a', input: {}, providerExecuted: true, dynamic: true },
+        { type: 'finish-step' },
+      ]);
+    });
+
+    it('closes the open reasoning block at finish (a step ends whatever streamed before it)', async () => {
+      const { frames, error } = await collect(
+        toAISdkStream(
+          source(
+            { type: 'reasoning-delta', reasoningDelta: 'a' },
+            { type: 'tool-input-start', toolCallId: 'c1', toolName: 'a' },
+            { type: 'finish', finishReason: 'tool-calls', usage },
+          ),
+        ),
+      );
+      expect(error).toBeUndefined();
+      expect(frames).toEqual([
+        { type: 'start-step' },
+        { type: 'reasoning-start', id: 'reasoning-0' },
+        { type: 'reasoning-delta', id: 'reasoning-0', delta: 'a' },
+        { type: 'reasoning-end', id: 'reasoning-0' },
+        { type: 'tool-input-start', toolCallId: 'c1', toolName: 'a', providerExecuted: true, dynamic: true },
+        { type: 'finish-step' },
+      ]);
+    });
+
+    it('closes the open reasoning block before the error frame when the source fails', async () => {
+      const failure = new Error('model exploded');
+      const { frames, error } = await collect(
+        toAISdkStream(failingSource([{ type: 'reasoning-delta', reasoningDelta: 'partial' }], failure)),
+      );
+      expect(error).toBe(failure);
+      expect(frames).toEqual([
+        { type: 'start-step' },
+        { type: 'reasoning-start', id: 'reasoning-0' },
+        { type: 'reasoning-delta', id: 'reasoning-0', delta: 'partial' },
+        { type: 'reasoning-end', id: 'reasoning-0' },
+        { type: 'error', errorText: 'An error occurred.' },
+      ]);
+    });
+  });
 });

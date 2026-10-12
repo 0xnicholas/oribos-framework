@@ -5,8 +5,11 @@
  * wire-level `x-vercel-ai-ui-message-stream: v1` header — and nothing else: one generation, no
  * `version` option, no multi-generation adapter. The union below is a **closed subset** of AI SDK's
  * `UIMessageChunk`: the emitted-frames surface is a protocol promise, it may stay narrower than the
- * target vocabulary, and it must never exceed it. Everything that cannot be reconstructed from the
- * core's chunk protocol (`reasoning-*`, tool-input deltas, approvals, sources, files, custom and
+ * target vocabulary, and it must never exceed it. The opt-in delta families map through
+ * (`reasoning-start` / `reasoning-delta` / `reasoning-end` and `tool-input-start` /
+ * `tool-input-delta`) whenever the core streams them — the UI vocabulary has no `tool-input-end`
+ * frame, so that chunk only closes the converter's block state. Everything else that
+ * cannot be reconstructed from the core's chunk protocol (approvals, sources, files, custom and
  * data frames, `reset-step`, standalone `message-metadata`, `abort`) is deliberately absent.
  *
  * Structural compatibility with `UIMessageChunk` is enforced in CI by type tests against the real
@@ -45,10 +48,12 @@ export interface AISdkMessageMetadata {
  *
  * Message-level `start` / `finish` frames are written by the caller (`createChatRoute`, or a host
  * composing its own response): the converter produces body frames only, because `finish` needs
- * terminal values the chunk stream cannot see. Tool calls always arrive as `tool-input-available`
- * — the core's inputs are already parsed, so there is no input delta to stream — flagged
- * `providerExecuted` (the framework executes, which keeps `useChat` from offering the call to
- * `onToolCall`) and `dynamic` (tool schemas live on the server; the client has none).
+ * terminal values the chunk stream cannot see. Tool calls arrive as `tool-input-available` —
+ * flagged `providerExecuted` (the framework executes, which keeps `useChat` from offering the call
+ * to `onToolCall`) and `dynamic` (tool schemas live on the server; the client has none) — and when
+ * the run opted into tool-input deltas, as the streaming `tool-input-start` / `tool-input-delta` /
+ * `tool-input-end` preview ahead of it. Reasoning deltas likewise map to `reasoning-start` /
+ * `reasoning-delta` / `reasoning-end` blocks.
  */
 export type AISdkStreamChunk =
   | { readonly type: 'start' }
@@ -56,6 +61,17 @@ export type AISdkStreamChunk =
   | { readonly type: 'text-start'; readonly id: string }
   | { readonly type: 'text-delta'; readonly id: string; readonly delta: string }
   | { readonly type: 'text-end'; readonly id: string }
+  | { readonly type: 'reasoning-start'; readonly id: string }
+  | { readonly type: 'reasoning-delta'; readonly id: string; readonly delta: string }
+  | { readonly type: 'reasoning-end'; readonly id: string }
+  | {
+      readonly type: 'tool-input-start';
+      readonly toolCallId: string;
+      readonly toolName: string;
+      readonly providerExecuted: true;
+      readonly dynamic: true;
+    }
+  | { readonly type: 'tool-input-delta'; readonly toolCallId: string; readonly inputTextDelta: string }
   | {
       readonly type: 'tool-input-available';
       readonly toolCallId: string;

@@ -215,6 +215,8 @@ export class Agent {
           resume: options.resume,
           // The tool execution mode (`AgentRunOptions.toolExecution`); absent = serial.
           toolExecution: options.toolExecution,
+          // The opt-in delta emission (`AgentRunOptions.deltas`); absent = neither family streams.
+          deltas: options.deltas,
           tracing,
           // The user's model call settings are recorded on the step span under this name.
           parameters: options.modelSettings,

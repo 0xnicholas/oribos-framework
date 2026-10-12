@@ -33,7 +33,7 @@ type ModelInput =
 
 ## Chunk 协议
 
-- 核心定义**自有最小 chunk 类型集**,是 `stream()` 输出、processors、workflow step 快照、observability 事件共用的流式词汇。落地四种:`text-delta` / `tool-call`(input 已解析为 JSON)/ `tool-result` / `finish`(携带 `FinishReason` 与 `Usage`);推理增量、参数增量等 part 不进协议。
+- 核心定义**自有最小 chunk 类型集**,是 `stream()` 输出、processors、workflow step 快照、observability 事件共用的流式词汇。落地四种:`text-delta` / `tool-call`(input 已解析为 JSON)/ `tool-result` / `finish`(携带 `FinishReason` 与 `Usage`)。A4 起(2026-10-12,#166 判定 / #173 实施)additive 增补两族 **opt-in** 增量帧——推理增量 `reasoning-delta`(无边界帧:与 text 同规,连续 delta 成块、边界由转换端合成)与参数增量 `tool-input-start` / `tool-input-delta` / `tool-input-end`(经 run option `deltas: { reasoning?, toolInput? }` 发射,默认全关、逐字节等于最小四帧流);增量是预告不是记录——步的文本 / 调用 / 结果与终值不含它们,不消费的消费方零影响。
 - `FinishReason` 收敛为 `'stop' | 'length' | 'tool-calls' | 'error' | 'suspended'`;provider 的 `content-filter` / `other` 归入 `'stop'`(终态但非失败——报 `'error'` 会诱使对已被策略拒绝的请求重试)。
 - 模型 spec 原生流 → chunk 协议的归一化层在核心内,保持薄:`error` part 直接抛出;非法工具输入保留原始字符串,交由工具边界作校验失败回喂模型。
 - **核心不透出 AI SDK 流格式**;chunk → AI SDK UI stream 的转换器在互操作能力包。
@@ -51,7 +51,7 @@ type ModelInput =
 ### 包面
 
 - `toAISdkStream(stream: AsyncIterable<Chunk>, options?: { onError?: (error: unknown) => string }): AsyncIterable<AISdkStreamChunk>` — 转换器(体帧;源流失败时发 `error` 帧收尾)。
-- `createChatRoute({ agent, identity, onError?, keepAliveMs? }): (request: Request) => Promise<Response>` — Web 标准 `useChat()` 路由。
+- `createChatRoute({ agent, identity, onError?, keepAliveMs?, deltas? }): (request: Request) => Promise<Response>` — Web 标准 `useChat()` 路由;`deltas` 透传为每次 run 的增量帧开关(缺省全关)。
 - `toAISdkMessages(messages: readonly StoredMessage[]): UIMessage[]` — thread 历史回读(同步纯函数)。
 - `AISdkStreamChunk` — 本包封闭帧联合,结构兼容 AI SDK `UIMessageChunk`;发布物不引 `ai` 类型(类型级零依赖)。
 
@@ -72,12 +72,15 @@ type ModelInput =
 | --- | --- | --- |
 | — | `start-step` | 流首帧前一条;`finish-step` 之后的下一条**模型产出**帧前补下一条(`tool-result` 不触发) |
 | `text-delta` | 惰性 `text-start` + `text-delta` | 块 id 合成;连续 delta 一段,遇任何非 text 帧(含 `tool-call` / `finish`)补 `text-end` |
-| `tool-call` | `tool-input-available` | 仅此一帧——无参数增量可发;`providerExecuted: true`(框架端执行,挡客户端 `onToolCall` / 自动续发)、`dynamic: true`(客户端不知道工具 schema);raw-string input 不做启发式判定,校验失败以结果 `isError` 回来 |
+| `reasoning-delta`(opt-in) | 惰性 `reasoning-start` + `reasoning-delta` | 与 text 同规:连续 delta 一段、块 id 合成,遇任何非推理帧(含 `finish` / 源流出错)补 `reasoning-end` |
+| `tool-input-start` / `tool-input-delta`(opt-in) | 同名帧 | `providerExecuted: true` / `dynamic: true`(同 `tool-input-available` 姿态);按 `toolCallId` 路由,多次调用互不串 |
+| `tool-input-end`(opt-in) | — | UI 词汇无 `tool-input-end` 帧(输入块的收尾由随后的 `tool-input-available` 表达);该 chunk 只收束转换器块状态,不出帧 |
+| `tool-call` | `tool-input-available` | `providerExecuted: true`(框架端执行,挡客户端 `onToolCall` / 自动续发)、`dynamic: true`(客户端不知道工具 schema);raw-string input 不做启发式判定,校验失败以结果 `isError` 回来 |
 | `tool-result` | `output-available` / `output-error` | `isError` 分流;`errorText` = string 原样,否则 `JSON.stringify`(失败回退 `String()`);`providerExecuted: true` |
 | `finish`(每 step) | `finish-step` | **保持原序**(该 step 的 `tool-result` 排在其后);客户端 reducer 原位更新、容错已实证 |
 | 源流抛出 | `error` | 默认脱敏 `"An error occurred."`,`onError` 可换;随后由调用方收尾 |
 
-- **不发清单**(显式声明):`reasoning-*`、`tool-input-start` / `tool-input-delta` / `tool-input-error`、`tool-approval-*`、`source-*`、`file`、`reasoning-file`、`custom`、`data-*`、`reset-step`、独立 `message-metadata`、`abort`——无法从 chunk 协议重建的帧一律不外发;挂起表达走消息级 metadata(见下)。
+- **不发清单**(显式声明):`tool-input-error`、`tool-approval-*`、`source-*`、`file`、`reasoning-file`、`custom`、`data-*`、`reset-step`、独立 `message-metadata`、`abort`——无法从 chunk 协议重建的帧一律不外发;挂起表达走消息级 metadata(见下)。(`reasoning-*` 与 `tool-input-start` / `tool-input-delta` 自 A4 起随源端 `deltas` opt-in 发射,见上表;`tool-input-end` 不发,UI 词汇无此帧。)
 
 ### 路由:`createChatRoute`
 

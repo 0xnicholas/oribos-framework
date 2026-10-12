@@ -181,6 +181,11 @@ function chunkLine(chunk: Chunk): string {
       return `[chunk] tool-result  ${chunk.toolName} -> ${clip(chunk.output, 60)}${chunk.isError ? '  (error)' : ''}`;
     case 'finish':
       return `[chunk] finish       ${chunk.finishReason}`;
+    default:
+      // Opt-in delta frames (run option `deltas`) never occur in this example — it sets no
+      // `deltas`; any other future chunk type degrades to its type name (unknown frames are
+      // safe to ignore).
+      return `[chunk] ${chunk.type}`;
   }
 }
 

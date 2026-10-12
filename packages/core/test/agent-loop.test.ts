@@ -1002,3 +1002,132 @@ describe('Agent loop:eager 工具执行(A2 转追赶项 opt-in 开关,#172)', ()
     expect(await stream.finishReason).toBe('tool-calls');
   });
 });
+
+describe('Agent loop:A4 增量帧 opt-in(run option `deltas`,#173)', () => {
+  /** 两步脚本:首步推理 + 文本 + 一次工具调用,次步推理 + 文本收尾。 */
+  const script = () => [
+    {
+      reasoning: ['th', 'ink'],
+      text: 'Let me check.',
+      toolCalls: [{ toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } }],
+      usage: { inputTokens: 3, outputTokens: 4 },
+    },
+    {
+      reasoning: ['hm'],
+      text: 'It is 21°C.',
+      usage: { inputTokens: 5, outputTokens: 6 },
+    },
+  ];
+
+  /** 缺省 run 的 chunk 序列:最小四帧,逐字节不变(验证面「不消费方零影响」的默认半)。 */
+  const minimalChunks = [
+    { type: 'text-delta', textDelta: 'Let me check.' },
+    { type: 'tool-call', toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } },
+    {
+      type: 'finish',
+      finishReason: 'tool-calls',
+      usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
+    },
+    {
+      type: 'tool-result',
+      toolCallId: 'call-1',
+      toolName: 'weather',
+      output: { celsius: 21 },
+      isError: false,
+    },
+    { type: 'text-delta', textDelta: 'It is 21°C.' },
+    {
+      type: 'finish',
+      finishReason: 'stop',
+      usage: { inputTokens: 5, outputTokens: 6, totalTokens: 11 },
+    },
+  ];
+
+  it('缺省不发射:chunk 流逐字节等于最小四帧序列(推理 / 参数增量 part 不下发)', async () => {
+    const model = fakeModel(script());
+    const agent = assistantWithTools(model, {
+      weather: weatherTool(() => ({ celsius: 21 })),
+    });
+
+    const chunks = await collect(agent.stream('Go.'));
+
+    expect(chunks).toEqual(minimalChunks);
+  });
+
+  it('deltas opt-in:两族增量帧随流发射、次序与字段保真;工具仍恰执行一次,终值不受影响', async () => {
+    const execute = vi.fn(() => ({ celsius: 21 }));
+    const model = fakeModel(script());
+    const agent = assistantWithTools(model, { weather: weatherTool(execute) });
+
+    const run = agent.stream('Go.', { deltas: { reasoning: true, toolInput: true } });
+    const chunks = await collect(run);
+
+    expect(chunks).toEqual([
+      { type: 'reasoning-delta', reasoningDelta: 'th' },
+      { type: 'reasoning-delta', reasoningDelta: 'ink' },
+      { type: 'text-delta', textDelta: 'Let me check.' },
+      { type: 'tool-input-start', toolCallId: 'call-1', toolName: 'weather' },
+      { type: 'tool-input-delta', toolCallId: 'call-1', inputDelta: '{"city":"SF"}' },
+      { type: 'tool-input-end', toolCallId: 'call-1' },
+      { type: 'tool-call', toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } },
+      {
+        type: 'finish',
+        finishReason: 'tool-calls',
+        usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        toolName: 'weather',
+        output: { celsius: 21 },
+        isError: false,
+      },
+      { type: 'reasoning-delta', reasoningDelta: 'hm' },
+      { type: 'text-delta', textDelta: 'It is 21°C.' },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+        usage: { inputTokens: 5, outputTokens: 6, totalTokens: 11 },
+      },
+    ]);
+    // 参数增量是预告,不是记录:工具只在 tool-call chunk 上执行一次;终值全部来自步记录,与增量帧无关
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(await run.text).toBe('It is 21°C.');
+    expect(await run.finishReason).toBe('stop');
+    expect(await run.usage).toEqual({ inputTokens: 8, outputTokens: 10, totalTokens: 18 });
+    expect((await run.steps).length).toBe(2);
+  });
+
+  it('不消费增量帧的消费方零影响:只认最小四帧的过滤序列与缺省 run 逐字节一致', async () => {
+    const defaultRun = assistantWithTools(fakeModel(script()), {
+      weather: weatherTool(() => ({ celsius: 21 })),
+    }).stream('Go.');
+    const optInRun = assistantWithTools(fakeModel(script()), {
+      weather: weatherTool(() => ({ celsius: 21 })),
+    }).stream('Go.', { deltas: { reasoning: true, toolInput: true } });
+
+    const MINIMAL = new Set(['text-delta', 'tool-call', 'tool-result', 'finish']);
+    const knownOnly = (chunks: Chunk[]) => chunks.filter((chunk) => MINIMAL.has(chunk.type));
+
+    expect(knownOnly(await collect(optInRun))).toEqual(await collect(defaultRun));
+    expect(await optInRun.text).toBe(await defaultRun.text);
+    expect(await optInRun.usage).toEqual(await defaultRun.usage);
+  });
+
+  it('两族开关独立:只开 reasoning 时参数增量不下发', async () => {
+    const model = fakeModel(script());
+    const agent = assistantWithTools(model, {
+      weather: weatherTool(() => ({ celsius: 21 })),
+    });
+
+    const chunks = await collect(agent.stream('Go.', { deltas: { reasoning: true } }));
+
+    expect(chunks).toEqual([
+      { type: 'reasoning-delta', reasoningDelta: 'th' },
+      { type: 'reasoning-delta', reasoningDelta: 'ink' },
+      ...minimalChunks.slice(0, 4),
+      { type: 'reasoning-delta', reasoningDelta: 'hm' },
+      ...minimalChunks.slice(4),
+    ]);
+  });
+});

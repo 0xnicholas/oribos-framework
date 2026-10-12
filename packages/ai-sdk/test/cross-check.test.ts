@@ -133,6 +133,53 @@ describe('cross-checks against the real ai@7.0.123', () => {
     expect(UI_MESSAGE_STREAM_HEADERS['x-vercel-ai-ui-message-stream']).toBe('v1');
   });
 
+  it('check 2c: opt-in delta frames round-trip through the official parse path and fold into the UI message', async () => {
+    // One reasoning step with a streamed tool input, exactly as a `deltas`-opted-in run emits.
+    const frames: AISdkStreamChunk[] = [
+      { type: 'start' },
+      { type: 'start-step' },
+      { type: 'reasoning-start', id: 'reasoning-0' },
+      { type: 'reasoning-delta', id: 'reasoning-0', delta: 'th' },
+      { type: 'reasoning-delta', id: 'reasoning-0', delta: 'ink' },
+      { type: 'reasoning-end', id: 'reasoning-0' },
+      { type: 'tool-input-start', toolCallId: 'c1', toolName: 'weather', providerExecuted: true, dynamic: true },
+      { type: 'tool-input-delta', toolCallId: 'c1', inputTextDelta: '{"city"' },
+      { type: 'tool-input-delta', toolCallId: 'c1', inputTextDelta: ':"Oslo"}' },
+      { type: 'tool-input-available', toolCallId: 'c1', toolName: 'weather', input: { city: 'Oslo' }, providerExecuted: true, dynamic: true },
+      { type: 'finish-step' },
+      { type: 'finish', finishReason: 'tool-calls' },
+    ];
+
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(
+      frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n',
+    );
+
+    const parsed = parseJsonEventStream({
+      stream: new Blob([bytes]).stream(),
+      schema: uiMessageChunkSchema,
+    });
+    const chunks = await unwrapParsed(parsed);
+    expect(chunks).toEqual(frames);
+
+    const message = await last(
+      readUIMessageStream({
+        stream: new ReadableStream<UIMessageChunk>({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(chunk);
+            controller.close();
+          },
+        }),
+      }),
+    );
+    const parts = message.parts as Array<Record<string, unknown>>;
+    expect(parts.find((part) => part.type === 'reasoning')).toMatchObject({ text: 'think' });
+    const tool = parts.find((part) => part.type === 'dynamic-tool')!;
+    expect(tool.toolName).toBe('weather');
+    expect(tool.state).toBe('input-available');
+    expect(tool.input).toEqual({ city: 'Oslo' });
+  });
+
   it('check 4 (bonus): read-back messages survive the official reader as prior history', async () => {
     const stored: StoredMessage[] = [
       {

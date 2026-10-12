@@ -1,4 +1,4 @@
-import type { Chunk, FinishReason, Usage } from './chunks.js';
+import type { Chunk, DeltaEmission, FinishReason, Usage } from './chunks.js';
 import type { ModelFinishReason, ModelStreamPart, ModelUsage } from './contract.js';
 
 /**
@@ -7,18 +7,22 @@ import type { ModelFinishReason, ModelStreamPart, ModelUsage } from './contract.
  * Thin by design: one chunk (or none) per model part, no buffering, no policy. The core never
  * surfaces the AI SDK stream format to users; this is the only place the two meet.
  *
+ * `emission` gates the two opt-in delta families (`DeltaEmission`); absent, the stream carries
+ * exactly the minimal protocol.
+ *
  * The underlying stream is cancelled when the consumer stops early (e.g. `break` out of a
  * `for await` loop), so providers can release their resources.
  */
 export async function* normalizeStream(
   stream: ReadableStream<ModelStreamPart>,
+  emission?: DeltaEmission,
 ): AsyncGenerator<Chunk> {
   const reader = stream.getReader();
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) return;
-      yield* normalizePart(value);
+      yield* normalizePart(value, emission);
     }
   } finally {
     try {
@@ -32,18 +36,38 @@ export async function* normalizeStream(
 /**
  * Normalizes one model-native stream part into chunks.
  *
- * Returns an empty array for parts outside the minimal protocol (structural markers, reasoning,
- * partial tool input, sources, files, raw parts, tool approval requests). Tool calls and
- * provider-executed tool results are carried: what to execute is the tool loop's decision, not the
- * normalizer's.
+ * Returns an empty array for parts outside the minimal protocol (structural markers, sources,
+ * files, raw parts, tool approval requests) and for the opt-in delta families whose
+ * `DeltaEmission` switch is off. Reasoning boundaries (`reasoning-start` / `reasoning-end`)
+ * never enter the protocol: as with text, consecutive deltas form one block and a converter
+ * synthesizes the boundary frames. Tool calls and provider-executed tool results are carried:
+ * what to execute is the tool loop's decision, not the normalizer's.
  *
  * Throws the reported error for `'error'` parts — a stream that reports failure must fail, not
  * silently end.
  */
-export function normalizePart(part: ModelStreamPart): Chunk[] {
+export function normalizePart(part: ModelStreamPart, emission?: DeltaEmission): Chunk[] {
   switch (part.type) {
     case 'text-delta':
       return [{ type: 'text-delta', textDelta: part.delta }];
+
+    case 'reasoning-delta':
+      return emission?.reasoning === true
+        ? [{ type: 'reasoning-delta', reasoningDelta: part.delta }]
+        : [];
+
+    case 'tool-input-start':
+      return emission?.toolInput === true
+        ? [{ type: 'tool-input-start', toolCallId: part.id, toolName: part.toolName }]
+        : [];
+
+    case 'tool-input-delta':
+      return emission?.toolInput === true
+        ? [{ type: 'tool-input-delta', toolCallId: part.id, inputDelta: part.delta }]
+        : [];
+
+    case 'tool-input-end':
+      return emission?.toolInput === true ? [{ type: 'tool-input-end', toolCallId: part.id }] : [];
 
     case 'tool-call':
       return [
@@ -78,16 +102,12 @@ export function normalizePart(part: ModelStreamPart): Chunk[] {
     case 'error':
       throw toError(part.error);
 
-    // Parts the minimal protocol does not carry. Enumerated exhaustively so that a new part in
+    // Parts the protocol never carries. Enumerated exhaustively so that a new part in
     // the vendor contract breaks the build here and forces a deliberate mapping decision.
     case 'text-start':
     case 'text-end':
     case 'reasoning-start':
-    case 'reasoning-delta':
     case 'reasoning-end':
-    case 'tool-input-start':
-    case 'tool-input-delta':
-    case 'tool-input-end':
     case 'tool-approval-request':
     case 'custom':
     case 'file':

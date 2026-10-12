@@ -57,10 +57,15 @@ export { ModelFallbackError } from './fallback.js';
 export type { ModelFallbackFailure } from './fallback.js';
 export type {
   Chunk,
+  DeltaEmission,
   FinishChunk,
   FinishReason,
+  ReasoningDeltaChunk,
   TextDeltaChunk,
   ToolCallChunk,
+  ToolInputDeltaChunk,
+  ToolInputEndChunk,
+  ToolInputStartChunk,
   ToolResultChunk,
   Usage,
 } from './chunks.js';

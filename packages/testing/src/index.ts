@@ -51,7 +51,7 @@ export interface FakeToolResult {
 export interface FakeResponse {
   /** 文本增量;字符串按单个增量发送。 */
   text?: string | readonly string[];
-  /** 推理增量;chunk 协议不承载,用于断言丢弃行为。 */
+  /** 推理增量;默认不进 chunk 协议(A4 起经 run option `deltas.reasoning` opt-in 承载),缺省脚本行为不变。 */
   reasoning?: string | readonly string[];
   /** 本次回答请求的工具调用。 */
   toolCalls?: readonly FakeToolCall[];

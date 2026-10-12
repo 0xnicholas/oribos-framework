@@ -120,6 +120,53 @@ describe('normalizePart:模型原生 part → chunk', () => {
       expect((error as Error).cause).toBe('oops');
     }
   });
+
+  describe('opt-in 发射(A4 增量帧):缺省与显式关闭一律不下发', () => {
+    it('reasoning 开关打开时 reasoning-delta 归一为 chunk,边界 part 仍不进协议', () => {
+      expect(
+        normalizePart({ type: 'reasoning-delta', id: 'reasoning-0', delta: 'hmm' }, { reasoning: true }),
+      ).toEqual([{ type: 'reasoning-delta', reasoningDelta: 'hmm' }]);
+
+      expect(normalizePart({ type: 'reasoning-start', id: 'reasoning-0' }, { reasoning: true })).toEqual([]);
+      expect(normalizePart({ type: 'reasoning-end', id: 'reasoning-0' }, { reasoning: true })).toEqual([]);
+    });
+
+    it('toolInput 开关打开时参数增量三帧归一为 chunk', () => {
+      expect(
+        normalizePart({ type: 'tool-input-start', id: 'call-1', toolName: 'weather' }, { toolInput: true }),
+      ).toEqual([{ type: 'tool-input-start', toolCallId: 'call-1', toolName: 'weather' }]);
+      expect(
+        normalizePart({ type: 'tool-input-delta', id: 'call-1', delta: '{"city' }, { toolInput: true }),
+      ).toEqual([{ type: 'tool-input-delta', toolCallId: 'call-1', inputDelta: '{"city' }]);
+      expect(normalizePart({ type: 'tool-input-end', id: 'call-1' }, { toolInput: true })).toEqual([
+        { type: 'tool-input-end', toolCallId: 'call-1' },
+      ]);
+    });
+
+    it('两族开关互相独立:开 reasoning 不放行参数增量,开 toolInput 不放行推理增量', () => {
+      expect(
+        normalizePart({ type: 'tool-input-delta', id: 'call-1', delta: '{' }, { reasoning: true }),
+      ).toEqual([]);
+      expect(
+        normalizePart({ type: 'tool-input-start', id: 'call-1', toolName: 'weather' }, { reasoning: true }),
+      ).toEqual([]);
+      expect(
+        normalizePart({ type: 'reasoning-delta', id: 'reasoning-0', delta: 'hmm' }, { toolInput: true }),
+      ).toEqual([]);
+    });
+
+    it('显式关闭与缺省同语义(增量 part 不下发)', () => {
+      expect(
+        normalizePart(
+          { type: 'reasoning-delta', id: 'reasoning-0', delta: 'hmm' },
+          { reasoning: false, toolInput: false },
+        ),
+      ).toEqual([]);
+      expect(
+        normalizePart({ type: 'tool-input-delta', id: 'call-1', delta: '{' }, { reasoning: false }),
+      ).toEqual([]);
+    });
+  });
 });
 
 describe('normalizeStream:假模型流 → chunk 序列', () => {
@@ -163,6 +210,50 @@ describe('normalizeStream:假模型流 → chunk 序列', () => {
       {
         type: 'finish',
         finishReason: 'stop',
+        usage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
+      },
+    ]);
+  });
+
+  it('两族增量帧 opt-in:推理增量与参数增量随流承载,次序与字段保真', async () => {
+    const model = fakeModel([
+      { reasoning: ['th', 'ink'], text: 'answer', toolCalls: [{ toolName: 'weather', input: { city: 'SF' } }] },
+    ]);
+
+    const { stream } = await model.doStream({ prompt: [] });
+    const chunks: Chunk[] = await collect(normalizeStream(stream, { reasoning: true, toolInput: true }));
+
+    expect(chunks).toEqual([
+      { type: 'reasoning-delta', reasoningDelta: 'th' },
+      { type: 'reasoning-delta', reasoningDelta: 'ink' },
+      { type: 'text-delta', textDelta: 'answer' },
+      { type: 'tool-input-start', toolCallId: 'call-1', toolName: 'weather' },
+      { type: 'tool-input-delta', toolCallId: 'call-1', inputDelta: '{"city":"SF"}' },
+      { type: 'tool-input-end', toolCallId: 'call-1' },
+      { type: 'tool-call', toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } },
+      {
+        type: 'finish',
+        finishReason: 'tool-calls',
+        usage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
+      },
+    ]);
+  });
+
+  it('只开一族时另一族仍不下发', async () => {
+    const model = fakeModel([
+      { reasoning: ['th'], text: 'answer', toolCalls: [{ toolName: 'weather', input: { city: 'SF' } }] },
+    ]);
+
+    const { stream } = await model.doStream({ prompt: [] });
+    const chunks: Chunk[] = await collect(normalizeStream(stream, { reasoning: true }));
+
+    expect(chunks).toEqual([
+      { type: 'reasoning-delta', reasoningDelta: 'th' },
+      { type: 'text-delta', textDelta: 'answer' },
+      { type: 'tool-call', toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } },
+      {
+        type: 'finish',
+        finishReason: 'tool-calls',
         usage: { inputTokens: undefined, outputTokens: undefined, totalTokens: undefined },
       },
     ]);

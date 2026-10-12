@@ -1,5 +1,6 @@
 import type {
   Chunk,
+  DeltaEmission,
   FinishReason,
   ToolCallChunk,
   ToolResultChunk,
@@ -193,6 +194,16 @@ export interface AgentRunOptionFields {
    */
   readonly toolExecution?: ToolExecution | undefined;
   /**
+   * The run's opt-in delta emission (`DeltaEmission`, A4): `reasoning` streams the model's
+   * reasoning as `reasoning-delta` chunks, `toolInput` streams each tool call's arriving input as
+   * `tool-input-start` / `tool-input-delta` / `tool-input-end` ahead of its parsed `tool-call`
+   * chunk. Both default off: a run that opts into neither streams exactly the minimal four chunk
+   * types, and a consumer that ignores the delta chunks sees the same run — the deltas are a
+   * preview, never the record (the step's text, calls and results are unchanged). Absent = both
+   * off, and the loop allocates nothing for them.
+   */
+  readonly deltas?: DeltaEmission | undefined;
+  /**
    * The run's memory identity (the identity model): present = the run recalls
    * from and saves into the agent's `memory` for the named thread/resource; absent = the run does
    * no memory I/O. Passing the option to an agent that has no configured `memory` is an error, as
@@ -247,6 +258,7 @@ export const AGENT_RUN_OPTION_KEYS = [
   'hideOutput',
   'structuredOutput',
   'toolExecution',
+  'deltas',
   'memory',
   'stepBoundary',
   'resume',

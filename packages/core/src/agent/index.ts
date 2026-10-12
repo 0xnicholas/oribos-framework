@@ -7,6 +7,7 @@
 export { Agent } from './agent.js';
 export { resolveDynamicArgument } from './dynamic.js';
 export { StructuredOutputError } from './structured-output.js';
+export type { DeltaEmission } from '../model/chunks.js';
 export type {
   FailureSite,
   ProcessErrorArgs,

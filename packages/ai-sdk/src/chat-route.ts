@@ -16,7 +16,7 @@
 import type { Agent, AgentRunOptions, AgentStreamResult } from '@oribos/core/agent';
 import type { DurableAgent, DurableStreamResult } from '@oribos/core/durable-agent';
 import type { MemoryThreadRef } from '@oribos/core/memory';
-import type { Chunk, ModelFilePart, ModelTextPart } from '@oribos/core/model';
+import type { Chunk, DeltaEmission, ModelFilePart, ModelTextPart } from '@oribos/core/model';
 import type { AISdkFinishReason, AISdkSuspendedMetadata, AISdkStreamChunk } from './chunks.js';
 import { UI_MESSAGE_STREAM_HEADERS } from './headers.js';
 import { toAISdkStream } from './to-ai-sdk-stream.js';
@@ -51,6 +51,12 @@ export interface ChatRouteConfig {
    * deployments behind proxy buffering. Must be in `(0, 2147483647]`.
    */
   readonly keepAliveMs?: number;
+  /**
+   * Opt-in delta emission for every run of this route (`AgentRunOptions.deltas`): reasoning and
+   * tool-input deltas stream as their UI frames. Absent = both off and the stream carries exactly
+   * the minimal frame set.
+   */
+  readonly deltas?: DeltaEmission;
 }
 
 /** The sanitized default, matching the official server-side default. */
@@ -145,6 +151,7 @@ async function handle(
   const run = config.agent.stream([{ role: 'user', content }], {
     memory: { thread, resource },
     signal: abort.signal,
+    ...(config.deltas === undefined ? {} : { deltas: config.deltas }),
   } satisfies AgentRunOptions);
 
   // Pull the first chunk before committing to a stream response: a run that fails this early

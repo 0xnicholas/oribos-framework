@@ -72,8 +72,11 @@ multi-generation adapter; a new AI SDK generation is a breaking release of this 
 emitted frame set is a closed subset of `UIMessageChunk` (CI-asserted against the real `ai`
 package, pinned exactly at `7.0.123` as a devDependency): tool calls arrive as
 `tool-input-available` with `providerExecuted` / `dynamic` true, usage rides the `finish` frame's
-metadata, and everything unreconstructible from the chunk protocol (reasoning, sources, approvals,
-data parts…) is simply not emitted.
+metadata, and everything unreconstructible from the chunk protocol (sources, approvals, data
+parts…) is simply not emitted. Reasoning and tool-input deltas are the one opt-in: a run created
+with `deltas: { reasoning: true, toolInput: true }` (`AgentRunOptions`, or the `createChatRoute`
+config) streams them as their `reasoning-*` / `tool-input-*` frames; by default neither family is
+emitted.
 
 ## Install only what you use
 

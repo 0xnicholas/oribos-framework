@@ -1,4 +1,4 @@
-import type { Chunk, FinishChunk, FinishReason, ToolCallChunk, ToolResultChunk, Usage } from '../model/chunks.js';
+import type { Chunk, DeltaEmission, FinishChunk, FinishReason, ToolCallChunk, ToolResultChunk, Usage } from '../model/chunks.js';
 import type {
   JsonValue,
   Model,
@@ -76,6 +76,11 @@ export interface AgentLoopOptions {
    * finish chunk.
    */
   readonly toolExecution?: ToolExecution | undefined;
+  /**
+   * The run's opt-in delta emission (`AgentRunOptions.deltas`), handed to `normalizeStream`
+   * verbatim: absent = neither delta family streams and the loop's chunk switch never sees them.
+   */
+  readonly deltas?: DeltaEmission | undefined;
   /**
    * The run's structured-output option (`AgentRunOptions.structuredOutput`), present only when the
    * run asked for one: the run's terminal text is parsed as JSON and validated against the schema,
@@ -295,7 +300,7 @@ export async function* runAgentLoop(
         try {
           const { stream } = await candidate.doStream({ ...callOptions, prompt });
 
-          for await (const chunk of normalizeStream(stream)) {
+          for await (const chunk of normalizeStream(stream, options.deltas)) {
             // Point of no return for this step: a chunk is on its way to the caller, so a later
             // failure must propagate — the next candidate would continue someone else's answer.
             producedChunk = true;
@@ -303,6 +308,15 @@ export async function* runAgentLoop(
             switch (chunk.type) {
               case 'text-delta':
                 stepText.push(chunk.textDelta);
+                yield chunk;
+                break;
+              case 'reasoning-delta':
+              case 'tool-input-start':
+              case 'tool-input-delta':
+              case 'tool-input-end':
+                // Opt-in delta families (`AgentRunOptions.deltas`): a preview, never the record.
+                // They stream through untouched and enter neither the step's text nor its calls —
+                // tool execution still waits for the parsed `tool-call` chunk.
                 yield chunk;
                 break;
               case 'tool-call':

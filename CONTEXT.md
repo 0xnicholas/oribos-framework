@@ -53,7 +53,7 @@ _Avoid_: 中央实例、registry(易与模型注册表混淆)
 _Avoid_: 自有 provider SPI、provider 注册表、magic string
 
 **Chunk 协议 (Chunk protocol)**:
-核心自有的流式输出事件词汇(text-delta / tool-call / finish / usage 等最小集合),stream 输出、processors、workflow 快照、observability 共用;与外部格式(AI SDK UI stream 等)的转换只发生在互操作能力包。
+核心自有的流式输出事件词汇(text-delta / tool-call / tool-result / finish 最小集合;A4 起 additive opt-in 两族增量帧:推理增量 `reasoning-delta` 与参数增量 `tool-input-start/-delta/-end`,经 run option `deltas` 发射、默认全关),stream 输出、processors、workflow 快照、observability 共用;与外部格式(AI SDK UI stream 等)的转换只发生在互操作能力包。
 _Avoid_: 透出/复用 AI SDK 流格式
 
 **Lifecycle 事件流 (Lifecycle event stream)**:

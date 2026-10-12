@@ -137,6 +137,104 @@ describe('createChatRoute', () => {
     expect(model.streamCalls.length).toBe(1);
   });
 
+  it('emits no delta frames by default, even when the model streams reasoning and tool input', async () => {
+    const model = fakeModel([
+      { reasoning: ['th', 'ink'], text: 'Hi.', usage: { inputTokens: 3, outputTokens: 5 } },
+    ]);
+    const route = createChatRoute({
+      agent: new Agent({ name: 'desk', instructions: 'You are concise.', model, memory: new Memory() }),
+      identity: IDENTITY,
+    });
+    const response = await route(chatRequest({ id: 't1', messages: [userMessage('u1', 'hi')] }));
+
+    const body = await response.text();
+    expect(sseFrames(body)).toEqual([
+      { type: 'start' },
+      { type: 'start-step' },
+      { type: 'text-start', id: 'text-0' },
+      { type: 'text-delta', id: 'text-0', delta: 'Hi.' },
+      { type: 'text-end', id: 'text-0' },
+      { type: 'finish-step' },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+        messageMetadata: { usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8 } },
+      },
+    ]);
+  });
+
+  it('opt-in `deltas`: reasoning and tool-input deltas reach the SSE stream as UI frames', async () => {
+    const model = fakeModel([
+      {
+        reasoning: ['th'],
+        text: 'Checking.',
+        toolCalls: [{ toolCallId: 'call-1', toolName: 'weather', input: { city: 'SF' } }],
+        usage: { inputTokens: 3, outputTokens: 5 },
+      },
+      { text: '21°C.', usage: { inputTokens: 4, outputTokens: 2 } },
+    ]);
+    const weather = createTool({
+      description: 'Looks up the weather.',
+      execute: () => ({ celsius: 21 }),
+    });
+    const route = createChatRoute({
+      agent: new Agent({
+        name: 'desk',
+        instructions: 'You are concise.',
+        model,
+        memory: new Memory(),
+        tools: { weather },
+      }),
+      identity: IDENTITY,
+      deltas: { reasoning: true, toolInput: true },
+    });
+    const response = await route(chatRequest({ id: 't1', messages: [userMessage('u1', 'hi')] }));
+
+    expect(sseFrames(await response.text())).toEqual([
+      { type: 'start' },
+      { type: 'start-step' },
+      { type: 'reasoning-start', id: 'reasoning-0' },
+      { type: 'reasoning-delta', id: 'reasoning-0', delta: 'th' },
+      { type: 'reasoning-end', id: 'reasoning-0' },
+      { type: 'text-start', id: 'text-1' },
+      { type: 'text-delta', id: 'text-1', delta: 'Checking.' },
+      { type: 'text-end', id: 'text-1' },
+      {
+        type: 'tool-input-start',
+        toolCallId: 'call-1',
+        toolName: 'weather',
+        providerExecuted: true,
+        dynamic: true,
+      },
+      { type: 'tool-input-delta', toolCallId: 'call-1', inputTextDelta: '{"city":"SF"}' },
+      {
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'weather',
+        input: { city: 'SF' },
+        providerExecuted: true,
+        dynamic: true,
+      },
+      { type: 'finish-step' },
+      {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: { celsius: 21 },
+        providerExecuted: true,
+      },
+      { type: 'start-step' },
+      { type: 'text-start', id: 'text-2' },
+      { type: 'text-delta', id: 'text-2', delta: '21°C.' },
+      { type: 'text-end', id: 'text-2' },
+      { type: 'finish-step' },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+        messageMetadata: { usage: { inputTokens: 7, outputTokens: 7, totalTokens: 14 } },
+      },
+    ]);
+  });
+
   it('feeds the model the tail user message only — client-sent history is never replayed', async () => {
     const model = fakeModel([{ text: 'ok' }]);
     const route = createChatRoute({
