@@ -144,6 +144,12 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  examples/signal-webhook:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   examples/signals-desk:
     dependencies:
       '@ai-sdk/openai':

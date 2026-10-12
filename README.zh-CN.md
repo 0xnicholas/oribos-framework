@@ -277,6 +277,7 @@ OPENAI_API_KEY=sk-... pnpm --filter @oribos/example-minimal-agent start
 | [`cron-schedule`](examples/cron-schedule/) | cron 表达式作为注入的 `next` 片段:保存、occurrence 推进、`tick` 触发 |
 | [`agent-supervisor`](examples/agent-supervisor/) | `@oribos/supervisor`:子 agent 即委派工具——显式构造输入、纯文本回喂、同一条 trace |
 | [`agent-evals`](examples/agent-evals/) | `@oribos/evals`:scorer 经 Processor 缝接进 live run 逐步打分,整跑结果事后打分 |
+| [`signal-webhook`](examples/signal-webhook/) | signal providers 的示例形态:薄 webhook 端点 → `sendSignal`——边缘翻译校验、应用自有登记簿路由 |
 
 ## 文档
 
@@ -297,10 +298,10 @@ pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surfac
 离线示例同样有闸门——与 CI 运行的同一个闸门,排在 `verify` 之后一步:
 
 ```bash
-pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools(HTTP + stdio)/ workflow-time-travel / agent-supervisor / agent-evals
+pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools(HTTP + stdio)/ workflow-time-travel / agent-supervisor / agent-evals / signal-webhook
 ```
 
-它串行运行七个离线条目,流式输出各自的日志,任何一个失败即以非零码退出
+它串行运行八个离线条目,流式输出各自的日志,任何一个失败即以非零码退出
 (先 `pnpm build`:示例通过包构建后的 exports 消费它们)。
 
 字节预算(每个 export 路径压缩后的大小)在每个 PR 的 CI 中检查——是受检属性,不是口号——
