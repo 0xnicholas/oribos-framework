@@ -156,13 +156,13 @@ port 是框架唯一面向「生态作者」的契约,稳定性与核心同步:*
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-ST*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-ST*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
 | **CUT-ST1** 分域 composite / 域路由 | 四子系统 config 各收 store 实例 | 有意分叉 | 一个 store 实例一个域;分后端是用户侧自由(ADR-0010) |
 | **CUT-ST2** 观测存储域(span 落库) | exporter 流式模型;落库归用户侧 exporter / collector | 有意分叉 | span 出进程即观测模型(ADR-0009) |
-| **CUT-ST3** harness 专属存储域(lease / notifications / thread-state) | `AgentRunSnapshotStore` / `ScheduleStore` 已落;lease / PubSub 归能力包,inbox 裁出 | 有意分叉 | 挂起快照与调度 = 两个最小 port(#18 已裁)(ADR-0011);`harness.md` CUT-H3 行互引 |
+| **CUT-ST3** harness 专属存储域(lease / notifications / thread-state) | `AgentRunSnapshotStore` / `ScheduleStore` 已落;lease / PubSub 归能力包,inbox 裁出 | **维持分叉、互注改写**(2026-10-11,#160/#161) | 挂起快照与调度 = 两个最小 port(#18 已裁)不动(ADR-0011);lease / PubSub 归能力包 = 延后清单「跨实例 signals」行转追赶项的既有缝(#161);thread-state 域**维持不建**——它是「Goals / State signals」行维持分叉的唯一真前置(该域未进任何清单,登记地图 Fog,#161);inbox 维持裁出(理由改写见 `harness.md` CUT-H3 行,#160) |
 | **CUT-ST4** PG / Redis 等第一方 adapter | 统一 adapter 家族 + 作者指南(上文) | 有意分叉 | 第一方清单只收内存 + SQLite;后端生态归社区(ADR-0010);延后清单「适配器生态」 |
 | **CUT-ST5** CAS 进基础 port | SQLite 已实现 `compareAndSave`;基础 port 只留 `load` / `save` | 有意分叉 | 可选扩展 + 能力标志;内存版不必假装支持(ADR-0010) |
 | **CUT-ST6** 核心托管连接生命周期(进程 hook / settled 式) | adapter 自拥 `init?()` / `close?()`(`@oribos/sqlite` 已落),应用调用;组合根**不代管** | 有意分叉 | 核心永不隐式 init / close;生命周期归 adapter 与应用(ADR-0010 / 0002) |

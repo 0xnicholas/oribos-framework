@@ -107,7 +107,7 @@ tracer 存在时框架自动开 span,缺席时 NoOp 零开销:
 - **核心包自带两个**:`console`(开发调试美化打印)与 `memory`(环形缓冲,测试/集成断言的抓手)。
 - **OTLP 能力包一个**(独立 npm 包 `@oribos/otlp`,沿 ADR-0002 M5 修订记):把 span 映射为 GenAI semconv 形状——`{operation} {model}` 命名、`gen_ai.operation.name / provider.name / request.model / usage.*` 属性、parts 格式消息;usage 只挂 `chat` span 防后端重复计数。transport 仅 HTTP/protobuf + HTTP/JSON,**不做 gRPC**(Langfuse 不收 gRPC,`@grpc/grpc-js` 依赖重);协议层依赖 OTel 官方 exporter 包,隔离在包边界。带 env-var 零配置 preset。设计冻结见下节「OTLP 能力包(M5 设计冻结)」。
 - **不做厂商专用 exporter**:Langfuse / LangSmith 均把裸 OTLP + `gen_ai.*` 当一等摄入路径,发标准形状即同时覆盖多家后端。
-- **OTel bridge**(复用进程内 OTel SDK 上下文):延后。mastra 同类包至今 experimental;记为地图 fog,路线图阶段判断。
+- **OTel bridge**(复用进程内 OTel SDK 上下文):经 ADR-0017 重判(2026-10-11,#161)**转追赶项**——证据 = mastra 观测 OTel 生态向 + 1.71 能力协商(实装存在且未弃);范围界定 = 宿主既有 OTel SDK 原生互操作(TracerProvider 接入 + trace-context 传播),复用 `@oribos/otlp` 的 semconv 映射,与 M5 已交付的 OTLP 导出分属两件事;metrics / logs 维持砍单(v1 只 tracing,ADR-0009 不动);验证面 = TracerProvider 互操作单测 + example;**中层**(既有缝上的新能力包,#161)。CUT-OBS2 行。
 
 ## OTLP 能力包(M5 设计冻结)
 
@@ -193,17 +193,17 @@ createOtlpExporter(options?: {
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-OBS*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`),`E*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-OBS*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`),`E*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
 | **CUT-OBS1** gRPC transport / 厂商专用 exporter | 官方 OTel exporter 包可自拼(不装不付) | 有意分叉 | Langfuse 不收 gRPC;裸 OTLP + `gen_ai.*` 覆盖各家(ADR-0009) |
-| **CUT-OBS2** OTel bridge / metrics / logs | OTLP 导出面 + 用户已有 OTel 采集管线自接 | 有意分叉 | v1 只 tracing(ADR-0009);bridge 归延后清单「OTel bridge 能力包」 |
+| **CUT-OBS2** OTel bridge / metrics / logs | OTLP 导出面 + 用户已有 OTel 采集管线自接;**bridge 转追赶项**:能力包(TracerProvider 接入 + trace-context 传播,复用 `@oribos/otlp` semconv 映射)(2026-10-11,#161) | **转追赶项(bridge 件)、维持分叉(metrics / logs 件)** | 证据 = mastra 观测 OTel 生态向 + 1.71 能力协商,实装存在且未弃;零负担、不装不付;v1 只 tracing 的裁单不动——metrics / logs 维持分叉(ADR-0009);验证面 = TracerProvider 互操作单测 + example;延后清单「OTel bridge 能力包」行 |
 | **CUT-OBS3** 自研批处理 / 重试 / 日志 / 错误回调 | 官方 `BatchSpanProcessor` / OTel 侧配置 | 有意分叉 | 官方基座在树内且更完整;诊断走 diag(ADR-0009) |
 | **CUT-OBS4** 内建截断 / 敏感数据规则库 | `spanProcessors` 同步改写 + `hideInput` / `hideOutput` trace 级擦除 | 有意分叉 | 上游处理器 + hide 开关是唯一整形缝;「不截断」是记明的已知代价(ADR-0009) |
 | **CUT-OBS5** `gen_ai.conversation.id` 补全 | memory span 已发 `oribos.thread_id`;需要时用户 spanProcessor 自补 | 有意分叉 | agent-step 属性面无 threadId;不做跨 span 推断(ADR-0009) |
 | **CUT-OBS6** exporter `init?()` / `name` 字段 | 用户侧 wrapper 包一层 | 有意分叉 | 三事件最小面 = 标准字面「无 init·name」(ADR-0009) |
-| **CUT-OBS7** `MODEL_CHUNK` / `MODEL_GENERATION` span | `agent-step` span 已载 model / provider / usage / finishReason;chunk 级细节由用户侧消费 chunk 流自行埋点 | 有意分叉 | 七类型冻结;chunk 级埋点与「缺席零开销」相抵(ADR-0009) |
+| **CUT-OBS7** `MODEL_CHUNK` / `MODEL_GENERATION` span | `agent-step` span 已载 model / provider / usage / finishReason;chunk 级细节由用户侧消费 chunk 流自行埋点 | 有意分叉 | 七类型冻结;chunk 级埋点与「缺席零开销」相抵(ADR-0009);互注:A4 已转追赶项(2026-10-12,#166)——chunk 流缝更宽,跨清单对齐锚、非改判 |
 | **E1** 快照只持久化 `traceId` | span 由 exporter 出进程;完整 trace 上下文归观测侧(与 `workflows.md` / `harness.md` 互引) | 有意分叉 | 快照是 JSON-only 状态、不是 tracing 载体;`traceId` 只作续接锚(ADR-0006 / 0011) |
 | **E2** resume = 同一 `traceId` 下的**新** run span | resume 续 `traceId`(既有机制,快照内 `traceId`) | 有意分叉 | 一次人机交互 = 同 trace 多 span;不伪造父子——无 `parentSpanId` 即新 root(ADR-0009) |
 

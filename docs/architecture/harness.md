@@ -23,7 +23,7 @@ await durable.resume(runId, { approved: true })     // 恢复
 - **审批闸**:模型返回 tool-calls 后、执行前,若工具命中 `approval: { tools: [...] }` 清单 → run 挂起:loop 快照(消息列表 + step 计数 + 挂起点 + suspendPayload + traceId)写 port,`finishReason: 'suspended'`。审批声明在 durable 层——Tool 四字段定义不动(#13 核心零权限)。
 - **resume 语义**:`approved: true` → 执行该工具继续 loop;`approved: false` → 以「用户拒绝」工具结果**回喂模型**继续(与工具错误回喂同构),不终止 run。
 - **挂起语义只在 durable 包装内存在**:裸 agent 无快照、**不传 `stepBoundary` seam 时**不产生 `'suspended'`(该 seam 是公开 run option,显式传入即得),核心 agent loop 本体不变。Harness 持有 agent,不是反之(ADR-0005 砍单表)。
-- **裁单**:崩溃自动恢复(每步 running 检查点 + 重放)、resumable stream 事件缓存、`observe()`、多副本恢复与 leader election、boot 时 recoverAll、工具 `execute` 内 `suspend()`(通用挂起,background tasks 的机器,已延后入雾)。「列出待审批 run」归 adapter 可选扩展(下节)。
+- **裁单**:崩溃自动恢复(每步 running 检查点 + 重放)、resumable stream 事件缓存、`observe()`、多副本恢复与 leader election、boot 时 recoverAll、工具 `execute` 内 `suspend()`(通用挂起,background tasks 的机器)——以上仍不在核心;经 ADR-0017 重判(2026-10-11)多数**转追赶项**(CUT-H1 / CUT-H5 行)。「列出待审批 run」归 adapter 可选扩展(下节)。
 
 ### AgentRunSnapshotStore
 
@@ -51,9 +51,9 @@ signals.subscribeToThread({ thread, resource })     // 订阅该 thread 活跃 r
 
 - **语义固定三句**,mastra 的 `ifActive`/`ifIdle` 分支行为矩阵裁掉:活跃 = 注入当前 run(下一 step 生效);空闲 = 唤醒新 run;queueMessage = 排队保序。
 - **零新存储**:唤醒/注入内容落为消息历史的普通消息(复用 `MemoryStore`);排队队列进程内,进程死 = 丢(文档化语义)。`memory` 缺席时唤醒 = 无历史新 run(文档化)。
-- **运行时**:进程内内存 pubsub + 「thread → 活跃 run」注册表,单进程语义;跨实例(共享 PubSub + 租约)归能力包,入雾。
+- **运行时**:进程内内存 pubsub + 「thread → 活跃 run」注册表,单进程语义;跨实例(共享 PubSub + 租约)归能力包——经 ADR-0017 重判(2026-10-11,#161)**转追赶项**(opt-in 能力包 + 外部 Redis,不装不配零成本;核心单进程语义不变;延后清单「跨实例 signals」行)。
 - **agent loop 唯一改动**:每个 step 边界检查注入队列;无 signals 挂接时零开销(无运行时负担)。
-- **裁单**:state signals(命名状态车道 + diff/merge)延后入雾;notification inbox(持久化收件箱 + 投递策略)裁出——`sendSignal({ type: 'notification' })` 即时注入覆盖主场景;signal providers(webhook/poll 入口)不进规范,以示例模式承载。
+- **裁单**:state signals(命名状态车道 + diff/merge)——重判(#161)**维持分叉、理由改写**(前置 thread 状态域未建,见 CUT-H2 行);notification inbox(持久化收件箱 + 投递策略)——重判(#160)**维持裁出、理由改写**(`sendSignal({ type: 'notification' })` 即时注入覆盖主场景,见 CUT-H3 行);signal providers(webhook/poll 入口)——重判(#160)**转追赶项(示例形态)**,仍不进规范,以示例 + 配方承载(CUT-H4 行)。
 
 ## Schedules(最小集)
 
@@ -116,23 +116,23 @@ schedules.save({
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-H*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`),`D*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-H*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`),`D*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
 | **D1** 审批声明在 durable 包装层 | 需要审批 → `createDurableAgent` 包装;裸 agent 不变(Tool 四字段不动) | 有意分叉 | 核心零权限模型;审批闸是包装层能力(ADR-0005 / 0011;`tools.md` D2 行互引) |
 | **D3** `approved: false` = 「用户拒绝」回喂、run 继续 | 需要硬停 → `processError` / 工具自带终止语义 | 有意分叉 | 拒绝是信息不是错误——以 `isError` 工具结果回喂、模型可改方案(ADR-0011 / 0005) |
-| **CUT-H1** 崩溃自动恢复 / resumable stream / 多副本恢复 | `resume` + `listSuspended` 可选扩展归应用;原语均已落 | 有意分叉 | 自动恢复是外部 runner 能力包方向(ADR-0011);延后清单「resumable stream」「每步检查点 + 崩溃重放」「外部 runner 适配」 |
-| **CUT-H2** state signals | working memory + Processor 组合 | 有意分叉 | 命名状态车道 + diff/merge 是新概念面;前置 = thread 状态域(ADR-0007 / 0011);延后清单「Goals / State signals」 |
-| **CUT-H3** notification inbox | `sendSignal({ type: 'notification' })` 即时注入 | 有意分叉 | 持久化收件箱 + 投递策略是应用 / 能力包面;即时注入覆盖主场景(ADR-0011);`storage.md` CUT-ST3 行互引 |
-| **CUT-H4** signal providers(webhook / poll 入口) | 示例模式(薄基类 + 订阅登记簿 DIY) | 有意分叉 | 入口形态是部署面,不进规范(ADR-0011);延后清单「signal providers」 |
-| **CUT-H5** background tasks(deferred / untilIdle) | 「工具 ack + 完成后 `sendSignal` 唤醒」组合 | 有意分叉 | `untilIdle` 续轮会改动 agent 流的完成语义;原语组合已等效(ADR-0011);延后清单「Background tasks」 |
-| **CUT-H6** goals(standing objective + judge) | Processor + working memory 原型化 | 有意分叉 | judge + 预算语义是新概念面;前置 = thread 状态域(ADR-0011 / 0007);延后清单「Goals / State signals」 |
-| **CUT-H7** AgentController / session 语义 | Agent 类自行组装(「thread 持久 / live 状态内存」分层已隐含) | 有意分叉 | 交互式编码 agent 产品面出域(ADR-0011);延后清单「AgentController / session」 |
+| **CUT-H1** 崩溃自动恢复 / resumable stream / 多副本恢复 | `resume` + `listSuspended` 可选扩展归应用;原语均已落;**转追赶项分件**(2026-10-11,#161):resumable stream = 能力包(事件缓存 + `observe`,内存默认零负担、Redis opt-in);每步检查点 + 崩溃重放 = 能力包 / 部署方(boot 恢复 = 用户调用的函数、非常驻循环,重发 LLM 与幂等成本由用户显式接受);多副本恢复与 leader election 随「跨实例 signals」行口径(opt-in 能力包 + 外部 Redis) | **转追赶项**(分件,2026-10-11,#161) | 证据 = mastra 事件缓存 + `observe(runId)` + durable 流 `closeOnSuspend`(1.70)与 `recovery: 'auto'` + boot 时 `recoverAllDurableAgents()`(实装未弃);验证面 = 缓存单测 + 断连重连 example、fake model 重发计数单测 + 崩溃重放 example(进 `check:examples` 闸门);原「自动恢复是外部 runner 能力包方向」理由随转项改写(ADR-0011);延后清单「resumable stream」「每步检查点 + 崩溃重放」「外部 runner 适配」行 |
+| **CUT-H2** state signals | working memory + Processor 组合 | **维持分叉、理由改写**(2026-10-11,#161) | 证据成立(mastra judge + 预算 + thread state 持久化,Beta 未弃),但承载缝前置缺席:thread 状态域未建(`storage.md` CUT-ST3 钉「不建」,且该域未进任何清单——转项就要先立一个新核心域,超出本行判定面;「thread 状态域立不立」登记地图 Fog,是本行唯一真前置);judge + 预算语义仍可由 working memory + Processor 原型组合覆盖主场景;命名状态车道 + diff/merge 是新概念面的判断不动(ADR-0007 / 0011);延后清单「Goals / State signals」行 |
+| **CUT-H3** notification inbox | `sendSignal({ type: 'notification' })` 即时注入 | **维持分叉、理由改写**(2026-10-11,#160) | 收件箱 schema(通道 / 优先级 / 已读 / 过期)是应用域,框架化只能给最小公倍 CRUD、宿主自有 DB 即可,框架不提供增量价值;即时注入已覆盖主路径;mastra 侧仅 3/31 adapter 支持(生态内采纳亦薄,#160)——证据强度低于其他行;持久化收件箱 + 投递策略是应用面的判断不动(ADR-0011);`storage.md` CUT-ST3 行互引 |
+| **CUT-H4** signal providers(webhook / poll 入口) | 示例模式(薄基类 + 订阅登记簿 DIY)——转追赶项即示例形态:`examples/` 新增 webhook 入口例 + 配方说明,薄 HTTP 端点 → `sendSignal`,纯 signals 消费、零新缝零依赖 | **转追赶项(示例形态)**(2026-10-11,#160) | 原裁定承载缝即示例模式,缺口只是「没人写出来」;能力包形态把一个 HTTP 端点包装成包,性价比不成立(#160);验证面 = example 进 `check:examples` 闸门;**与现有缝距离最近**,首批候选;入口形态是部署面、不进规范的判断不动(ADR-0011);延后清单「signal providers(webhook / poll 入口)」行 |
+| **CUT-H5** background tasks(deferred / untilIdle) | 分两期(2026-10-11,#161):一期 = 配方文档 + example(「工具 ack + 完成后 `sendSignal` 唤醒」原语组合,ADR-0011 判等效,零负担);二期 = manager/lease 能力包(opt-in、不装不配即零成本、不接管宿主,**核心流完成语义不动**——`untilIdle` 语义冲突不触发:续轮由包在公开表面自驱,不改 agent 流) | **转追赶项(分两期)**(2026-10-11,#161) | 证据强 = mastra manager + 持久化租约(1.72)+ 心跳 + `stream({ untilIdle: true })` + `context.background.adopt()`,实装存在且未弃;一期**首批候选**(配方 + example,零代码面);二期**远层**(新 port 抽象);保轴边界逐期写明(ADR-0011);延后清单「Background tasks」行 |
+| **CUT-H6** goals(standing objective + judge) | Processor + working memory 原型化 | **维持分叉、理由改写**(2026-10-11,#161) | 证据成立(mastra judge + 预算 + thread state 持久化,Beta 未弃),但承载缝前置缺席:thread 状态域未建(`storage.md` CUT-ST3 钉「不建」,未进任何清单——转项先立新核心域,超出本行判定面;「thread 状态域立不立」登记地图 Fog);judge + 预算语义可由 working memory + Processor 原型组合覆盖主场景;judge + 预算语义是新概念面的判断不动(ADR-0011 / 0007);延后清单「Goals / State signals」行 |
+| **CUT-H7** AgentController / session 语义 | Agent 类自行组装(「thread 持久 / live 状态内存」分层已隐含) | **维持分叉、理由改写**(2026-10-11,#160) | 证据成立(mastra modes / permissions / channels / workspace 成品运行时 + `createCodingAgent()` + mastracode),但 = 交互式编码 agent 产品面的成品运行时,接管宿主交互循环;三件套 + signals 已支撑宿主自组装,「应用层自组装」语义仍更优(ADR-0011);延后清单「AgentController / session」行 |
 | **CUT-H8** durable sleep / 长延时等待 | schedules + suspend 组合(原语已落) | 有意分叉 | 核心不要长驻进程;无 sleep 原语(ADR-0011);与 `workflows.md` CUT-W11 行互引 |
 | **D4** / **CUT-H9** `ifActive` / `ifIdle` 分支行为矩阵 | 固定三句语义(活跃注入 / 空闲唤醒 / 排队保序)已落 | 有意分叉 | 固定三句即标准面——行为矩阵会把最小语义扩成开关森林(ADR-0011) |
 | **D6** / **CUT-H10** 触发记录(trigger history) | observability span;`tick` 无 span 由 **P-1** 断言固定 | 有意分叉 | 不建 fire log:追责靠 run 自己的 trace(ADR-0011 / 0009) |
-| **D5** 排队队列进程内 | 既有:延后清单「跨实例 signals」行 | 有意分叉 | 单进程语义显式、进程死即丢,文档化(ADR-0011) |
+| **D5** 排队队列进程内 | 既有缝随 [#161](https://github.com/0xnicholas/oribos-framework/issues/161) 转项:跨实例 signals 追赶项能力包(共享 PubSub + 租约 + Redis 适配;核心单进程语义不变) | **维持分叉、理由改写**(2026-10-12,[#169](https://github.com/0xnicholas/oribos-framework/issues/169)) | 单进程语义显式、进程死即丢,文档化(ADR-0011);承载缝指针随 #161 转项改写,原指延后清单行 |
 | **D7** `tick` 本身无 span | 需要 tick 级可观测 → 用户自定义 span | 有意分叉 + 缺席断言 → **P-1** | `tick` 是进程内原语、非七边界埋点之一;追责靠被触发 run 的 trace(ADR-0011 / 0009) |
 
 ## 与其它子系统的关系

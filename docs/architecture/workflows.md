@@ -150,7 +150,7 @@ interface WorkflowSnapshotStore {
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`B*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-W*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`B*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-W*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
@@ -158,15 +158,15 @@ interface WorkflowSnapshotStore {
 | **CUT-W1** map / sleepUntil | 内联 step + 一行算术(`foreach` / `sleep(ms\|fn)`) | 有意分叉 | 两者覆盖主流;后加 minor(ADR-0006) |
 | **CUT-W2** `createStep(agent\|tool)` 特化重载 | 一行手写包装——范式有树内证据(`examples/workflow-approval`) | 有意分叉 | 定义表面不收简写重载;后加 minor(ADR-0006) |
 | **CUT-W3** 嵌套 workflow as step | step `execute` 内手接子 run(父 run 只记 step 边界,子 run 自拥快照) | 有意分叉 | 子图字段面留判断位;后加 minor——跨图一体化恢复才有缺口(ADR-0006) |
-| **CUT-W4** state / setState 黑板 | `getStepResult` + 显式管道 | 有意分叉 | 显式管道替代黑板;后加 minor(ADR-0006) |
+| **CUT-W4** state / setState 黑板 | `getStepResult` + 显式管道 | 有意分叉 | 显式管道替代黑板;后加 minor(ADR-0006);互注:run 内黑板 ≠ thread 状态域,与地图 Fog「thread 状态域立不立」互不预设(词汇边界澄清,非改判) |
 | **CUT-W5** bail | `branch` 建模 | 有意分叉 | `branch` 已足;后加 minor(ADR-0006) |
 | **CUT-W6** validateInputs 开关 | 需要绕过校验 → 放宽 schema 本身 | 有意分叉 | 校验永远开 = 标准字面「三处固定校验」,没有可关的理由(ADR-0003 / 0006) |
-| **B5** resume 按记录回放重建 tip | 记录回放(records-first)即机制本体 | 有意分叉 | 前序 step 不重执行、条件不重估——副作用不重复(ADR-0006) |
+| **B5** resume 按记录回放重建 tip | 记录回放(records-first)即机制本体 | 有意分叉 | 前序 step 不重执行、条件不重估——副作用不重复(ADR-0006);互注:time-travel / restart 已转追赶项(2026-10-11,#161,CUT-W7 行),跨清单对齐锚、非改判 |
 | **B6** `resumeData` 只给被点名的那一次执行 | 需要广播 → 显式走 `getStepResult` / 参数管道 | 有意分叉 | 记录回放模型下数据归属明确;无「广播给兄弟臂 / 后续迭代」语义(ADR-0006) |
-| **B7** 快照 = 固定五字段 + 可选 `traceId` / `iterationSite` | `iterationSite` 承载块内现场(`CONTEXT.md` 迭代现场) | 有意分叉 | 最小可判 JSON 快照;快照是库语义不是历史(只留最新一份)(ADR-0006 / 0010) |
-| **B8** 无 `suspendedPaths` / `serializedStepGraph` 路径模型 | 位置 = 扁平 `position` + `iterationSite`(下「CUT-W9」行互引) | 有意分叉 | 不建路径模型——`suspendedPaths` 式多路径挂起模型在 `CONTEXT.md` 记 _Avoid_(ADR-0006) |
-| **CUT-W9** resume CAS / serializedStepGraph / 多引擎适配 | **已兑现段**:CAS 已落为 adapter 可选扩展(`compareAndSave`,`@oribos/sqlite` 已实现);**两件指针**:`serializedStepGraph` 随「B8 不建路径模型」,多引擎 → 外部 runner 能力包 | 已兑现 + 有意分叉 | 三件已分流:一件已兑现(ADR-0010)、一件随 B8 分叉、一件是能力包方向(ADR-0006) |
-| **CUT-W7** time-travel / restart / restartAll | `load` → 重进原语,**需先截断该位之后的记录**;durable 侧重启归 Harness | 有意分叉 | 调试 / 审计场景非 v1 判据;records-first 回放决定它不是「薄变种」(ADR-0006 / 0011);延后清单「time-travel / restart」 |
+| **B7** 快照 = 固定五字段 + 可选 `traceId` / `iterationSite` | `iterationSite` 承载块内现场(`CONTEXT.md` 迭代现场) | 有意分叉 | 最小可判 JSON 快照;快照是库语义不是历史(只留最新一份)(ADR-0006 / 0010);互注:time-travel / restart 已转追赶项(2026-10-11,#161,CUT-W7 行),跨清单对齐锚、非改判 |
+| **B8** 无 `suspendedPaths` / `serializedStepGraph` 路径模型 | 位置 = 扁平 `position` + `iterationSite`(下「CUT-W9」行互引) | 有意分叉 | 不建路径模型——`suspendedPaths` 式多路径挂起模型在 `CONTEXT.md` 记 _Avoid_(ADR-0006);互注:time-travel / restart 已转追赶项(2026-10-11,#161,CUT-W7 行),跨清单对齐锚、非改判 |
+| **CUT-W9** resume CAS / serializedStepGraph / 多引擎适配 | **已兑现段**:CAS 已落为 adapter 可选扩展(`compareAndSave`,`@oribos/sqlite` 已实现);**两件指针**:`serializedStepGraph` 随「B8 不建路径模型」,多引擎 → 外部 runner 能力包——该件经 ADR-0017 重判(2026-10-11,#161)**转追赶项**(证据 = mastra Inngest / Temporal 引擎实装未弃;外部平台 = opt-in 基础设施,过保轴门;引擎接缝已留) | 已兑现 + 有意分叉 + **转追赶项(多引擎件)**(2026-10-11,#161) | 三件分流:一件已兑现(ADR-0010)、一件随 B8 分叉、一件转追赶项(验证面 = 引擎适配单测 + 可选 Inngest example;**远层**,新 port 抽象)(ADR-0006);延后清单「外部 runner 适配」行 |
+| **CUT-W7** time-travel / restart / restartAll | `load` → 重进原语,**需先截断该位之后的记录**;durable 侧重启归 Harness——追赶形状 = 扁平 `position` + `stepResults` 上的等价物(本框架不建路径模型),无 port 变更 | **转追赶项**(2026-10-11,#161) | 证据 = mastra 快照 + `serializedStepGraph` 免费变种实装未弃;零负担;原「records-first 回放决定它不是薄变种」是设计点、不是障碍——转项正落在该原语上(load→重进 + 截断,records-first 语义保留);验证面 = 截断 + 重进单测 + 调试场景 example;**首批候选**(既有原语薄变种,#161)(ADR-0006 / 0011);延后清单「time-travel / restart」行 |
 | **CUT-W8** shouldPersistSnapshot / prune 钩子 | 固定 step 边界写;保留期清理 = adapter 扩展(`deleteSnapshot` / `listSnapshots`,`@oribos/sqlite` 已落) | 有意分叉 | 固定边界写是良定义策略;保留期策略归 adapter(ADR-0006 / 0010) |
 | **B2** `retries` = 额外尝试数 + 固定 1000ms + 可打断 | backoff 策略对象已留扩展位;重试只包 `execute` | 有意分叉 | 最多 `retries + 1` 次最直观;固定间隔 = 最小配置、无退避矩阵;等待可打断 = abort 一致语义(ADR-0006) |
 | **B3** `sleep` 动态时长收 `RequestContext` | 需要上一步输出算时长 → 显式传参 / 内联 step 计算 | 有意分叉 | 全字段统一动态参数口径(`T \| ((ctx) => T)`);`RequestContext` 是唯一解析上下文(ADR-0006 / 0005) |
@@ -174,7 +174,7 @@ interface WorkflowSnapshotStore {
 | **B4** 无 `waiting` 状态、abort 即 failed | 既有「CUT-W12 tripwire / canceled」行(互引) | 有意分叉 | run 状态机三态最小(`success \| failed \| suspended`);sleep 期间保持 running;取消落 failed 不单设 canceled(ADR-0006) |
 | **CUT-W12** tripwire / canceled 状态 | AbortSignal → failed | 有意分叉 | run 状态机三态最小;取消落 `failed`(AbortError),不单设 canceled;与 B4 互引(ADR-0006) |
 | **CUT-W10** chunk 级流式透传 | step 内自行消费 chunk 流 | 有意分叉 | 事件面固定四类,不设 chunk 通道(与 agent 篇「chunk 级 processor 裁出 v1」同调)(ADR-0006 / 0005) |
-| **B16** 条件里调用 `suspend()` 报错 | 需要条件内挂起 → 显式 step 内 `if` + `suspend()` | 有意分叉 + 验证面欠账 → **P-1** | 条件是只读的——无副作用、挂起点须可定位重进(ADR-0006) |
+| **B16** 条件里调用 `suspend()` 报错 | 需要条件内挂起 → 显式 step 内 `if` + `suspend()` | 有意分叉 + 验证面已兑现(P-1 随 [#130](https://github.com/0xnicholas/oribos-framework/issues/130) 落地;2026-10-12 改记,#165) | 条件是只读的——无副作用、挂起点须可定位重进(ADR-0006) |
 
 ## 与其它子系统的关系
 

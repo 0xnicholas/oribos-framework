@@ -114,6 +114,8 @@
 | 每步检查点 + 崩溃重放 | `recovery: 'auto'` + boot 时 `recoverAllDurableAgents()`(默认不写 running 检查点)(沿旧钉;evented 引擎 1.72.0 转正但默认引擎未换) | 能力包 / 部署方 |
 | time-travel / restart | 快照 + `serializedStepGraph` 上的免费变种(沿旧钉) | load→重进原语上的薄变种,无 port 变更 |
 
+> 互注(2026-10-12,[#167](https://github.com/0xnicholas/oribos-framework/issues/167) 批 4 移交):本档「RAG / 语义召回」行的延后档位系 ADR-0017 前旧纪律产物,档位结论已被 [#161](https://github.com/0xnicholas/oribos-framework/issues/161) 取代(转追赶项,`docs/architecture/memory.md` CUT-MEM1 行);mastra 侧事实行仍有效(批 4 证据源),本表按 dated 快照原样保留。判定口径变动见 `docs/adr/0017-positioning-repivot-chase-mastra.md` 修订记;重判结论的单一真相源在 `docs/ROADMAP.md`。
+
 ### 4.3 出域档(定位改变才重开)
 
 | 缺口 | mastra 侧的事实 | 出域依据 |
@@ -127,6 +129,8 @@
 | AgentController / session | modes / permissions / channels / workspace 的成品运行时;旁有 `createCodingAgent()` 工厂与 `mastracode` 产品(沿旧钉) | 应用层自组装 |
 
 > 出域档 7 行理由措辞本轮**无需修订**([#144](https://github.com/0xnicholas/oribos-framework/issues/144) 确认:react-sdk 证实为纯客户端库、knowledge v2 本就不在 7 行内、Studio 云化性质不变——三线均仍落在既有出域理由覆盖内);react-sdk 事实记于 §2 产品面行,knowledge v2 事实记于 §4.2 RAG 行。
+
+> 互注(2026-10-12,[#167](https://github.com/0xnicholas/oribos-framework/issues/167) 批 4 移交):本档「OM 类后台压缩」行的出域档位系 ADR-0017 前旧纪律产物,档位结论已被 [#160](https://github.com/0xnicholas/oribos-framework/issues/160) 取代(转追赶项,`docs/architecture/memory.md` CUT-MEM2 行);mastra 侧事实行仍有效(批 4 证据源),本表按 dated 快照原样保留。轴级判词(opt-in、不配置即零成本、不接管宿主的进程内后台工作 ≠ 运行时负担)见 `docs/adr/0017-positioning-repivot-chase-mastra.md` 修订记。
 
 ## 5. 现实差距(非功能,选型者最先看见)
 

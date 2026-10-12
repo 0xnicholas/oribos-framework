@@ -42,7 +42,7 @@ type ModelInput =
 
 - **无自有 provider SPI、无注册表、无 `'provider/model'` magic string。** AI SDK 生态的 provider 包就是插件机制;网关类需求(OpenRouter 等)由对应 provider 包承担。
 - 自定义端点(Ollama / LMStudio / OpenAI-compatible 网关):用户自装 `@ai-sdk/openai-compatible` 类现成包,核心无特殊机制。
-- 字符串路由(models.dev 目录 + 解析器)若做,是独立能力包——已登记地图 Not yet specified,路线图阶段再判断。
+- 字符串路由(models.dev 目录 + 解析器)若做,是独立能力包——经 ADR-0017 重判(2026-10-11,#161)**转追赶项**:证据 = mastra 211-provider 注册表 + 网关链 + `ModelSelectionProcessor`,活跃维护(实装存在且未弃);形态 = 能力包(目录 + 解析映射),核心「无注册表 / 无 magic string」钉子不动;验证面 = 解析单测 + 目录快照 example;**中层**(#161)。延后清单「字符串路由(models.dev 类)」行。
 
 ## AI SDK 互操作能力包(M5 设计冻结)
 
@@ -117,16 +117,16 @@ type ModelInput =
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`A*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-M*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。本表是**篇章级单表**:AI SDK 互操作能力包的裁单行也在此(保留「重开条件」列)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`A*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-M*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段);「重开条件」列口径已随 ADR-0017 终结,本表未裁行待各批判定票逐行改记。本表是**篇章级单表**:AI SDK 互操作能力包的裁单行也在此(保留「重开条件」列)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 | 重开条件 |
 | --- | --- | --- | --- | --- |
 | **CUT-M1** 反向互操作(`withMastra` 类:给纯 AI SDK 用户套 processor / memory) | `Memory` 类可独立 `new`(port 直用);processor / 挂起点属自有 loop——纯 AI SDK 侧只能手写等价钩子 | 有意分叉 | 方向倒置:核心须接受 AI SDK 流 part 词汇作回调输入,把外部流格式塞进自有 seam;永久兼容面(ADR-0004) | ≥1 真实用例(AI SDK 原生应用在其 `streamText` 循环里用 memory / processor 且接受外部依赖) |
-| **CUT-M2** workflow / network 路由(mastra `workflowRoute` / `networkRoute` 类) | 应用端点自行把 workflow 事件流 / run 记录映射为 UI 流(事件面公开) | 有意分叉 | 本包只做 agent chunk 面;workflow lifecycle 事件流是另一套词汇(ADR-0004 / 0006) | 真实用例要求 workflow run 直出 UI stream |
-| **CUT-M3** AI SDK `resume: true` 的 GET 恢复端点 | 应用自建 GET 端点;事件缓存归应用 | 有意分叉 | 官方明言 resume 与 abort 不互容;核心 resumable stream 已裁(ADR-0004) | 沿 `docs/ROADMAP.md` 延后清单「resumable stream」 |
+| **CUT-M2** workflow / network 路由(mastra `workflowRoute` / `networkRoute` 类) | 应用端点自行把 workflow 事件流 / run 记录映射为 UI 流(事件面公开) | **维持分叉、理由改写**(2026-10-12,#168) | networkRoute 半行前提因 `.network()` 弃用(官方迁移文档)失据;workflowRoute 半行快照未登记 = 无需求信号;「本包只做 agent chunk 面」主张不动——workflow lifecycle 事件流是另一套词汇(ADR-0004 / 0006) | 真实用例要求 workflow run 直出 UI stream |
+| **CUT-M3** AI SDK `resume: true` 的 GET 恢复端点 | 应用自建 GET 端点;事件缓存**归能力包**(2026-10-11,#161 随「resumable stream」转追赶项改写:能力包 = 事件缓存 + observe,内存默认零负担、Redis opt-in) | 有意分叉、理由改写(2026-10-11,#161) | 官方明言 resume 与 abort 不互容;核心 resumable stream 已裁不动(ADR-0004)——转项的是事件缓存 + observe 能力包,不触碰本行端点形态(ADR-0004) | 沿 `docs/ROADMAP.md` 延后清单「resumable stream」行(已转追赶项) |
 | **CUT-M4** 无状态全量 `UIMessage[] → ModelMessage[]` 转换 | `ModelInput` 三形状直通(`Message[]` 直传);缺的只是 UI part → `ModelMessage` 转换件,由用户侧承担 | 有意分叉 | 与 memory 权威双喂冲突;无状态 chat 不是本框架形态(ADR-0004 / 0007) | 真实用例要求无 memory 的纯无状态路由 |
 | **CUT-M5** typed 工具渲染(`dynamic: false` 直通) | `dynamic: true` 兜底(tool part 带 input 已可渲染);typed 诉求由客户端按 `toolName` 自查 | 有意分叉 | 工具 schema 只在服务端,客户端类型面不可知(ADR-0004) | 真实用例要求 typed 工具 part(opt-in minor) |
-| **A4** chunk 协议仅四帧(无推理增量 / 参数增量) | **无**——数据不可恢复:互操作包同样跳过(`reasoning-*` / `tool-input-*` 在归一层静默丢弃,`usage` 仍计 reasoning tokens) | 有意分叉 | 词汇最小 + 单一 spec 版本 + 外部格式转换归互操作包(ADR-0004) | 真实用例要求思考流 / 工具参数流式 → 加帧(additive minor) |
+| **A4** chunk 协议仅四帧(无推理增量 / 参数增量) | 核心 chunk 协议 additive 两族帧(推理增量 / 参数增量),opt-in 发射、默认四帧不变;互操作包归一层映射、不再静默丢弃 | **转追赶项**(2026-10-12,#166) | mastra / AI SDK 推理与参数增量帧实装未弃 = ADR-0017 需求证据,触发行自钉「加帧 additive minor」预案;差异收窄为默认发不发帧,词汇最小以默认值保住(ADR-0004);实施归实施地图(不进本图) | 已触发(2026-10-12,#166)——转追赶项 |
 | **A5** fallback 仅在该次尝试**未产出任何 chunk** 时切换 | 外层重试(调用方或 `processError`) | 有意分叉 | 流中途失败不切换候选——不重复输出、不产生半截文本歧义(ADR-0004;对比总账 §1「本框架更保守」) | —(未立;需真实用例) |
 
 ## 与其它子系统的关系

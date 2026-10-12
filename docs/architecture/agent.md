@@ -75,22 +75,22 @@ const researcherAsTool = async (ctx: RequestContext) =>
 - **取消与观测沿链**:`signal` 透传一行;`traceId` / `spanId` 经工具 ctx 取出(Tools 规范六件套),委派 run 挂为当前 tool-call span 的子 span,多 agent 观测树不断裂。父侧无 trace(未挂 tracer 或采样不通过)时,工具 ctx 的两个字段是空串——空串不是可续接的 parent,委派 run 起自己的新 trace,不产生空 trace id 的残破 span。
 - **memory**:默认无状态(包装器不传 memory);带记忆委派 = 显式传 `memory: { thread, resource }`,thread 策略(每次委派新 thread / 固定 thread)归应用。
 - **嵌套审批不支持**:审批闸只挂最外层入口 agent(`createDurableAgent`,见 `docs/architecture/harness.md`);内层 sub-agent 不做 durable 包装,其工具直接执行——要闸内层危险工具就上提到父级闸。sub run 以 `suspended` 收尾时,包装器按普通文本结果回喂父模型;恢复 = 应用层 resume sub + signal 唤醒父(Harness 原语组合,无新机制)。
-- **演化门**:真实需求信号(as-tool 模式的重复痛点——包装样板、传播遗漏、嵌套审批诉求)触发重开内建问题;落点 = `createSupervisor` 类能力包优先,仅当其证明需要核心新缝时才以 minor 字段进核心(ADR-0012)。
+- **演化门**:真实需求信号触发重开内建问题;落点 = `createSupervisor` 类能力包优先,仅当其证明需要核心新缝时才以 minor 字段进核心(ADR-0012)。触发条款已按 ADR-0017 修订(2026-10-11):原「as-tool 痛点 ≥3 次复述 / ≥1 项目受阻」作废,改受新纪律——**mastra 已采用且未弃 = 需求证据**;supervisor 方向经官方迁移文档确认(「development now focuses on supervisor agents」),**「Supervisor 能力包」行转追赶项**(2026-10-11,#161;证据 = `agents:` 字段 + delegation 钩子实装未弃;纯公开表面组合、零负担;验证面 = as-tool 能力包 + fake model 单测 + 多 agent example;**首批候选**),落点纪律不变。
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`A*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-AG*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`A*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-AG*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
 | **A1** `instructions` 仅 string | `processInput` 可改写系统消息;动态 `instructions` 函数可拼装多段 | 有意分叉 | 可逆性不对称——后加可选字段是 minor、删字段是 major;provider 级能力(缓存控制等)证明需要后再加(ADR-0005) |
 | **A3** `structuredOutput` 只 strict | `processError` / `processOutputStep` 承载重试与修补 | 有意分叉 | 失败即报错、不静默降级、不做修复轮;与工具校验「失败即报错」同调(ADR-0005;`docs/architecture/tools.md` 校验语义) |
 | **A6** `maxSteps` 耗尽 → `finishReason: 'tool-calls'` | `steps[]` + `usage` 可判「第 N 步仍在要求工具」 | 有意分叉 | 截断信号归框架、不 relay provider 原始 reason,`finishReason` 五值冻结(ADR-0005 / 0004) |
-| **A2** 同一步多工具**串行** | 工具自身可内部并发;需求信号到 → 按 run 开关 | 有意分叉 + 验证面欠账 → **P-1** | 并发策略 v1 不做、留待需求信号——顺序确定、失败路径单一、abort 语义简单(ADR-0005) |
-| **CUT-AG1** scorers / evals | Processor 或独立 scorer 消费 run 结果(`steps` / `text` / `usage` 均公开面) | 有意分叉 | evals 是 CI / 线上的断言体系,超出 agent 定义表面;Processor 三钩是唯一横切点(ADR-0005);延后清单「Evals / scorers」 |
-| **CUT-AG2** voice / browser / channels / workspace / skills | 能力包 / 应用层;`browser` 具名入延后清单出域档行,`skills` → [#84](https://github.com/0xnicholas/oribos-framework/issues/84) | 有意分叉 | 六项皆平台 / 应用层能力面,与「定义表面最小 + 零权限模型」立场一致(ADR-0005) |
-| **CUT-AG3** editor / rawConfig | 应用层 / 宿主工具链 | 有意分叉 | Studio / editor 出域——定位裁决改变才重开(ADR-0005);延后清单「Studio / editor / stored agents」 |
-| **CUT-AG4** durable / pubsub / backgroundTasks / signals / goal / notifications | **已兑现段**:durable / signals(含进程内 pubsub)已成独立子系统并冻结(`docs/architecture/harness.md`,ADR-0011)。**剩余三件指针**:backgroundTasks → 延后清单「Background tasks」;goals → 延后清单「Goals / State signals」;notifications → `sendSignal({ type: 'notification' })` 即时注入 | 已兑现 + 有意分叉 | 本行「砍的是字段位置」的原表述随 durable / signals 出账失效;剩余三件是能力形缺口,不是字段位置(ADR-0005 / 0011) |
+| **A2** 同一步多工具**串行** | run options additive 的 opt-in 开关,默认串行不变 | **转追赶项**(2026-10-12,#164) | mastra 1.71 eager execution(实装未弃)= ADR-0017 需求证据,触发行自钉预案;默认串行的 determinism / abort 语义保留,差异收窄为默认哪边(ADR-0005);实施票归实施地图(不进本图) |
+| **CUT-AG1** scorers / evals | Processor 或独立 scorer 消费 run 结果(`steps` / `text` / `usage` 均公开面) | **转追赶项**(2026-10-11,#161) | 证据 = mastra scorers 挂 Agent 配置 + 独立评估包,实装存在且未弃(落地页 FAQ 位是营销动作,不计也不需要);零负担;验证面 = 独立 scorer 能力包 + Processor 接线,scorer 单测 + 接线 example;**首批候选**(与既有缝最近层,#161)。原分叉理由(evals 超出 agent 定义表面、Processor 三钩唯一横切点)作为承载缝纪律保留(ADR-0005);延后清单「Evals / scorers」 |
+| **CUT-AG2** voice / browser / channels / workspace / skills | 能力包 / 应用层;`browser` 具名入延后清单出域档行,`skills` → [#84](https://github.com/0xnicholas/oribos-framework/issues/84) | **维持分叉、理由改写**(2026-10-11,#160) | 证据成立(mastra 渠道解析器 1.72 起运行时热更新,实装未弃),但 = 产品 / 生态面;voice 附装率 1.5%(全清单最薄,#150)且与「无运行时负担」直接冲突;六项与「定义表面最小 + 零权限模型」立场一致的判断不动(ADR-0005);延后清单「channels / voice / …」行 |
+| **CUT-AG3** editor / rawConfig | 应用层 / 宿主工具链 | **维持分叉、理由改写**(2026-10-11,#160) | 证据成立(mastra Editor = agent 的 CMS:DB/code 双轨 + draft/published;Studio 云化持续活跃),但 = 托管产品 / 协作面,撞「嵌入宿主而不接管」;stored agents 无需框架能力(agent 配置 = 普通对象,宿主自有 DB 存取即可,**无缝可承**),不拆行(ADR-0005);延后清单「Studio / editor / stored agents」行 |
+| **CUT-AG4** durable / pubsub / backgroundTasks / signals / goal / notifications | **已落三件**:durable / signals / 进程内 pubsub → 独立子系统已冻结(`docs/architecture/harness.md`,ADR-0011);**已裁三件**:backgroundTasks → 转追赶项(分两期,#161)、goals → 维持分叉但理由改写(thread 状态域前置缺席,#161)、notifications → 出域(#160) | **维持分叉、理由改写**(2026-10-12,#168) | 「已兑现 + 有意分叉」旧表述随六件分流消除;「砍的是字段位置」的原表述随 durable / signals 出账失效(ADR-0005 / 0011) |
 | **CUT-AG5** defaultOptions / metadata | 用户一行包装 + 组合根 `createApp` 分发;metadata 走观测的开放袋 → `oribos.metadata` | 有意分叉 | 全局默认归组合根 / 宿主职责;run 级开放袋归观测(ADR-0002 / 0009) |
 | **CUT-AG6** hooks / transform / maxRetries | `processInput` / `processOutputStep` / `processError` + 模型 fallback 链 | 有意分叉 | Processor 三钩是唯一横切点,不引入第二套钩子矩阵;重试归 fallback 链(仅未产出 chunk 时切换)(ADR-0005 / 0004) |
 | **CUT-AG7** 标题生成 | 应用层;要走模型 → Processor + metadata | 有意分叉 | 标题是产品态不是 agent 语义;`title` 是调用方字段(ADR-0005 / 0007) |

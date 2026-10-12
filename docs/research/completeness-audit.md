@@ -15,7 +15,7 @@
 - **对账体量**(各子系统承诺条目,逐条见 §1):model 65 + agent 44 + tools 26(+ MCP server 12 / client 17)+ workflows 53 + memory 41 + observability 80 + storage 64 + harness 54,合计 **456 条**。绝大多数「已落」;差异集中于**「已落但未验」**(明确标注约 40 条,另有成批「已落(无断言)」的裁单/结构性行)与**少量「部分落」**。
 - **「部分落」要点**:(a) `model.md:87` 终帧 `messageMetadata` 写法为可选,实装**恒**写 `{ usage }`(`chat-route.ts:199-201`);(b) `agent.md:46` / `harness.md:23`「裸 agent 不产生 `'suspended'`」只在**不传 seam** 时成立——`stepBoundary` 是公开 run option,裸 `Agent` 显式传参即可得 `suspended`(`agent-step-boundary.test.ts:163`);(c) `observability.md:110`「logs 走组合根已有的 logger 通道」——**组合根尚无 logger 槽**(`app.ts:28-29`);(d) `storage.md:174`「组合根持 adapter 时可代管 init/close(可选)」——槽已落、**代管未落**。
 - **无断言面成批存在**:如 tools 的 MCP 翻页聚合(MC-9)、`CONNECTION_CLOSED`(MC-10/MC-11)、容器构造后快照(MS-11);workflows 的快照写失败语义(P-11)、条件内 `suspend()` 报错(SEM-B16)、`sleep` 条目写快照(P-5);memory 的无访问控制(MEM-6)、无后台写(MEM-40);storage 的「核心永不隐式 init/close」(ST-20)、`:memory:` 独立性;harness 的「裸 agent 不产生 suspended」(H-11)、「tick 无 span」(H-48);agent 的 Processor 钩子自身抛错(AG-40);model 的 `finishReason` 逐值映射(M-52)等。
-- **砍单表复核 61 行**:59 行**仍是砍单**,2 行**已部分落**——agent 的「durable / pubsub / backgroundTasks / signals / goal / notifications」行(durable、signals、pubsub 已以独立子系统/工厂落地)与 workflows 的「resume CAS / serializedStepGraph / 多引擎适配」行(CAS 已在 `@balsats/sqlite` 落地);**未发现「已落但未记录」行**。
+- **砍单表复核 60 行**(2026-10-11 更正:原计 61/59 差 1,纯 CUT-\* 编号实为 60,重判清点见 [#162](https://github.com/0xnicholas/oribos-framework/issues/162)):58 行**仍是砍单**,2 行**已部分落**——agent 的「durable / pubsub / backgroundTasks / signals / goal / notifications」行(durable、signals、pubsub 已以独立子系统/工厂落地)与 workflows 的「resume CAS / serializedStepGraph / 多引擎适配」行(CAS 已在 `@balsats/sqlite` 落地);**未发现「已落但未记录」行**。
 - **§3 语义复核(33 条 / 37 事实行)**:有据 35 行、部分有据 2 行(A2 串行工具执行只固定顺序不固定非并发;B16 条件内 `suspend()` 报错实装成立但无断言)、无断言 0、未查实 0(A5 口径)。
 - **文档一致性已知不一致 12 处**,其中 3 处为**陈旧注释/文档措辞与实装相反**:`step.ts:32-38`(称块内 suspend 是显式错误)、`events.ts:45-49`(称块内 suspend 读 `failed`)、`README.md:153`(`result` 注释含 `'failed'`,实装失败是 reject);其余为细节口径差异(见 §4.3)。
 - **发布态遗留**:线上 0.5.0 tarball 的 `repository.url` / description 仍指旧名(`balsa-framework` / "Balsa …"),不可原地修改、只能随下次发布修正;全仓 **18 个 package.json 均无 `prepublishOnly`/`prepack`/`prepare`**;`pnpm verify` **不含** byte/deps 两个预算(它们是 CI 独立黄灯步)。
@@ -1096,7 +1096,7 @@
 | CUT-H9 | harness | `ifActive`/`ifIdle` 矩阵 | 仍是砍单(三句已落) | `signals.ts:340-379` |
 | CUT-H10 | harness | 触发记录(trigger history) | 仍是砍单 | `types.ts:49-69`;tick 无 span |
 
-**计数**:共 **61 行**;`仍是砍单` **59** 行,`已部分落` **2** 行(CUT-AG4、CUT-W9),`已落但未记录` **0** 行。
+**计数**:共 **60 行**(2026-10-11 更正:原计 61 差 1,纯 CUT-\* 编号实为 60,见 [#162](https://github.com/0xnicholas/oribos-framework/issues/162));`仍是砍单` **58** 行,`已部分落` **2** 行(CUT-AG4、CUT-W9),`已落但未记录` **0** 行。
 
 ## 3. §3 语义差异逐条复核(33 条声明 / 37 事实行)
 

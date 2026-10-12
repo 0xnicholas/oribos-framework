@@ -5,7 +5,7 @@
 
 ## 定位
 
-Memory 是框架的记忆子系统:**语义层薄自研**——thread/resource 身份 + 消息历史 + 可选工作记忆,存储走 port、默认内存实现、核心零依赖。重机制不进核心:语义召回(向量 RAG)延后、留 seam;OM 类后台压缩出本地图范围;外部记忆系统经能力包桥接,**bunfold**(TencentDB-Agent-Memory fork,MIT)为头号桥接候选,M5 裁定:**裁**(不产桥接包;重开条件见 `docs/ROADMAP.md` 延后清单「外部记忆引擎桥接」,seam 对账与结论见下「外部记忆引擎」节)。供给策略与模型层同构(核心零依赖契约 + 生态直通 + 能力包);依据是候选开源记忆系统(mem0/Zep/Letta/bunfold)全是 server 形态或 hosted API,而语义层薄到没有更轻的可采用对象(调研 #5;#12 决议评论中的 bunfold 探查)。
+Memory 是框架的记忆子系统:**语义层薄自研**——thread/resource 身份 + 消息历史 + 可选工作记忆,存储走 port、默认内存实现、核心零依赖。重机制不进核心:语义召回(向量 RAG)留 seam——经 ADR-0017 重判(2026-10-11,#161)**转追赶项**(CUT-MEM1 行);OM 类后台压缩经重判(#160)**转追赶项**(进程内 opt-in 包,CUT-MEM2 行);外部记忆引擎桥接经重判(#161)**维持分叉**——**bunfold**(TencentDB-Agent-Memory fork,MIT)曾为头号桥接候选,M5 裁定:**裁**(不产桥接包;重判结论与对账见下「外部记忆引擎」节)。供给策略与模型层同构(核心零依赖契约 + 生态直通 + 能力包);依据是候选开源记忆系统(mem0/Zep/Letta/bunfold)全是 server 形态或 hosted API,而语义层薄到没有更轻的可采用对象(调研 #5;#12 决议评论中的 bunfold 探查)。
 
 ## 身份模型:thread / resource 双标识
 
@@ -59,13 +59,13 @@ interface MemoryStore {
 // StoredResource = { id, workingMemory?, metadata?, createdAt, updatedAt }
 ```
 
-- 裁单(对照 mastra 10 必备 + 3 可选):`updateMessages`(消息不可变)、`listMessagesById`(语义召回延后连带裁)、`updateThread`(并入 upsert)、`cloneThread` / `copyThread`(延后)、`listMessagesByResourceId`(OM 遗物)。
+- 裁单(对照 mastra 10 必备 + 3 可选):`updateMessages`(消息不可变)、`listMessagesById`(语义召回已转追赶项,#161,见 CUT-MEM1 行;2026-10-12 改记)、`updateThread`(并入 upsert)、`cloneThread` / `copyThread`(延后)、`listMessagesByResourceId`(OM 已转追赶项,#160,见 CUT-MEM2 行互注;2026-10-12 改记)。
 - `deleteThread` **只在 port 层**(级联删消息、不动 resource 级数据);`Memory` 实例表面不暴露删除入口——需要清 thread 的宿主直用 port(见本文件「砍单与承载缝」C2 行)。
 - 核心自带内存 Map 默认实现——不接 storage 即纯内存,无运行时负担。adapter 家族见 `docs/architecture/storage.md`(#15 已定),本清单是其输入。
 
-### 外部记忆引擎(M5 裁定:不产桥接包)
+### 外部记忆引擎(M5 裁定:不产桥接包;重判维持分叉)
 
-bunfold 类外部记忆引擎不落在 `MemoryStore` 缝上——服务形态(常驻进程)+ 写入即后台异步蒸馏 + L0 原文可删 + 消息面仅 user/assistant 纯文本 / 身份强 team+agent+user 三元组,与本节钉子(无后台写、消息不可变可回读、库语义)正面冲突;忠实 port adapter 不存在。裁定与重开条件见 `docs/ROADMAP.md` 延后清单「外部记忆引擎桥接」;本 port 首个真实后端 = SQLite 参考 adapter(`storage.md`)。需要外部引擎的宿主走上游零代码路径(MemoryProxy 改 base URL)或宿主侧组装,不经本框架包。
+bunfold 类外部记忆引擎不落在 `MemoryStore` 缝上——服务形态(常驻进程)+ 写入即后台异步蒸馏 + L0 原文可删 + 消息面仅 user/assistant 纯文本 / 身份强 team+agent+user 三元组,与本节钉子(无后台写、消息不可变可回读、库语义)正面冲突;忠实 port adapter 不存在。ADR-0017 重判(2026-10-11,#161)**维持分叉、理由改写**:新纪律下证据不成立——mastra 无外部记忆引擎桥实装(其方向 = 进程内 OM,已由 #160 判转追赶项,CUT-MEM2 行互注、两行独立判定互不预设);轴冲突依旧(外部常驻服务 + 后台 LLM 管线 + 数据落盘三道硬冲突;bunfold 调研证实服务器优先、不可嵌入——27 直接依赖 + 原生件,同 #79 结论)。判定与理由单一真相源见 ROADMAP 延后清单「外部记忆引擎桥接」行;本 port 首个真实后端 = SQLite 参考 adapter(`storage.md`)。需要外部引擎的宿主走上游零代码路径(MemoryProxy 改 base URL)或宿主侧组装,不经本框架包。
 
 ## 配置表面
 
@@ -82,16 +82,16 @@ new Memory({
 
 ## 砍单与承载缝
 
-判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`C*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-MEM*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。
+判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`C*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`),`CUT-MEM*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
 
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
 | **C1** / **CUT-MEM6** markdown template WM | 结构由 Standard Schema 表达(schema-only + merge) | 有意分叉 | 全量替换 = 每次全量 token、易写坏;schema-only + merge 是工作记忆钉子(`CONTEXT.md` 工作记忆)(ADR-0007 / 0003) |
-| **C2** / **CUT-MEM4** 无单条消息 update / delete | **store 层** `deleteThread` 级联为兜底;`Memory` 表面不暴露(port 必备方法之一) | 有意分叉 | 消息不可变 + 可回读是钉子;`Memory` 表面只留 recall / save 入口(ADR-0007) |
+| **C2** / **CUT-MEM4** 无单条消息 update / delete | **store 层** `deleteThread` 级联为兜底;`Memory` 表面不暴露(port 必备方法之一) | 有意分叉 | 消息不可变 + 可回读是钉子;`Memory` 表面只留 recall / save 入口(ADR-0007);互注:#161 CUT-MEM1 转项同缝——recall 增强 = 落库 hook 索引,不触消息不可变钉 |
 | **C3** / **CUT-MEM3** 无 thread cloning | 用户态读 A 写 B 重组(port 6 必备够用);后加 minor 留扩展 | 有意分叉 | `cloneThread` / `copyThread` 裁单;审计判无等价物,故承载缝写为「用户态重组」而非「后加 minor」一项(ADR-0007) |
 | **C4** / **CUT-MEM9** 不做访问控制 | 应用层端点鉴权 / 中间件 | 有意分叉 | 授权归应用层——resource 是稳定标识不是授权主体(ADR-0007) |
-| **CUT-MEM1** semantic recall(向量 RAG) | 落库 hook = `Memory.save → MemoryStore.saveMessages`;embedder 复用模型契约模式 | 有意分叉 | 语义检索是能力包级缺口;消息不可变 + 单入口 recall 是 v1 钉子(ADR-0007);延后清单「RAG / 语义召回」 |
-| **CUT-MEM2** OM 类后台压缩管线 | bunfold 类外部桥(#79 已裁);summarize-and-truncate = Processor 范式 | 有意分叉 | 出域档(定位改变才重开);token 计数 / summary 消息类型是新概念面(ADR-0007);延后清单「OM 类后台压缩」 |
+| **CUT-MEM1** semantic recall(向量 RAG) | 落库 hook = `Memory.save → MemoryStore.saveMessages`;embedder 复用模型契约模式 | **转追赶项**(2026-10-11,#161) | 证据 = mastra semantic recall 实装未弃(1.0 起默认关——默认关 ≠ 已弃)+ 17+ 向量适配器;knowledge v2 仅在 core alpha 线(`1.76.0-alpha.7`,稳定版未发)**不算证据**,记观察项;范围收窄 = 落库 hook 索引 + recall 语义增强,向量库依赖随能力包(过保轴门);验证面 = save→索引 / recall 增强单测 + example;**中层**(既有缝上的新能力包,#161)。消息不可变 + 单入口 recall 钉子不动(ADR-0007);延后清单「RAG / 语义召回」行 |
+| **CUT-MEM2** OM 类后台压缩管线 | 进程内 opt-in 能力包(Observer/Reflector 式),消费 memory 落库 hook——核心新缝,须过演化门(能力包优先);存储走 additive 可选方法 + 能力标志(ADR-0010);summarize-and-truncate = Processor 范式仍成立 | **转追赶项**(2026-10-11,#160) | 轴级判词(ADR-0017 修订记):opt-in、不配置即零成本、不接管宿主的进程内后台工作 ≠ 运行时负担;证据 = mastra OM = Observer/Reflector 进程内 opt-in 库形态(§4.3,快照 2026-10-11),实装存在且未弃;验证面 = fake model 单测 + example;**与现有缝距离最远**(新缝 + 存储扩展),不进首批(#160)。与延后清单「外部记忆引擎桥接」行互注:共享本缝,独立判定——bunfold 类外部常驻服务桥维持分叉(#161) |
 | **CUT-MEM5** thread title 生成 | 调用方写 `title` | 有意分叉 | 应用层职责;`title` 只是 metadata 字段(ADR-0007) |
 | **CUT-MEM7** read-only WM | 不挂 WM 更新工具(读仍经 recall) | 有意分叉 | 后加 minor(ADR-0007) |
 | **CUT-MEM8** token 窗口 | `lastMessages` 条数截断 | 有意分叉 | 条数截断是 v1 选择(`memory.ts` 明写 history is truncated by count only);**重开条件 = 真实用例要求按 token 预算裁剪历史**(ADR-0007) |

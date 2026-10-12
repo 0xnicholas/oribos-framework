@@ -117,7 +117,7 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 ### 有意分叉的落点
 
-- **八篇规范的「砍单与承载缝」表已归一**为目标表形 `项 | 承载缝 | 判定 | 理由·ADR 指针`(model 篇另留「重开条件」列),共 95 行;判定侧落定:§3 形状内语义差异 33 条 + 审计 §2 砍单行集 60 行 + 延后清单能力项 20 行——**有意分叉 110 行 / 已兑现(非差异)3 段 / 净提升 0 行**。
+- **八篇规范的「砍单与承载缝」表已归一**为目标表形 `项 | 承载缝 | 判定 | 理由·ADR 指针`(model 篇另留「重开条件」列),共 95 行;判定侧落定:§3 形状内语义差异 33 条 + 审计 §2 砍单行集 60 行 + 延后清单能力项 20 行——**有意分叉 110 行 / 已兑现(非差异)3 段 / 净提升 0 行**(2026-10-11 更正:110 口径经 [#162](https://github.com/0xnicholas/oribos-framework/issues/162) 逐行清点证伪——全量实为 **94 行**、纯 CUT-* 编号 60、审计原计 61 差 1;更正后口径见上「追赶面」段,本行数字按 dated record 保留)。
 - **单一真相源**:分叉理由与承载缝只在规范表(本节不复制理由);「重开条件」只在延后清单(规范表只写承接指针)。
 - **提升项与分叉的边界**:唯一从 §3 走出的提升是 `P-1`(三条已实装但无验证面的语义,按判据不构成兑现);§2 与延后清单**零提升**。
 
@@ -142,6 +142,40 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 依据 [Wayfinder 地图:定位裁决](https://github.com/0xnicholas/oribos-framework/issues/149)(调研票 #150 / 根裁决票 #151 / 处置票 #152)与 ADR-0016。
 
 **本期终结(2026-10-11,即日)**:owner 行使决定权硬转——定位重裁 = **转向追赶 mastra、轻量轴保留**([#158](https://github.com/0xnicholas/oribos-framework/issues/158);ADR-0017 取代 ADR-0016,ADR-0016 重开条件未满足、非条件翻案)。本期主题(采用与上手面建设、功能面一行不动)与「0.7 不存在」裁决随硬转**作废**——功能面入口不再是延后清单需求侧重开条件,而是「mastra 采用 = 需求证据(二手需求)」触发下的追赶面重估(重估不自动晋升;程序见 ADR-0017「翻案程序」);版本号不预占口径不变,下一功能版本按追赶面内容定号,1.0 门槛沿既有口径(未定义、另起 effort)。本期产出(公开叙事两层结构 #154、发现面 #155、skills 包 #157)为 dated 交付物保留、不撤销——采用与上手面在追赶定位下仍是正资产;叙事面随转向再翻转,归后续叙事票(公开记录第三次定位摆动,翻转文案须写明理由)。本节内容按 dated record 原样保留。
+
+## 追赶面(ADR-0017 重判,重判程序完成)
+
+定位硬转(2026-10-11,ADR-0017)后的功能面入口与判定口径:**「mastra 已采用且未弃的功能面 = 需求证据(二手需求)」触发重估,不自动晋升**——判定两道门 = 需求证据(已弃方向如 `.network()`、纯营销动作不计;证据 = 上游实装存在且未弃)+ 保轴硬门(按需组合 + 无运行时负担,ADR-0001;**轴级判词**:opt-in、不配置即零成本、不接管宿主的进程内后台工作 ≠ 运行时负担,ADR-0017 修订记 / #160;零依赖硬闸门不挡功能,能力包携外部依赖沿 ADR-0015 M5 口径)。**三态判定**:维持分叉 / 转追赶项(带承载缝与验证面形状)/ 维持分叉但理由改写;判定结论的单一真相源 = 各篇规范「砍单与承载缝」表行与下「延后清单」行,本段只做索引不复制理由。重判执行归 [Wayfinder 地图:追赶面重判](https://github.com/0xnicholas/oribos-framework/issues/159),首批从与现有承载缝最近的行起步;**实施沿两段式先例另开实施地图**(本图只出清单、顺序与验证面形状),`pnpm verify` 全绿是硬门。
+
+### 已裁定转追赶项(15 行:13 行 2026-10-11 + 2 行 2026-10-12)
+
+出域档 2 行([#160](https://github.com/0xnicholas/oribos-framework/issues/160))+ 延后档 11 行([#161](https://github.com/0xnicholas/oribos-framework/issues/161));批 1 / 批 3 重判补 §3 形状内语义差异 2 行(A2 经 [#164](https://github.com/0xnicholas/oribos-framework/issues/164)、A4 经 [#166](https://github.com/0xnicholas/oribos-framework/issues/166),2026-10-12)。距离 = 与既有承载缝的距离(#161 三层,#160 同参照系):
+
+| 追赶项 | 承载缝 | 验证面形状 | 距离 |
+| --- | --- | --- | --- |
+| signal providers(webhook / poll 入口) | 示例形态:webhook 入口例 + 配方,薄 HTTP 端点 → `sendSignal`,零新缝零依赖 | example 进 `check:examples` 闸门 | **最近(首批候选)** |
+| Evals / scorers | 独立 scorer 能力包 + Processor 接线(`steps` / `text` / `usage` 均公开面) | scorer 单测 + 接线 example | **最近(首批候选)** |
+| Supervisor 能力包 | as-tool 公开表面,零新缝 | fake model 单测 + 多 agent example | **最近(首批候选)** |
+| time-travel / restart | load→重进原语薄变种(先截断该位之后的记录,无 port 变更) | 截断 + 重进单测 + 调试场景 example | **最近(首批候选)** |
+| Background tasks(一期) | 配方文档 + example(「工具 ack + `sendSignal` 唤醒」,ADR-0011 判等效) | example 进 `check:examples` 闸门 | **最近(首批候选)**;二期(manager/lease 包)= 远 |
+| A2 同一步多工具并发(opt-in) | run options additive 的 opt-in 开关,默认串行不变 | 调用序确定性 / abort 打断 eager 中途 / eager 失败路径与流交织 | **最近(首批候选)** |
+| A4 chunk 协议推理 / 参数增量帧(opt-in) | 核心 chunk 协议 additive 两族帧(推理增量 / 参数增量),opt-in 发射、默认四帧不变;互操作包归一层映射、不再静默丢弃 | 推理 / 参数增量帧往返保真(核心 → 互操作 → UI stream)+ 不消费方零影响(默认四帧流逐字节不变)+ 未知帧忽略语义 | **最近(首批候选)** |
+| RAG / 语义召回 | 能力包:落库 hook 索引 + recall 语义增强(`Memory.save → saveMessages` 缝;向量库依赖随包) | save→索引 / recall 增强单测 + example | 中 |
+| OTel bridge | 能力包:TracerProvider 接入 + trace-context 传播,复用 `@oribos/otlp` semconv 映射(metrics / logs 维持砍单) | TracerProvider 互操作单测 + example | 中 |
+| resumable stream | 能力包:事件缓存 + `observe`(内存默认零负担、Redis opt-in) | 缓存单测 + 断连重连 example | 中 |
+| 字符串路由(models.dev 类) | 能力包:目录 + 解析映射(核心「无注册表 / magic string」钉子不动) | 解析单测 + 目录快照 example | 中 |
+| 每步检查点 + 崩溃重放 | 能力包 / 部署方(boot 恢复 = 用户调用的函数、非常驻循环) | fake model 重发计数单测 + 崩溃重放 example | 中 |
+| 跨实例 signals | 能力包:共享 PubSub + 租约抽象 + Redis 适配(核心单进程语义不变) | fake PubSub/lease 单测 + 双进程 example | 远 |
+| 外部 runner 适配 | 能力包:引擎接缝已留(Inngest / Temporal) | 引擎适配单测 +(可选)Inngest example | 远 |
+| OM 类后台压缩 | 能力包(Observer/Reflector 进程内 opt-in 式),消费 memory 落库 hook——**核心新缝,须过演化门**;存储 additive 可选方法 + 能力标志 | fake model 单测 + example | **最远**(新缝 + 存储扩展),不进首批 |
+
+维持分叉但理由改写 7 行:延后档 2(外部记忆引擎桥接——证据不成立 + 轴冲突;Goals / State signals——thread 状态域前置缺席)+ 出域档 5(Studio / channels·voice·workspaces / 托管平台 / notification inbox / AgentController)——逐行理由见各规范表行与延后清单行,不在此复述。观察项:mastra knowledge v2(仅 alpha 线,非证据),稳定线转正后随 gap analysis 刷新重估;「thread 状态域立不立」为 Goals / State signals 行唯一真前置,登记地图 Fog。
+
+### 重判余量与程序(77 行,已判毕)
+
+**行数口径更正(2026-10-11,#162)**:「有意分叉 110 行」在任何口径下都不成立——全量 **94 行**(CUT-T3 按文档自身逐项展开口径计 14 行;CUT-T3 作单行计则 81);纯 CUT-* 编号 **60**(审计报告原计 61 差 1,已随本节更正)。17 行已被 #160/#161 裁定(上两节),**待判余量 = 77 行**(近 59 / 中 13 / 远 5)。程序(五要素 + 批次清单 + 预分类制,冻结于 [#162](https://github.com/0xnicholas/oribos-framework/issues/162)):6 批、距离升序、同缝同簇不拆票(批 1 = agent Processor 相邻 + harness durable/signals 相邻 + workflows load→重进簇,16 行);批 2–6 逐批 graduate;批次结论经单一写者写回记录面;疑点行另立 research 票定点深查、不阻塞同批其余行。
+
+**重判程序完成(2026-10-12,批 6/6 收口)**:批 1–6 逐批判定落锤([#164](https://github.com/0xnicholas/oribos-framework/issues/164)–[#169](https://github.com/0xnicholas/oribos-framework/issues/169)),**77 行程序对象判毕、待判余量 = 0 行**;转追赶项 +2 行(批 1 A2、批 3 A4,见上「已裁定转追赶项」表,首批候选集随补 A2 / A4),余 75 行维持分叉(其中批 5 CUT-AG4 / CUT-M2、批 6 D5 三行**维持分叉、理由改写**指针化,逐行见各篇规范表);各批均记计数无更正、ADR-0017 修订记无需新增。批次结论由单一写者统一写回本段与各规范表行(任务票 [#170](https://github.com/0xnicholas/oribos-framework/issues/170))。
 
 ## 发布节奏与 v1.0 门槛
 
@@ -195,6 +229,10 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 - **修订(定位硬转:转向追赶 mastra,2026-10-11)**:owner 行使决定权硬转(ADR-0016 自写重开条件**未满足**,非条件翻案;反方证据 #150 已呈并听完)——决策票 [#158](https://github.com/0xnicholas/oribos-framework/issues/158),**ADR-0017 取代 ADR-0016**(旧文不删不改,dated records)。**红线分叉点裁决 = 保轴**:轻量轴两层含义(按需组合 + 无运行时负担)原样保留,追赶面 = 与两含义兼容的 mastra 功能面子集(挡路的是「无运行时负担」而非零依赖闸门——能力包携外部依赖有 MCP/OTel 先例;OM 类常驻管线、voice、重型集成仍不可直行);废/改轴被否(= 品牌与产品实质更换,买到的恰是采用证据最薄的行、交出唯一有近义痛点证据的差异轴)。**被否三件处置**:ADR-0001 / ADR-0015 保留原样(CI 机器零改动,新功能行走既有闸门),ADR-0012 本体保留、演化门触发条款改受新纪律(supervisor 行进入首批重估,落点仍能力包优先)。**禁跟单纪律改写**:「mastra 已采用且未弃的功能面 = 需求证据(二手需求)」触发**重估**而非自动晋升;已弃方向(`.network()`)与纯营销动作不构成证据。**翻案程序**:延后清单 20 行需求侧重开条件全部作废按追赶面重估、出域档 7 行自动解封(重开条件 = 定位裁决改变,已满足;解封 = 进入重估非晋升)、110 行有意分叉逐行三态重判(维持 / 转追赶项 / 维持但理由改写)——执行归规划型地图,首批从与现有承载缝最近的行起步;实施沿两段式先例另开地图,`pnpm verify` 全绿是硬门。**目的重定义** = 追赶采用(检验:追赶面交付后采用曲线无实质起色,或 mastra 重大形态变化,本裁决可再翻案)。文档处置:上「下一阶段(信号源建设期)」段改题「信号源建设期(2026-10-11 即日终结)」收口、本期产出不撤销;本文件开头定位句补转向注记;下「延后清单」头注重开条件作废记账;`CONTEXT.md`「信号源建设期 / 重开条件 / 轻量」三条注记终态;叙事层(README / topics / skills / 仓 description)翻转**最后动**、归后续叙事票——公开记录第三次定位摆动,翻转文案须写明理由。纯文档票 src 零改动,`pnpm verify` 全绿(947 例 / 72 文件,与基线同数)。依据 [#158](https://github.com/0xnicholas/oribos-framework/issues/158) 决议评论。
 
+- **修订(追赶面重判首批落记录面,2026-10-11)**:出域档 7 行([#160](https://github.com/0xnicholas/oribos-framework/issues/160))与延后档 13 行([#161](https://github.com/0xnicholas/oribos-framework/issues/161))逐行重判落锤、110 行(更正为 94/77 口径)重判程序与 6 批清单落定([#162](https://github.com/0xnicholas/oribos-framework/issues/162))——三份决议按单一写者机制经成文票 [#163](https://github.com/0xnicholas/oribos-framework/issues/163) 落记录面:**上「追赶面」段新增**(判定口径两道门 + 轴级判词 + 13 行转追赶项清单带承载缝 / 验证面形状 / 距离三层 + 77 行余量与批次程序;实施沿两段式先例另开实施地图,不进本图);**延后清单 20 行逐行改记**(「重开条件」列按作废口径改记为「判定」列:13 转追赶项 / 7 维持分叉但理由改写,dated records);**规范表行改记随各判定票**(CUT-AG1 / AG2 / AG3、CUT-MEM1 / MEM2、CUT-OBS2、CUT-H1–H5 / H7、CUT-ST3、CUT-W7 / W9、CUT-M3、model.md 篇级字符串路由行、agent.md 演化门行;七篇规范表判定口径行统一增「转追赶项 / 维持分叉但理由改写」两值);**行数口径更正落记录面**(110 → 94/77:全量 94 行、17 行已裁、待判 77;上「完善阶段」落点行就地注记更正,`completeness-audit.md` 砍单复核计数 61 → 60 / 仍是砍单 59 → 58);**ADR-0017 修订记补轴级判词一行**(opt-in、不配置即零成本、不接管宿主的进程内后台工作 ≠ 运行时负担);「本图不覆盖」出域项行随重判更新(OM 类后台压缩与 signal providers 移出,转追赶项)。纯文档票 `src` 零改动,`pnpm verify` 全绿。依据 [#160](https://github.com/0xnicholas/oribos-framework/issues/160) / [#161](https://github.com/0xnicholas/oribos-framework/issues/161) / [#162](https://github.com/0xnicholas/oribos-framework/issues/162) 决议评论;成文 [#163](https://github.com/0xnicholas/oribos-framework/issues/163)。
+
+- **修订(追赶面重判批 1–6 写回 + 重判程序收口,2026-10-12)**:[#163](https://github.com/0xnicholas/oribos-framework/issues/163) 评论排队的批 1–6 写回点([#164](https://github.com/0xnicholas/oribos-framework/issues/164)–[#169](https://github.com/0xnicholas/oribos-framework/issues/169) 决议)经任务票 [#170](https://github.com/0xnicholas/oribos-framework/issues/170) 一次性落记录面——**规范表行改记**:`agent.md` A2 转追赶项 / CUT-AG4 理由改写指针化(已落三件 vs 已裁三件分列);`model.md` A4 转追赶项 / CUT-M2 理由改写(networkRoute 前提失据 + workflowRoute 无需求信号);`harness.md` D5 理由改写指针化(承载缝改指跨实例 signals 追赶项能力包);`workflows.md` B5 / B7 / B8 尾注互注 #161 time-travel 转项、CUT-W4 尾注互注「run 内黑板 ≠ thread 状态域」、B16「验证面欠账 → P-1」改记已兑现(P-1 随 #130 落地);`memory.md` 裁单行两处旧口径措辞改记(listMessagesById / listMessagesByResourceId 转项 pointer)、C2·CUT-MEM4 尾注互注 #161 CUT-MEM1;`observability.md` CUT-OBS7 尾注互注 #166 A4;`docs/research/mastra-gap-analysis.md` §4.2 / §4.3 互注指向 ADR-0017 修订记。**上「追赶面」段落净终态**:转追赶项 13 → **15 行**(+A2 / A4,首批候选集随补)、待判余量 77 → **0 行**(77 行程序对象判毕)、批次进度记**批 6/6 收口、重判程序完成**;各批均记计数无更正、ADR-0017 修订记无需新增。纯文档票 `src` 零改动,`pnpm verify` 全绿(947 例 / 72 文件,与基线同数)。依据 [#164](https://github.com/0xnicholas/oribos-framework/issues/164)–[#169](https://github.com/0xnicholas/oribos-framework/issues/169) 决议与 [#163](https://github.com/0xnicholas/oribos-framework/issues/163) 移交评论;写回 [#170](https://github.com/0xnicholas/oribos-framework/issues/170)。
+
 ### 发布后核对单(M-7)
 
 发布动作已由「七包 `prepublishOnly` 跑 `verify`」前置(逐包、打包前):闸门全绿且当次构建就绪才打包,闸门红则该包不发布。发布完成(owner 手工 `pnpm -r publish --no-git-checks`)后按下表逐项核对——**本段是核对单的单一真相源,别处不复制**;七包 = `core` / `ai-sdk` / `croner` / `mcp-client` / `mcp-server` / `otlp` / `sqlite`,`<ver>` = 当次版本,命令在仓库根跑。
@@ -211,7 +249,7 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 ## 延后清单(post-v1,需求信号触发)
 
-以下能力经路线图裁决**延后或出域**,不进 v1 任一里程碑。**本清单是「重开条件」的单一真相源**(术语见 `CONTEXT.md`):重开条件必须外部可观察、可累计;满足即单独评估,**不自动进入路线图**。缺口与差异的完整对账见 `docs/research/mastra-gap-analysis.md`(对比视图,不复制条件)。M5 能力包(OTLP exporter / MCP server + client / SQLite adapter / AI SDK 互操作)已在路线图内,不属本清单。
+以下能力经路线图裁决**延后或出域**。「重开条件」的单一真相源地位已随 ADR-0017 终结(见下修订记);本清单现为 **2026-10-11 重判结论的记录面**:逐行三态判定 + 理由 gist,完整理由的单一真相源仍在 `docs/architecture/*.md` 各篇「砍单与承载缝」表行。缺口与差异的完整对账见 `docs/research/mastra-gap-analysis.md`(对比视图)。M5 能力包(OTLP exporter / MCP server + client / SQLite adapter / AI SDK 互操作)已在路线图内,不属本清单。
 
 > 修订(2026-09-30,对比 ticket [#63](https://github.com/0xnicholas/oribos-framework/issues/63)):清单升级为四列表,重开条件统一为可观察、可累计的判定信号。
 
@@ -219,35 +257,37 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 > 修订(2026-10-11,决策票 [#158](https://github.com/0xnicholas/oribos-framework/issues/158) / ADR-0017):定位硬转——**本清单 20 能力行的需求侧重开条件全部作废**,「重开条件」的单一真相源地位随 ADR-0017 终结;新纪律 = 「mastra 已采用且未弃的功能面 = 需求证据(二手需求)」,触发**重估**而非自动晋升(轴兼容 + 承载缝逐行判定,程序见 ADR-0017「翻案程序」)。**出域档 7 行随裁决自动解封**(其重开条件 = 定位裁决改变,已满足;解封 = 进入重估,不是晋升)。重判执行归追赶面规划地图;行内容在重判落锤前原样保留(dated records)。
 
-### 延后档(触发式)
+> 修订(2026-10-11,判定票 [#160](https://github.com/0xnicholas/oribos-framework/issues/160) / [#161](https://github.com/0xnicholas/oribos-framework/issues/161),程序见上「追赶面」段):20 行逐行重判落锤——**13 行转追赶项**(延后档 11 + 出域档 2,清单与距离分层见上「追赶面」段)、**7 行维持分叉但理由改写**(延后档 2 + 出域档 5);下两表「重开条件」列按作废口径改记为**判定**列(dated records,原条件文本见 git 历史与票链);行与「承接」列保留。
 
-| 缺口 | 重开条件(可观察) | 承载缝 | 承接(规范表行) |
+### 延后档(13 行已重判:11 转追赶项 / 2 维持分叉)
+
+| 缺口 | 判定(2026-10-11 重判) | 承载缝 | 承接(规范表行) |
 | --- | --- | --- | --- |
-| Supervisor 能力包(createSupervisor 类) | as-tool 组合的真实重复痛点 ≥3 次复述,或 ≥1 个真实项目因包装样板 / 传播遗漏 / 嵌套审批受阻 | 能力包优先;核心字段须重开 [决策:多 agent 协作语义](https://github.com/0xnicholas/oribos-framework/issues/19) 的演化门 | `agent.md`「多 agent 组合」演化门(ADR-0012) |
-| RAG / 语义召回 | ≥1 个真实用例要求跨会话语义检索(外部用户或自身产品场景) | memory 落库 hook + 能力包(复用模型契约的 embedding 模式) | `memory.md`(CUT-MEM1) |
-| 外部记忆引擎桥接(bunfold 类) | ≥1 个真实用例要求框架侧提供桥接包(而非宿主侧自组装),且接受外部常驻服务依赖(独立服务 + 其 LLM 抽取管线 + 数据落盘);或此类引擎出现可嵌入(库)形态(无需常驻服务) | 能力包;缝 = memory 落库 hook / recall 增强(实施期裁决) | `memory.md`(CUT-MEM2) |
-| Evals / scorers | ≥1 个用例要求在 CI 或线上做断言式评估 | Processor,或独立包消费 run 结果 | `agent.md`(CUT-AG1) |
-| 字符串路由(models.dev 类) | ≥1 个真实用例要求按名切模型 / provider 目录(而非照搬 mastra 形态) | 能力包(不引入 core magic string) | `model.md` 砍单与承载缝(篇级) |
-| OTel bridge 能力包 | ≥1 个用户已有 OTel 采集管线、要求原生接入(与 M5 的 OTLP 导出分属两件事) | 能力包 | `observability.md`(CUT-OBS2) |
-| Background tasks | 「工具 ack + sendSignal 唤醒」文档范式的失效报告 ≥1:`untilIdle` 式自动续跑 / 并发限额 / 结果自动回灌任一成为硬需求 | 文档范式先行,能力包其次 | `harness.md`(CUT-H5) |
-| Goals / State signals | WM + Processor 组合被证明不够:≥1 个用例需要 judge 判定 + 预算语义 | 能力包;前置 = thread 状态域 | `harness.md`(CUT-H2 / H6) |
-| 跨实例 signals | ≥1 个部署要求 >1 进程共享同一 thread | 能力包(共享 PubSub + 租约) | `harness.md`「Signals(基础层)」运行时段 |
-| resumable stream | ≥1 个断连重连 / 迟到订阅的真实诉求(用户报告,非推测) | 能力包(事件缓存) | `harness.md`(CUT-H1)· `model.md`(CUT-M3) |
-| 外部 runner 适配 | ≥1 个用户在 Inngest / Temporal 类平台上要求跑 workflow | 能力包(引擎接缝已留) | `workflows.md`(CUT-W9) |
-| 每步检查点 + 崩溃重放 | ≥1 个用户明确接受重发 LLM 与幂等成本、并要求自动恢复 | 能力包 / 部署方(ADR-0011 已裁) | `harness.md`(CUT-H1) |
-| time-travel / restart | ≥1 个调试或审计场景要求从任意步重跑 | load→重进原语上的薄变种,无 port 变更 | `workflows.md`(CUT-W7) |
+| Supervisor 能力包(createSupervisor 类) | **转追赶项**——证据 = `agents:` 字段 + delegation 钩子实装未弃,官方迁移文档确认 supervisor 方向;纯公开表面组合、零负担;**首批候选** | 能力包(as-tool 公开表面,零新缝);演化门落点纪律不变(ADR-0012) | `agent.md`「多 agent 组合」演化门行(ADR-0012) |
+| RAG / 语义召回 | **转追赶项**——semantic recall 实装未弃(1.0 起默认关 ≠ 已弃)+ 17+ 向量适配器;knowledge v2 仅 alpha 线、记观察项;中层 | 能力包(落库 hook 索引 + recall 语义增强;向量库依赖随包) | `memory.md`(CUT-MEM1) |
+| 外部记忆引擎桥接(bunfold 类) | **维持分叉、理由改写**——mastra 无外部桥实装,新纪律下证据不成立;轴冲突依旧(外部常驻服务 + 后台 LLM 管线 + 数据落盘);bunfold 调研证实服务器优先、不可嵌入;与 OM 行互注(共享 CUT-MEM2 缝,独立判定) | —(宿主侧自组装或上游零代码路径) | `memory.md`(CUT-MEM2) |
+| Evals / scorers | **转追赶项**——scorers 挂 Agent 配置 + 独立评估包,实装未弃;零负担;**首批候选** | 独立 scorer 能力包 + Processor 接线 | `agent.md`(CUT-AG1) |
+| 字符串路由(models.dev 类) | **转追赶项**——211-provider 注册表 + 网关链 + `ModelSelectionProcessor`,活跃维护;中层 | 能力包(目录 + 解析映射;核心无注册表 / magic string 钉子不动) | `model.md` 砍单与承载缝(篇级) |
+| OTel bridge 能力包 | **转追赶项**——mastra 观测 OTel 生态向 + 1.71 能力协商;范围 = 宿主 OTel SDK 原生互操作;metrics / logs 维持砍单;中层 | 能力包(复用 `@oribos/otlp` semconv 映射) | `observability.md`(CUT-OBS2) |
+| Background tasks | **转追赶项(分两期)**——manager + 持久化租约(1.72)+ 心跳 + `untilIdle` + `adopt()`,实装未弃;一期配方零负担(**首批候选**)、二期包 opt-in 不接管宿主(远) | 一期 = 配方 + example(「工具 ack + sendSignal 唤醒」);二期 = manager/lease 能力包 | `harness.md`(CUT-H5) |
+| Goals / State signals | **维持分叉、理由改写**——证据成立(judge + 预算 + thread state 持久化,Beta 未弃),但前置 thread 状态域未建且未进任何清单(转项先立新核心域,超出本行判定面;登记地图 Fog,唯一真前置) | —(thread 状态域立不立为前置) | `harness.md`(CUT-H2 / H6) |
+| 跨实例 signals | **转追赶项**——Redis Streams PubSub + LeaseProvider + `PubSub.trimTopic()`(1.72),实装未弃;opt-in 包 + 外部 Redis,不装不配零成本,核心单进程语义不变;远 | 能力包(共享 PubSub + 租约抽象 + Redis 适配) | `harness.md`「Signals(基础层)」运行时段 |
+| resumable stream | **转追赶项**——事件缓存(内存默认 / 生产 Redis)+ `observe(runId)` + `closeOnSuspend`(1.70),实装未弃;内存默认零负担、Redis opt-in;中层 | 能力包(事件缓存 + observe) | `harness.md`(CUT-H1)· `model.md`(CUT-M3) |
+| 外部 runner 适配 | **转追赶项**——Inngest / Temporal 引擎实装未弃;外部平台 = opt-in 基础设施;远 | 能力包(引擎接缝已留) | `workflows.md`(CUT-W9) |
+| 每步检查点 + 崩溃重放 | **转追赶项**——`recovery: 'auto'` + boot 时 `recoverAllDurableAgents()` 实装未弃;boot 恢复 = 用户调用的函数、非常驻循环;中层 | 能力包 / 部署方(ADR-0011 已裁) | `harness.md`(CUT-H1) |
+| time-travel / restart | **转追赶项**——快照 + `serializedStepGraph` 免费变种实装未弃;追赶形状 = 扁平 `position` + `stepResults` 等价物;既有「非薄变种」表述是设计点非障碍;**首批候选** | load→重进原语薄变种(先截断该位之后的记录,无 port 变更) | `workflows.md`(CUT-W7) |
 
-### 出域档(定位改变才重开)
+### 出域档(7 行已重判:2 转追赶项 / 5 维持出域)
 
-| 缺口 | 重开条件(可观察) | 承载缝 | 承接(规范表行) |
+| 缺口 | 判定(2026-10-11 重判) | 承载缝 | 承接(规范表行) |
 | --- | --- | --- | --- |
-| Studio / editor / stored agents | 定位裁决改变 = 做托管产品或协作面(ADR 级) | — | `agent.md` 裁单表(CUT-AG3) |
-| channels / voice / workspaces & sandboxes / browser | 同上,或社区出现可用实现 | 生态 | `agent.md`(CUT-AG2) |
-| 托管平台 | 商业决策(非技术触发) | — | —(商业决策,无技术承载缝可落) |
-| OM 类后台压缩 | ≥1 个用例要求跨会话长期记忆、且接受后台 LLM 成本 | bunfold 类外部记忆桥 | `memory.md`(CUT-MEM2) |
-| notification inbox | ≥1 个用例要求持久化收件箱 / 优先级投递 | 应用层或能力包 | `harness.md`(CUT-H3)· `storage.md`(CUT-ST3) |
-| signal providers(webhook / poll 入口) | ≥1 个用例要求 webhook 接入且示例模式不可复用 | 示例模式 | `harness.md`(CUT-H4) |
-| AgentController / session | ≥1 个用例要做交互式编码 agent 产品 | 应用层自组装 | `harness.md`(CUT-H7) |
+| Studio / editor / stored agents | **维持出域、理由改写**——证据成立(mastra Editor = agent 的 CMS,DB/code 双轨 + draft/published;Studio 云化持续活跃),但 = 托管产品 / 协作面,撞「嵌入宿主而不接管」;stored agents 无需框架能力(agent 配置 = 普通对象,无缝可承),不拆行 | — | `agent.md` 裁单表(CUT-AG3) |
+| channels / voice / workspaces & sandboxes / browser | **维持出域、理由改写**——证据成立(渠道解析器 1.72 起运行时热更新),但产品 / 生态面;voice 附装率 1.5%(全清单最薄)且与「无运行时负担」直接冲突 | 生态 | `agent.md`(CUT-AG2) |
+| 托管平台 | **维持出域**——商业决策,不在技术判定面 | — | —(商业决策,无技术承载缝可落) |
+| OM 类后台压缩 | **转追赶项**——轴级判词:opt-in 进程内后台工作 ≠ 运行时负担(ADR-0017 修订记);mastra OM = Observer/Reflector 进程内 opt-in 库形态,实装存在且未弃;**距离最远**(新缝 + 存储扩展),不进首批 | 能力包(Observer/Reflector 式,消费 memory 落库 hook——核心新缝须过演化门) | `memory.md`(CUT-MEM2) |
+| notification inbox | **维持出域、理由改写**——收件箱 schema 是应用域,框架化只能给最小公倍 CRUD、宿主自有 DB 即可,框架不提供增量价值;即时注入 `sendSignal({ type: 'notification' })` 已覆盖主路径;mastra 侧仅 3/31 adapter 支持,采纳亦薄 | 应用层 | `harness.md`(CUT-H3)· `storage.md`(CUT-ST3) |
+| signal providers(webhook / poll 入口) | **转追赶项(示例形态)**——原承载缝即示例模式,缺口只是「没人写出来」;薄 HTTP 端点 → `sendSignal`,零新缝零依赖;**距离最近**,首批候选 | `examples/` webhook 入口例 + 配方;验证面 = `check:examples` 闸门 | `harness.md`(CUT-H4) |
+| AgentController / session | **维持出域、理由改写**——证据成立(modes / permissions / channels / workspace 成品运行时 + `createCodingAgent()` + mastracode),但 = 交互式编码 agent 产品面的成品运行时,接管宿主交互循环;三件套 + signals 已支撑宿主自组装,「应用层自组装」语义仍更优 | 应用层自组装 | `harness.md`(CUT-H7) |
 
 ### 现实差距(非功能)
 
@@ -262,4 +302,4 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 
 - **排期**:刻意不含时间与人力安排。
 - **实现期选型**:构建/测试工具链、SQLite 驱动等留给各里程碑实施期。
-- **出域项**:Workspaces/Sandboxes、Channels、Voice、Studio、托管平台、OM 类后台压缩管线、notification inbox、signal providers、AgentController(依据见地图的 Out of scope)。
+- **出域项(2026-10-11 重判后口径)**:Workspaces/Sandboxes、Channels、Voice、Studio、托管平台、notification inbox、AgentController(经 [#160](https://github.com/0xnicholas/oribos-framework/issues/160) 重判维持出域;OM 类后台压缩与 signal providers 已转追赶项,见上「追赶面」段)。
