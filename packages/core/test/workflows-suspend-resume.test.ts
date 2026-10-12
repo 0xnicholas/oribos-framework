@@ -4,6 +4,7 @@ import { createInMemorySnapshotStore, createStep, createWorkflow } from '@oribos
 import type {
   StepContext,
   Workflow,
+  WorkflowRestartOptions,
   WorkflowResumeOptions,
   WorkflowRunOutcome,
   WorkflowRunSnapshot,
@@ -1451,15 +1452,21 @@ describe('createInMemorySnapshotStore:内存默认实现', () => {
 });
 
 describe('公开面:suspend/resume 的形状与类型(断言在编译期,tsc 阶段生效)', () => {
-  it('run 面 = runId / start / resume;resume 选项收 step 对象或 id', () => {
+  it('run 面 = runId / start / resume / restart;resume 与 restart 选项收 step 对象或 id', () => {
     const { workflow } = approvalWorkflow();
     const run = workflow.createRun();
 
-    expect(Object.keys(run).sort()).toEqual(['resume', 'runId', 'start']);
+    expect(Object.keys(run).sort()).toEqual(['restart', 'resume', 'runId', 'start']);
     expectAssignable<WorkflowResumeOptions>({ step: 'approval' });
     expectAssignable<WorkflowResumeOptions>({ step: 'approval', resumeData: { approved: true } });
+    // restart(time-travel,#174):step 可省(= 从头重启),无 resumeData——目标步全新重跑,不被回答。
+    expectAssignable<WorkflowRestartOptions>({});
+    expectAssignable<WorkflowRestartOptions>({ step: 'approval' });
     expectAssignable<ReturnType<typeof run.resume>>(
       Promise.resolve({ status: 'suspended' as const, stepId: 'approval', stepResults: {} }),
+    );
+    expectAssignable<ReturnType<typeof run.restart>>(
+      Promise.resolve({ status: 'success' as const, output: { polished: 'x' }, stepResults: {} }),
     );
 
     const suspendedOutcome: WorkflowRunOutcome = {

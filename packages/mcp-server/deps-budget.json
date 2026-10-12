@@ -3,7 +3,7 @@
   "dependencies": {
     "@modelcontextprotocol/server": {
       "packages": 3,
-      "bytes": 13943961
+      "bytes": 13952555
     }
   }
 }

@@ -285,6 +285,7 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 | [`minimal-agent`](examples/minimal-agent/) | one agent, one tool, streaming, the composition root, console tracing |
 | [`memory-chat`](examples/memory-chat/) | two threads on one resource, message history, `recall()`, working memory |
 | [`workflow-approval`](examples/workflow-approval/) | `foreach` / `parallel` / `branch`, an agent step, suspend → snapshot → resume |
+| [`workflow-time-travel`](examples/workflow-time-travel/) | debugging a finished run: `restart({ step })` truncates the records and re-enters from the step |
 | [`durable-approval`](examples/durable-approval/) | the approval gate: a tool call held at the step boundary, `finishReason: 'suspended'`, `resume({ approved })` two ways |
 | [`signals-desk`](examples/signals-desk/) | one thread: wake / inject / queue in order, a typed `sendSignal`, `subscribeToThread`, a scheduled `tick` |
 | [`mcp-tools`](examples/mcp-tools/) | one tool container served over MCP and bridged back — HTTP and stdio, one round-trip |

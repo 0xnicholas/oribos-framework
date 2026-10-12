@@ -3,9 +3,13 @@ import { createOutputObject } from '../output-object.js';
 import { createResumeLock } from '../resume-lock.js';
 import { NEVER_ABORTED } from '../run-context.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
+import { entryStepIds } from './entry.js';
 import type { WorkflowEvent } from './events.js';
 import { createInMemorySnapshotStore } from './in-memory-snapshot-store.js';
-import type { WorkflowSnapshotStore, WorkflowStepResultSnapshot } from './snapshot.js';
+import type {
+  WorkflowSnapshotStore,
+  WorkflowStepResultSnapshot,
+} from './snapshot.js';
 import type { Step } from './step.js';
 import { walk } from './walker.js';
 import type { WalkTraceContinuation, WorkflowDefinition } from './walker.js';
@@ -13,14 +17,17 @@ import type { WalkTraceContinuation, WorkflowDefinition } from './walker.js';
 /**
  * The run surface (the run lifecycle, its streaming events, and suspend/resume with snapshots):
  * `createRun({ runId? })` gives a run identity, `start({ inputData, requestContext?, signal? })`
- * returns the output object, and `resume({ step, resumeData? })` re-enters a suspended run. This is
+ * returns the output object, `resume({ step, resumeData? })` re-enters a suspended run, and
+ * `restart({ step?, ... })` re-enters any snapshotted run from a chosen step — truncating the
+ * records at and after it first (time-travel). This is
  * the workflow's parallel implementation of the agent's mental model: one execution backs both
  * consumptions — `result` awaits the terminal outcome, `for await` walks the lifecycle events
  * (run-start / step-start / step-end / run-end) — so mixing the two always describes the same run.
  *
  * `start` is lazy — the run executes on the first read of `result` or the first `next()` of the
- * event stream, so a run nobody consumes performs no work and cannot reject unhandled. `resume` is
- * eager: it loads the snapshot right away and resolves with the run's outcome (a failed resume
+ * event stream, so a run nobody consumes performs no work and cannot reject unhandled. `resume` and
+ * `restart` are
+ * eager: they load the snapshot right away and resolve with the run's outcome (a failed resume
  * rejects with the error that failed it).
  */
 
@@ -97,6 +104,22 @@ export interface WorkflowResumeOptions {
   readonly requestContext?: Readonly<Record<string, unknown>> | undefined;
 }
 
+/** The `restart` options (time-travel / restart). */
+export interface WorkflowRestartOptions {
+  /**
+   * The step to re-run from: the step object, or its id — only the id matters. The run re-enters
+   * at the entry holding the step (the flat entry is the grain — naming a step inside a block
+   * re-runs the whole block; there is no path model), with the records at and after it truncated.
+   * Omitted = restart from the beginning: every record is dropped and the run re-executes from its
+   * start input (the start boundary does not run again — the snapshot's validated input is reused).
+   */
+  readonly step?: Step | string | undefined;
+  /** Cancels the restarted segment; defaults to the run's start signal when there was one. */
+  readonly signal?: AbortSignal | undefined;
+  /** The restarted segment's open bag, laid over the start call's bag; framework writes `signal`/`runId`. */
+  readonly requestContext?: Readonly<Record<string, unknown>> | undefined;
+}
+
 /**
  * The output object `start` returns (the run lifecycle and its streaming events): the run's
  * terminal values and its lifecycle event stream, backed by one execution. `await out.result`
@@ -114,8 +137,9 @@ export interface WorkflowRunOutput<TOutput = unknown> extends AsyncIterable<Work
 
 /**
  * One execution lifecycle of a committed workflow (the run lifecycle):
- * `createRun` mints its identity, `start` begins the single execution, and `resume` continues a run
- * that suspended — the run it was started on, or (the durable path) a fresh run object over the same
+ * `createRun` mints its identity, `start` begins the single execution, `resume` continues a run
+ * that suspended, and `restart` re-enters it from a chosen step — the run it was started on, or
+ * (the durable path) a fresh run object over the same
  * `runId` and store. A run executes once: `start` refuses a second call, and `resume` continues the
  * same execution as often as the run suspends again.
  */
@@ -131,6 +155,16 @@ export interface WorkflowRun<TInputData = unknown, TOutput = unknown> {
    * flight.
    */
   resume(options: WorkflowResumeOptions): Promise<WorkflowRunOutcome<TOutput>>;
+  /**
+   * Restarts the run from a chosen step (time-travel / restart): loads the snapshot — whatever its
+   * status — truncates the records at and after the step's entry, and re-enters the walk from
+   * there. Entries before it replay records-first (they never re-execute, their conditions are not
+   * re-evaluated); the target re-executes fresh from its replayed input — no `resumeData`, no
+   * `resumeSchema` boundary, no iteration site (a suspended-in-a-block run restarted at that block
+   * re-runs the block from scratch). Concurrent restarts of one snapshot are deduplicated like
+   * resumes. Omitting `step` restarts from the beginning over the snapshot's start input.
+   */
+  restart(options?: WorkflowRestartOptions): Promise<WorkflowRunOutcome<TOutput>>;
 }
 
 /**
@@ -193,6 +227,11 @@ export function createWorkflowRun<TInputSchema extends StandardSchema, TOutput =
       // and then started.
       started = true;
       return resumeRun<TOutput>(workflow, runId, resumeOptions, startOptions, persistence());
+    },
+    restart(restartOptions = {}) {
+      // Restarting consumes the run's one lifecycle like resuming does.
+      started = true;
+      return restartRun<TOutput>(workflow, runId, restartOptions, startOptions, persistence());
     },
   };
 }
@@ -275,6 +314,104 @@ async function resumeSnapshot<TOutput>(
     },
   });
   return (await walker) as WorkflowRunOutcome<TOutput>;
+}
+
+/**
+ * One restart, deduplicated by snapshot identity (store, runId) under the same lock as resumes:
+ * the truncation and the re-entered walk are one logical mutation of the run's records, so a
+ * restart racing a resume — or another restart — joins instead of double-loading.
+ */
+function restartRun<TOutput>(
+  workflow: WorkflowDefinition,
+  runId: string,
+  options: WorkflowRestartOptions,
+  startOptions: WorkflowStartOptions<unknown> | undefined,
+  persistence: SnapshotPersistence,
+): Promise<WorkflowRunOutcome<TOutput>> {
+  return resumeLock.run(persistence.store, runId, () =>
+    restartSnapshot<TOutput>(workflow, runId, options, startOptions, persistence),
+  );
+}
+
+/**
+ * One run's restart (time-travel / restart): the load → re-enter primitive's thin variant — load
+ * the snapshot (any status; the records are the state), resolve the target's entry position,
+ * truncate every record at and after it, and re-enter the walk. The store is not written at
+ * restart time: the walk's own fixed persistence points overwrite the snapshot as the restarted
+ * entries complete, so a rejected restart leaves the snapshot untouched and a crashed one leaves
+ * it restartable.
+ */
+async function restartSnapshot<TOutput>(
+  workflow: WorkflowDefinition,
+  runId: string,
+  options: WorkflowRestartOptions,
+  startOptions: WorkflowStartOptions<unknown> | undefined,
+  persistence: SnapshotPersistence,
+): Promise<WorkflowRunOutcome<TOutput>> {
+  const snapshot = await persistence.store.load(runId);
+  if (snapshot === null) {
+    throw new Error(
+      `run "${runId}" has no snapshot — restart() needs a run that has executed in this store (a workflow without storage keeps its snapshots in process memory, for the run object that made them).`,
+    );
+  }
+  const position = restartPosition(workflow, runId, options.step);
+
+  // Truncation: the records the entries at and after the position own are dropped; everything
+  // before survives intact. Step ids are the record keys, so an id shared with an earlier entry is
+  // ambiguous here exactly the way it already is in replay (`replayEntry`'s note) — drop it, and
+  // the replay below says loudly which record it missed.
+  const stepResults: Record<string, WorkflowStepResultSnapshot> = { ...snapshot.stepResults };
+  for (let index = position; index < workflow.entries.length; index += 1) {
+    for (const stepId of entryStepIds(workflow.entries[index]!)) {
+      delete stepResults[stepId];
+    }
+  }
+
+  const signal = options.signal ?? startOptions?.signal ?? NEVER_ABORTED;
+  const requestContext: RequestContext = {
+    ...startOptions?.requestContext,
+    ...options.requestContext,
+    signal,
+    runId,
+  };
+  const walker = walk(workflow, {
+    runId,
+    // The snapshot's input is the validated start input: the start boundary does not run again on
+    // a restart either (a restart crosses no IO boundary — there is no resumeData to validate).
+    inputData: snapshot.input,
+    requestContext,
+    signal,
+    storage: persistence.store,
+    persistStepBoundaries: persistence.persistStepBoundaries,
+    restart: {
+      position,
+      stepResults,
+      // The restarted segment continues the trace the snapshotted run was exported under.
+      ...(snapshot.traceId === undefined ? {} : { traceId: snapshot.traceId }),
+    },
+  });
+  return (await walker) as WorkflowRunOutcome<TOutput>;
+}
+
+/**
+ * The entry position a restart targets: `0` when no step was named (a full restart over the
+ * snapshot's input), otherwise the first entry holding the step. Naming a step inside a block
+ * targets the block's entry — the flat entry is the addressable grain, there is no path model.
+ */
+function restartPosition(
+  workflow: WorkflowDefinition,
+  runId: string,
+  step: Step | string | undefined,
+): number {
+  if (step === undefined) return 0;
+  const stepId = typeof step === 'string' ? step : step.id;
+  const position = workflow.entries.findIndex((entry) => entryStepIds(entry).includes(stepId));
+  if (position === -1) {
+    throw new Error(
+      `run "${runId}" cannot restart from step "${stepId}" — workflow "${workflow.id}" has no entry holding that step.`,
+    );
+  }
+  return position;
 }
 
 /**

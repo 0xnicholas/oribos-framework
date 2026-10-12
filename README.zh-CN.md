@@ -267,6 +267,7 @@ OPENAI_API_KEY=sk-... pnpm --filter @oribos/example-minimal-agent start
 | [`minimal-agent`](examples/minimal-agent/) | 一个 agent、一个工具、流式输出、组合根、console 追踪 |
 | [`memory-chat`](examples/memory-chat/) | 一个 resource 上的两个 thread、消息历史、`recall()`、工作记忆 |
 | [`workflow-approval`](examples/workflow-approval/) | `foreach` / `parallel` / `branch`、一个 agent 步骤、suspend → 快照 → resume |
+| [`workflow-time-travel`](examples/workflow-time-travel/) | 调试一次已完结的 run:`restart({ step })` 截断记录并从该步重进 |
 | [`durable-approval`](examples/durable-approval/) | 审批闸门:工具调用扣在步骤边界、`finishReason: 'suspended'`、`resume({ approved })` 的两种方式 |
 | [`signals-desk`](examples/signals-desk/) | 一条 thread:唤醒 / 注入 / 按序排队、带类型的 `sendSignal`、`subscribeToThread`、一次调度 `tick` |
 | [`mcp-tools`](examples/mcp-tools/) | 一个工具容器经 MCP 提供服务再桥接回来——HTTP 和 stdio,一个来回 |

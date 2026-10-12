@@ -1,0 +1,19 @@
+{
+  "name": "@oribos/example-workflow-time-travel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oribos workflow example: debug a finished run by restarting it from a step (truncate + re-enter).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@oribos/core": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

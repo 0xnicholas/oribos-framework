@@ -73,7 +73,7 @@ _Avoid_: 仅个别字段支持动态(全字段统一,无一例外)
 _Avoid_: mastra 式 Map 类、泛型上下文参数
 
 **Run**:
-一次执行的完整生命周期。agent 域:一次 generate()/stream() 调用,从输入到 finishReason,包含零到多个 step;workflow 域:一次 workflow 执行,从 start/resume 到终态(success | failed | suspended)。
+一次执行的完整生命周期。agent 域:一次 generate()/stream() 调用,从输入到 finishReason,包含零到多个 step;workflow 域:一次 workflow 执行,从 start/resume/restart 到终态(success | failed | suspended)。
 _Avoid_: session、conversation(那是 Memory 域的词)
 
 **Step**:
@@ -101,7 +101,7 @@ _Avoid_: supervisor 协议、sub-agent 字段、`.network()`
 _Avoid_: DAG 执行器(本框架 workflow 不是 DAG)、状态机 DSL
 
 **快照 (Snapshot)**:
-run 的 JSON 化状态,两种:workflow 域 = step 边界的 stepResults + 位置(块内挂起时另携迭代现场);Harness 域 = durable agent loop 的消息列表 + step 计数 + 挂起点(仅工具调用边界审批闸产生)。suspend/resume 的共用机制,经 storage port 读写,默认内存实现。
+run 的 JSON 化状态,两种:workflow 域 = step 边界的 stepResults + 位置(块内挂起时另携迭代现场);Harness 域 = durable agent loop 的消息列表 + step 计数 + 挂起点(仅工具调用边界审批闸产生)。suspend/resume/restart 的共用机制,经 storage port 读写,默认内存实现。
 _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
 
 **迭代现场 (Iteration site)**:

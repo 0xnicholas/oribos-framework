@@ -11,8 +11,10 @@
  * The run surface: a committed workflow's `createRun` gives a run identity, `start` returns the
  * output object whose `result` resolves the run's outcome envelope (or rejects when the run fails)
  * and whose `for await` walks the lifecycle events (run-start / step-start / step-end / run-end,
- * carrying the values that cross each boundary), and `resume({ step, resumeData? })` continues a run
- * that suspended. Start is lazy — the walker executes on the first read; resume is eager and resolves
+ * carrying the values that cross each boundary), `resume({ step, resumeData? })` continues a run
+ * that suspended, and `restart({ step? })` re-enters a snapshotted run from a chosen step with the
+ * later records truncated (time-travel). Start is lazy — the walker executes on the first read;
+ * resume and restart are eager and resolve
  * with the same outcome envelope. The walker interprets the flat entry list in order: `then` pipes the previous output on, `parallel`
  * runs the steps concurrently and keys the outputs by step id, `branch` runs the first step whose
  * condition is truthy and keys the output the same way, `foreach` maps an array through one step
@@ -31,7 +33,10 @@
  * step's `resumeSchema` and re-enters the walk from the snapshot's position (inside its block,
  * from the site), replaying the completed executions from the records instead of re-running
  * them; concurrent resumes of one snapshot — the same store and run id — are deduplicated in
- * process. Snapshots are written at fixed
+ * process. `restart({ step? })` is the same load → re-enter primitive's thin variant
+ * (time-travel): it truncates the records at and after the chosen step's entry and re-enters from
+ * there — the target re-executes fresh (no `resumeData`, no iteration site, a block re-runs
+ * whole), and omitting the step restarts the run from the beginning. Snapshots are written at fixed
  * points — every completed entry with attached storage, plus suspend and the terminal state —
  * never through hooks; a run with a tracer writes the trace it was exported under into the
  * snapshot, so a resumed segment continues the same trace. A tracer attached to the definition
@@ -55,6 +60,7 @@ export type {
 export { createWorkflowRun } from './run.js';
 export type {
   WorkflowCreateRunOptions,
+  WorkflowRestartOptions,
   WorkflowResumeOptions,
   WorkflowRun,
   WorkflowRunOutcome,

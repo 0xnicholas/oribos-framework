@@ -96,6 +96,25 @@ export interface WalkResumePoint {
   readonly traceId?: string | undefined;
 }
 
+/**
+ * The point a restarted walk re-enters from (time-travel / restart): the same load → re-enter
+ * primitive as a resume, minus the suspension machinery — the caller chose the position, and the
+ * records at and after it were already truncated, so the target re-executes from its replayed
+ * input. There is no `resumeData` (the target is not being answered, it is being re-run) and no
+ * iteration site (re-entry is at the flat entry boundary; a block re-runs whole).
+ */
+export interface WalkRestartPoint {
+  /** The entry index to re-enter the loop from — the restart target's entry. */
+  readonly position: number;
+  /** The truncated records: everything before `position` survives, everything at and after it is gone. */
+  readonly stepResults: Readonly<Record<string, WorkflowStepResultSnapshot>>;
+  /**
+   * The trace the restarted run's spans belong to (`WorkflowRunSnapshot.traceId`): the restarted
+   * segment opens a new `workflow-run` span in it, so a restart does not break the trace.
+   */
+  readonly traceId?: string | undefined;
+}
+
 /** One walk's outer state: the run's identity, its input, the store it writes and the records it keeps. */
 export interface WalkOptions {
   /** Identity of the run being walked. */
@@ -115,6 +134,12 @@ export interface WalkOptions {
   readonly persistStepBoundaries: boolean;
   /** Present on a resumed walk: re-enter at this point instead of starting from the run input. */
   readonly resume?: WalkResumePoint | undefined;
+  /**
+   * Present on a restarted walk (time-travel / restart): re-enter at this position over the
+   * truncated records — the caller's chosen entry re-executes from its replayed input. Mutually
+   * exclusive with `resume` (the run surface never sets both).
+   */
+  readonly restart?: WalkRestartPoint | undefined;
   /**
    * Trace the run's first segment continues (`WorkflowCreateRunOptions.traceId` / `parentSpanId`),
    * when the caller passed one. A resume's continuation comes from the snapshot instead.
@@ -179,7 +204,8 @@ interface WorkflowTracing {
 
 /**
  * Walks a committed workflow: validates the walk's entry boundary (the run's start input on a first
- * pass; the snapshot's resume point and `resumeData` on a resume), then interprets every entry in
+ * pass; the snapshot's resume point and `resumeData` on a resume; the caller-chosen position and
+ * truncated records on a restart), then interprets every entry in
  * order. Completes with the run's outcome — `success`, or `suspended` when a step raised the suspend
  * signal; throws when the run fails at any boundary.
  */
@@ -200,7 +226,14 @@ export async function walk(
     persistStepBoundaries: options.persistStepBoundaries,
     // A resumed walk continues the suspended run's records: prior steps stay visible to
     // `getStepResult`, and the resumed step replaces its own `suspended` record when it completes.
-    stepResults: options.resume === undefined ? {} : { ...options.resume.stepResults },
+    // A restarted walk continues the truncated records: the target's and its successors' records
+    // were dropped, so those entries re-execute from the replayed tip.
+    stepResults:
+      options.resume !== undefined
+        ? { ...options.resume.stepResults }
+        : options.restart !== undefined
+          ? { ...options.restart.stepResults }
+          : {},
     input: options.inputData,
     resumingStepId: undefined,
     resumeData: undefined,
@@ -261,7 +294,7 @@ function toWorkflowTracing(
  * (`normalizeTraceContinuation` in observability, next to the `NoOpSpan` encoding).
  */
 function toTraceContinuation(options: WalkOptions): WalkTraceContinuation {
-  const resuming = options.resume?.traceId;
+  const resuming = options.resume?.traceId ?? options.restart?.traceId;
   if (resuming !== undefined) return { traceId: resuming };
   const trace = options.trace;
   if (trace === undefined) return {};
@@ -282,12 +315,22 @@ function dropEvent(_event: WorkflowEvent): void {}
 async function runWalk(state: WalkState, options: WalkOptions): Promise<WorkflowRunOutcome> {
   const { workflow } = state;
 
-  // These two boundaries — the start input, and a resume's position / target / resumeData — sit
+  // These boundaries — the start input, a resume's position / target / resumeData, a restart's
+  // position — sit
   // outside the failure path below: a rejected start means the run never began, and a rejected
   // resume must leave the suspended snapshot untouched so a corrected resume can still find it.
   let value: unknown;
   let position: number;
-  if (options.resume === undefined) {
+  if (options.resume !== undefined) {
+    ({ value, position } = await enterResume(state, options.resume));
+    // A resumed segment is triggered by the validated resumeData, not by the run's start input;
+    // `undefined` (a bare resume of a step without `resumeSchema`) leaves the span's input unset.
+    state.tracing?.runSpan.update({ input: state.resumeData });
+  } else if (options.restart !== undefined) {
+    ({ value, position } = enterRestart(state, options.restart));
+    // A restart carries no new trigger input (no resumeData, and the start boundary does not run
+    // again): the span's input stays unset, like a bare resume.
+  } else {
     // The run's start input is the first boundary: its validated value replaces the raw input
     // (defaults / transforms apply), and a rejection here means the run never starts.
     value = await validateRunInput(workflow.id, workflow.inputSchema, options.inputData);
@@ -298,11 +341,6 @@ async function runWalk(state: WalkState, options: WalkOptions): Promise<Workflow
     // run span records the same value as its input.
     state.emit({ type: 'run-start', runId: state.runId, workflowId: workflow.id, input: value });
     state.tracing?.runSpan.update({ input: value });
-  } else {
-    ({ value, position } = await enterResume(state, options.resume));
-    // A resumed segment is triggered by the validated resumeData, not by the run's start input;
-    // `undefined` (a bare resume of a step without `resumeSchema`) leaves the span's input unset.
-    state.tracing?.runSpan.update({ input: state.resumeData });
   }
 
   try {
@@ -459,6 +497,30 @@ async function enterResume(
   state.resumeData = await validateResumeData(workflow.id, step, resume.resumeData);
   state.resumingStepId = resume.stepId;
   return { value: replayEntries(state, resume.position), position: resume.position };
+}
+
+/**
+ * Prepares a restarted walk (time-travel / restart): the resume primitive's thin variant. No
+ * suspended-record check and no `resumeData` boundary — the target was not answered, it is being
+ * re-executed — so the only checks are that the position still addresses an entry (or the end of
+ * an empty list) and that the truncated records can replay the tip up to it. The replay is the
+ * same records-first reconstruction a resume uses: entries before the position never re-run.
+ */
+function enterRestart(
+  state: WalkState,
+  restart: WalkRestartPoint,
+): { readonly value: unknown; readonly position: number } {
+  const { workflow } = state;
+  if (
+    !Number.isInteger(restart.position) ||
+    restart.position < 0 ||
+    restart.position > workflow.entries.length
+  ) {
+    throw new Error(
+      `workflow "${workflow.id}": the restart position ${restart.position} is outside the entry list — the definition and the snapshot do not match`,
+    );
+  }
+  return { value: replayEntries(state, restart.position), position: restart.position };
 }
 
 /**

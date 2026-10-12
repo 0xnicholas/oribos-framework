@@ -101,3 +101,26 @@ export type WorkflowEntry =
   | DowhileEntry
   | DountilEntry
   | SleepEntry;
+
+/**
+ * The step ids an entry owns — the record keys the entry can write. Restart targeting and
+ * truncation both speak in this grain: the flat entry is the addressable unit (no path model), so
+ * a step inside a block is reached through its entry, and truncating an entry drops every record
+ * the entry owns. A `sleep` owns none: it records nothing.
+ */
+export function entryStepIds(entry: WorkflowEntry): readonly string[] {
+  switch (entry.type) {
+    case 'then':
+      return [entry.step.id];
+    case 'parallel':
+      return entry.steps.map((step) => step.id);
+    case 'branch':
+      return entry.branches.map(([, step]) => step.id);
+    case 'foreach':
+    case 'dowhile':
+    case 'dountil':
+      return [entry.step.id];
+    case 'sleep':
+      return [];
+  }
+}

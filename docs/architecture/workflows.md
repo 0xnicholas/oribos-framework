@@ -60,6 +60,7 @@ const out = run.start({ inputData, requestContext?, signal? })
 await out.result                 // 终值
 for await (const ev of out)      // 最小 lifecycle 事件流,见「流式事件」
 await run.resume({ step, resumeData? })   // 见「suspend/resume 与快照」
+await run.restart({ step? })              // time-travel:截断 + 重进,见「suspend/resume 与快照」
 ```
 
 - run 输出对象与 Agent 输出对象同一心智:**await 终值 / for-await 事件流,双消费单路径**。
@@ -83,7 +84,8 @@ await run.resume({ step, resumeData? })   // 见「suspend/resume 与快照」
 
 - `suspend(payload)` 在 execute 内调用:当前 step 标记 suspended → 快照写 port → 引擎展开退出;run 状态 = `suspended`。suspend 是控制信号不是失败:不经过 step 重试,也不落 failed 记录。
 - 快照 = JSON 可序列化的 `{ runId, status, input, stepResults, position }`(stepResults 记录每步 status / output / 起止时间 / suspendPayload;position 即 mastra 的 startIdx 等价物)。**JSON-only 是 port 契约,默认内存实现不执法**:`structuredClone` 拒函数但放行 Map / Set / Date / 循环——核心内存默认收下的快照仍可能过不去 JSON 后端的 adapter;大数据只存引用。
-- 恢复 = `run.resume({ step, resumeData? })`:load 快照 → resumeData 过 resumeSchema → 从 position 重进同一个 for 循环。time-travel / restart / restartAllActiveWorkflowRuns 是同一机制的变种,**全部裁出 v1**;引擎只暴露「load → 重进」原语,durable 重启归 Harness(#18)。
+- 恢复 = `run.resume({ step, resumeData? })`:load 快照 → resumeData 过 resumeSchema → 从 position 重进同一个 for 循环。
+- time-travel / restart = 同一「load → 重进」原语的薄变种,已落地为 `run.restart({ step? })`(2026-10-12,#174,CUT-W7 行):load 快照(**任意状态**——记录即状态)→ **截断该位条目及其后的全部记录** → 从该位重进同一个 for 循环。目标步全新重跑:无 resumeData、无 resumeSchema 边界、无 iterationSite(块内挂起的 run restart 该块 = 块从零重跑);重进粒度 = 扁平条目(点名块内 step 即重进整个块,B8 不建路径模型);不点名 step = 从头重启(重放快照的 `input`,start 边界不重跑)。restart 时刻不写 store——walk 的固定持久化点随重进覆盖快照,被拒的 restart 不动快照;并发 restart 与 resume 同一把 (store, runId) 进程内锁去重;restart 段续快照钉的 traceId。restartAllActiveWorkflowRuns 维持裁出:port 无枚举面,批量 = 应用层 `listSnapshots` 扩展 + 逐个 restart;durable 重启归 Harness(#18)。
 - 持久化时机:有 storage 时**每个条目完成后** + suspend + 终态,固定写;无 shouldPersistSnapshot / prune 钩子。"每个条目"而非字面的"每个 step":块的子 step 随块一起记录(#49/#50 已钉块只按 step id 记一条),条目完成才是记录表变化的时刻;sleep 不产生记录但条目完成照写。
 - resume 并发去重:进程内锁,键域 = 快照的持久化身份 (store, runId)(#119);跨进程 CAS = adapter 可选扩展(`compareAndSave`,见 `docs/architecture/storage.md`)。
 
@@ -166,7 +168,7 @@ interface WorkflowSnapshotStore {
 | **B7** 快照 = 固定五字段 + 可选 `traceId` / `iterationSite` | `iterationSite` 承载块内现场(`CONTEXT.md` 迭代现场) | 有意分叉 | 最小可判 JSON 快照;快照是库语义不是历史(只留最新一份)(ADR-0006 / 0010);互注:time-travel / restart 已转追赶项(2026-10-11,#161,CUT-W7 行),跨清单对齐锚、非改判 |
 | **B8** 无 `suspendedPaths` / `serializedStepGraph` 路径模型 | 位置 = 扁平 `position` + `iterationSite`(下「CUT-W9」行互引) | 有意分叉 | 不建路径模型——`suspendedPaths` 式多路径挂起模型在 `CONTEXT.md` 记 _Avoid_(ADR-0006);互注:time-travel / restart 已转追赶项(2026-10-11,#161,CUT-W7 行),跨清单对齐锚、非改判 |
 | **CUT-W9** resume CAS / serializedStepGraph / 多引擎适配 | **已兑现段**:CAS 已落为 adapter 可选扩展(`compareAndSave`,`@oribos/sqlite` 已实现);**两件指针**:`serializedStepGraph` 随「B8 不建路径模型」,多引擎 → 外部 runner 能力包——该件经 ADR-0017 重判(2026-10-11,#161)**转追赶项**(证据 = mastra Inngest / Temporal 引擎实装未弃;外部平台 = opt-in 基础设施,过保轴门;引擎接缝已留) | 已兑现 + 有意分叉 + **转追赶项(多引擎件)**(2026-10-11,#161) | 三件分流:一件已兑现(ADR-0010)、一件随 B8 分叉、一件转追赶项(验证面 = 引擎适配单测 + 可选 Inngest example;**远层**,新 port 抽象)(ADR-0006);延后清单「外部 runner 适配」行 |
-| **CUT-W7** time-travel / restart / restartAll | `load` → 重进原语,**需先截断该位之后的记录**;durable 侧重启归 Harness——追赶形状 = 扁平 `position` + `stepResults` 上的等价物(本框架不建路径模型),无 port 变更 | **转追赶项**(2026-10-11,#161) | 证据 = mastra 快照 + `serializedStepGraph` 免费变种实装未弃;零负担;原「records-first 回放决定它不是薄变种」是设计点、不是障碍——转项正落在该原语上(load→重进 + 截断,records-first 语义保留);验证面 = 截断 + 重进单测 + 调试场景 example;**首批候选**(既有原语薄变种,#161)(ADR-0006 / 0011);延后清单「time-travel / restart」行 |
+| **CUT-W7** time-travel / restart / restartAll | `load` → 重进原语,**需先截断该位之后的记录**;durable 侧重启归 Harness——追赶形状 = 扁平 `position` + `stepResults` 上的等价物(本框架不建路径模型),无 port 变更 | 转追赶项(2026-10-11,#161)→ **已兑现**(2026-10-12,#174:`run.restart({ step? })` 落地,验证面 = 截断 + 重进单测 + `examples/workflow-time-travel`) | 证据 = mastra 快照 + `serializedStepGraph` 免费变种实装未弃;零负担;原「records-first 回放决定它不是薄变种」是设计点、不是障碍——转项正落在该原语上(load→重进 + 截断,records-first 语义保留);restartAll 维持裁出(port 无枚举面,批量 = 应用层 `listSnapshots` + 逐个 restart)(ADR-0006 / 0011);延后清单「time-travel / restart」行 |
 | **CUT-W8** shouldPersistSnapshot / prune 钩子 | 固定 step 边界写;保留期清理 = adapter 扩展(`deleteSnapshot` / `listSnapshots`,`@oribos/sqlite` 已落) | 有意分叉 | 固定边界写是良定义策略;保留期策略归 adapter(ADR-0006 / 0010) |
 | **B2** `retries` = 额外尝试数 + 固定 1000ms + 可打断 | backoff 策略对象已留扩展位;重试只包 `execute` | 有意分叉 | 最多 `retries + 1` 次最直观;固定间隔 = 最小配置、无退避矩阵;等待可打断 = abort 一致语义(ADR-0006) |
 | **B3** `sleep` 动态时长收 `RequestContext` | 需要上一步输出算时长 → 显式传参 / 内联 step 计算 | 有意分叉 | 全字段统一动态参数口径(`T \| ((ctx) => T)`);`RequestContext` 是唯一解析上下文(ADR-0006 / 0005) |
