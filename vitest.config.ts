@@ -8,6 +8,7 @@ const sqliteSource = fileURLToPath(new URL('./packages/sqlite/src', import.meta.
 const aiSdkSource = fileURLToPath(new URL('./packages/ai-sdk/src', import.meta.url));
 const otlpSource = fileURLToPath(new URL('./packages/otlp/src', import.meta.url));
 const cronerSource = fileURLToPath(new URL('./packages/croner/src', import.meta.url));
+const supervisorSource = fileURLToPath(new URL('./packages/supervisor/src', import.meta.url));
 const testingSource = fileURLToPath(new URL('./packages/testing/src', import.meta.url));
 
 export default defineConfig({
@@ -23,6 +24,7 @@ export default defineConfig({
       { find: /^@oribos\/ai-sdk$/, replacement: `${aiSdkSource}/index.ts` },
       { find: /^@oribos\/otlp$/, replacement: `${otlpSource}/index.ts` },
       { find: /^@oribos\/croner$/, replacement: `${cronerSource}/index.ts` },
+      { find: /^@oribos\/supervisor$/, replacement: `${supervisorSource}/index.ts` },
       { find: /^@oribos\/testing$/, replacement: `${testingSource}/index.ts` },
     ],
   },

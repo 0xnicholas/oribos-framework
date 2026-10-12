@@ -1,0 +1,20 @@
+{
+  "name": "@oribos/example-agent-supervisor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oribos supervisor example: one parent agent delegating to sub-agents wrapped as tools — @oribos/supervisor over a scripted offline model.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/supervisor": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

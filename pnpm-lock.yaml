@@ -33,6 +33,18 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  examples/agent-supervisor:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/supervisor':
+        specifier: workspace:*
+        version: link:../../packages/supervisor
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   examples/ai-chat-route:
     dependencies:
       '@ai-sdk/openai':
@@ -249,6 +261,15 @@ importers:
       '@oribos/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/supervisor:
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/testing: {}
 

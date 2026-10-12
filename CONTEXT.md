@@ -93,7 +93,7 @@ _Avoid_: 中间件、plugin、以字段形式焊进 Agent 类
 _Avoid_: 把工具做成 class / 注册表;工具携带框架引用(agent / memory 经 requestContext 用户袋或闭包获取,不作参数注入)
 
 **as-tool 组合 (As-tool composition)**:
-多 agent 协作的唯一规范形态:把一个 Agent 包装为 Tool 挂进另一 Agent 的工具容器,委派即一次普通工具调用;核心无 sub-agent 概念与委派协议。
+多 agent 协作的唯一规范形态:把一个 Agent 包装为 Tool 挂进另一 Agent 的工具容器,委派即一次普通工具调用;核心无 sub-agent 概念与委派协议。标准化封装 = `@oribos/supervisor` 能力包(`createSupervisor` 工厂,零新缝零依赖,2026-10-12 #175);手写包装 recipe 仍是定制组合的底层形态(`docs/architecture/agent.md`「多 agent 组合」)。
 _Avoid_: supervisor 协议、sub-agent 字段、`.network()`
 
 **Workflow**:

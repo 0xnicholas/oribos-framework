@@ -28,6 +28,7 @@
       "@oribos/mcp-server": ["./packages/mcp-server/src/index.ts"],
       "@oribos/otlp": ["./packages/otlp/src/index.ts"],
       "@oribos/sqlite": ["./packages/sqlite/src/index.ts"],
+      "@oribos/supervisor": ["./packages/supervisor/src/index.ts"],
       "@oribos/testing": ["./packages/testing/src/index.ts"]
     },
     "noEmit": true
