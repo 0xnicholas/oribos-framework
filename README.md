@@ -296,6 +296,7 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 | [`agent-supervisor`](examples/agent-supervisor/) | `@oribos/supervisor`: sub-agents as delegation tools — constructed input, bare-text results, one trace |
 | [`agent-evals`](examples/agent-evals/) | `@oribos/evals`: scorers wired live through the Processor seam, the settled run scored after the fact |
 | [`signal-webhook`](examples/signal-webhook/) | the signal-providers pattern: a thin webhook endpoint → `sendSignal` — translate at the edge, an application-owned registry routes |
+| [`background-tasks`](examples/background-tasks/) | the background-tasks recipe: a tool that acks now, an application-owned worker, one `sendSignal` when the work lands — success and failure through the same door |
 
 ## Documentation
 
@@ -316,10 +317,10 @@ pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surfac
 The offline examples are gated too — the same gate CI runs, one step after `verify`:
 
 ```bash
-pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools (HTTP + stdio) / workflow-time-travel / agent-supervisor / agent-evals / signal-webhook
+pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools (HTTP + stdio) / workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks
 ```
 
-It runs the eight offline entries serially, streams each one's output and exits non-zero if any fails
+It runs the nine offline entries serially, streams each one's output and exits non-zero if any fails
 (`pnpm build` first: examples consume the packages through their built exports).
 
 The byte budget (minified size per export path) is checked in CI on every PR — a checked
