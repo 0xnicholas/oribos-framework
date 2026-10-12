@@ -121,6 +121,13 @@ export type DynamicArgument<T> = T | ((ctx: RequestContext) => T | Promise<T>);
 export type ModelInput = DynamicArgument<Model | readonly Model[]>;
 
 /**
+ * The tool execution mode of one run (`AgentRunOptions.toolExecution`): `'serial'` (the default)
+ * runs a step's tool calls one at a time in call order after the step's model stream has ended;
+ * `'eager'` starts each call as soon as its tool-call chunk streams in.
+ */
+export type ToolExecution = 'serial' | 'eager';
+
+/**
  * The framework-owned run option fields — execution controls, never request context. They live
  * behind this closed interface so `keyof` can enumerate them: carried directly on
  * `AgentRunOptions`, the open index signature would make `keyof` collapse to `string` and the
@@ -173,6 +180,18 @@ export interface AgentRunOptionFields {
    * `undefined`.
    */
   readonly structuredOutput?: StructuredOutputConfig | undefined;
+  /**
+   * How this run executes a step's tool calls (default `'serial'`: one at a time, in call order,
+   * after the step's model stream has ended). `'eager'` starts a call the moment its tool-call
+   * chunk has streamed in — overlapping the rest of the stream — while results still emit, and are
+   * recorded, in call order after the step's finish chunk; tool failures walk `processError` as
+   * they surface. Two costs of starting early: a call the provider ends up executing itself (its
+   * result streams in later) has already run — the provider's result wins and the eager execution
+   * is discarded; and a run with a `stepBoundary.beforeToolCalls` gate cannot be eager at all —
+   * the gate must be able to hold the calls back, so the combination fails at the run's boundary.
+   * Absent = serial, and the loop allocates nothing for the mode.
+   */
+  readonly toolExecution?: ToolExecution | undefined;
   /**
    * The run's memory identity (the identity model): present = the run recalls
    * from and saves into the agent's `memory` for the named thread/resource; absent = the run does
@@ -227,6 +246,7 @@ export const AGENT_RUN_OPTION_KEYS = [
   'hideInput',
   'hideOutput',
   'structuredOutput',
+  'toolExecution',
   'memory',
   'stepBoundary',
   'resume',

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { Agent } from '@oribos/core/agent';
-import type { RequestContext } from '@oribos/core/agent';
+import type { Processor, RequestContext } from '@oribos/core/agent';
 import { ModelContractError } from '@oribos/core/model';
+import type { Chunk, ToolResultChunk } from '@oribos/core/model';
 import {
   AGENT_RUN_SPAN,
   AGENT_STEP_SPAN,
@@ -13,7 +14,7 @@ import {
 import { createTool } from '@oribos/core/tools';
 import type { Tool, ToolContext } from '@oribos/core/tools';
 import { fakeModel } from '@oribos/testing';
-import { assistant, assistantWithTools } from './helpers/agent.js';
+import { INSTRUCTIONS, assistant, assistantWithTools } from './helpers/agent.js';
 import { collect } from './helpers/collect.js';
 import { TRACE_ID, spanOfType } from './helpers/spans.js';
 
@@ -739,5 +740,265 @@ describe('Agent loop:同一步多工具串行执行(SEM-A2,#134)', () => {
       },
     ]);
     expect(result.finishReason).toBe('stop');
+  });
+});
+
+describe('Agent loop:eager 工具执行(A2 转追赶项 opt-in 开关,#172)', () => {
+  it('参数流完即启动:两个工具在本步 finish 之前都已启动;乱序 settle 仍按调用序发射', async () => {
+    const gate = deferred<string>();
+    /** 启动 / settle 双录制:启动面钉 eager(与 SEM-A2 例同一手法),乱序 settle 钉发射序。 */
+    const started: string[] = [];
+    const settled: string[] = [];
+    const model = fakeModel([
+      {
+        toolCalls: [
+          { toolCallId: 'call-1', toolName: 'first', input: {} },
+          { toolCallId: 'call-2', toolName: 'second', input: {} },
+        ],
+      },
+      { text: 'done' },
+    ]);
+    const agent = assistantWithTools(model, {
+      first: createTool({
+        description: 'Slow, held by the gate.',
+        execute: async () => {
+          started.push('first');
+          const value = await gate.promise;
+          settled.push('first');
+          return value;
+        },
+      }),
+      second: createTool({
+        description: 'Instant.',
+        execute: () => {
+          started.push('second');
+          settled.push('second');
+          return 'second-done';
+        },
+      }),
+    });
+
+    const stream = agent.stream('Go.', { toolExecution: 'eager' });
+    const chunks: Chunk[] = [];
+    const iterator = stream[Symbol.asyncIterator]();
+    // 消费到本步 finish 为止,此刻钉启动面
+    let startedAtFinish: string[] = [];
+    for (;;) {
+      const next = await iterator.next();
+      if (next.done) break;
+      chunks.push(next.value);
+      if (next.value.type === 'finish') {
+        startedAtFinish = [...started];
+        break;
+      }
+    }
+
+    // 钉点(变异敏感):串行实装此刻一个工具都没启动,eager 下两个都已启动
+    expect(startedAtFinish).toEqual(['first', 'second']);
+    // 第二个乱序先 settle,但发射被调用序按住:消费者尚未看到任何 tool-result
+    expect(settled).toEqual(['second']);
+    expect(chunks.filter((chunk) => chunk.type === 'tool-result')).toEqual([]);
+
+    gate.resolve('first-done');
+    for (;;) {
+      const next = await iterator.next();
+      if (next.done) break;
+      chunks.push(next.value);
+    }
+
+    // 发射序 = 调用序,不是 settle 序(确定性钉点)
+    const results = chunks.filter((chunk): chunk is ToolResultChunk => chunk.type === 'tool-result');
+    expect(results.map((chunk) => chunk.toolCallId)).toEqual(['call-1', 'call-2']);
+    expect(settled).toEqual(['second', 'first']);
+    const steps = await stream.steps;
+    expect(steps[0]?.toolResults.map((result) => result.toolCallId)).toEqual(['call-1', 'call-2']);
+    expect(await stream.finishReason).toBe('stop');
+  });
+
+  it('abort 打断 eager 中途执行:在途工具观察到中止并先 settle,run 以 abort reason 原样拒绝', async () => {
+    const controller = new AbortController();
+    const reason = new Error('caller stopped');
+    const started: string[] = [];
+    /** 在途工具的中止观察(延迟 settle:钉「settle 先于拒绝上抛」,泄漏则乱序)。 */
+    const observed: string[] = [];
+    const model = fakeModel([
+      {
+        toolCalls: [{ toolCallId: 'call-1', toolName: 'held', input: {} }],
+        // 流在 finish 前挂起直到中止:error part 携带 signal.reason(真实 provider 的中途取消)
+        abortAfter: 5,
+      },
+    ]);
+    const agent = assistantWithTools(model, {
+      held: createTool({
+        description: 'Holds until aborted.',
+        execute: (_input: unknown, ctx: ToolContext) =>
+          new Promise((_resolve, reject) => {
+            started.push('held');
+            ctx.signal.addEventListener('abort', () => {
+              setTimeout(() => {
+                observed.push('held-aborted');
+                reject(ctx.signal.reason);
+              }, 0);
+            });
+          }),
+      }),
+    });
+
+    const failure = agent
+      .generate('Go.', { toolExecution: 'eager', signal: controller.signal })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    // 钉点(变异敏感):串行实装永远走不到这里——模型流挂着,工具零启动
+    await vi.waitFor(() => expect(started).toEqual(['held']));
+
+    controller.abort(reason);
+    const error = await failure;
+
+    // run 以 abort reason 原样拒绝(取消是 run 的结局,不经 processError 替换)
+    expect(error).toBe(reason);
+    // 在途 eager 执行被打断,且先于拒绝上抛 settle(loop 不泄漏在途执行)
+    expect(observed).toEqual(['held-aborted']);
+  });
+
+  it('eager 失败路径与流交织:processError 在本步 finish 之前观察失败,error 结果按调用序回喂', async () => {
+    /** 同一事件日志:processor 记失败观察,消费者记 chunk 到达 —— 交错即钉点。 */
+    const events: string[] = [];
+    const model = fakeModel([
+      {
+        toolCalls: [
+          { toolCallId: 'call-1', toolName: 'failing', input: {} },
+          { toolCallId: 'call-2', toolName: 'ok', input: {} },
+        ],
+        // 慢流(每 part 50ms):call-1 的失败路径有充足窗口在模型流收尾之前跑完
+        delayMs: 50,
+      },
+      { text: 'done' },
+    ]);
+    const spy: Processor = {
+      processError: ({ source, toolCall }) => {
+        events.push(`processError:${source}:${toolCall?.toolCallId ?? ''}`);
+      },
+    };
+    const agent = new Agent({
+      name: 'assistant',
+      instructions: INSTRUCTIONS,
+      model,
+      tools: {
+        failing: createTool({
+          description: 'Throws at once.',
+          execute: () => {
+            throw new Error('boom');
+          },
+        }),
+        ok: createTool({ description: 'Fine.', execute: () => 'ok-done' }),
+      },
+      processors: [spy],
+    });
+
+    const stream = agent.stream('Go.', { toolExecution: 'eager' });
+    for await (const chunk of stream) {
+      events.push(chunk.type === 'finish' ? 'chunk:finish' : `chunk:${chunk.type}`);
+    }
+
+    // 钉点(变异敏感):串行实装的失败路径在本步 finish 之后才启动,交错即破
+    expect(events).toContain('processError:tool:call-1');
+    expect(events.indexOf('processError:tool:call-1')).toBeLessThan(events.indexOf('chunk:finish'));
+    // 失败 = error 工具结果(框架框 + 原错细节),两结果按调用序并入;run 照常走完
+    const steps = await stream.steps;
+    expect(steps[0]?.toolResults).toEqual([
+      {
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        toolName: 'failing',
+        output: "Tool 'failing' failed: boom",
+        isError: true,
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'call-2',
+        toolName: 'ok',
+        output: 'ok-done',
+        isError: false,
+      },
+    ]);
+    expect(await stream.text).toBe('done');
+    expect(await stream.finishReason).toBe('stop');
+  });
+
+  it('eager 与 beforeToolCalls 审批闸互斥:run 边界显式报错,模型调用未发起', async () => {
+    const model = fakeModel([{ text: 'unused' }]);
+    const agent = assistant(model);
+
+    // 闸的存在意义是按住调用,eager 的参数流完即启动会直接架空它 —— 组合在 run 边界即败
+    await expect(
+      agent.generate('Go.', {
+        toolExecution: 'eager',
+        stepBoundary: { beforeToolCalls: () => undefined },
+      }),
+    ).rejects.toThrow(
+      "toolExecution: 'eager' cannot combine with a stepBoundary.beforeToolCalls gate",
+    );
+    expect(model.streamCalls).toEqual([]);
+  });
+
+  it('eager 与 beforeNextStep 注入缝相容(signals 同缝):注入器照常咨询,工具照常执行', async () => {
+    const model = fakeModel([
+      { toolCalls: [{ toolCallId: 'call-1', toolName: 'only', input: {} }] },
+      { text: 'done' },
+    ]);
+    const injector = vi.fn(() => undefined);
+    const agent = assistantWithTools(model, {
+      only: createTool({ description: 'Only tool.', execute: () => 'only-done' }),
+    });
+
+    const result = await agent.generate('Go.', {
+      toolExecution: 'eager',
+      stepBoundary: { beforeNextStep: injector },
+    });
+
+    expect(result.finishReason).toBe('stop');
+  });
+
+  it('provider 后到的自身结果为准:eager 已启动的同 id 执行作废,流与记录各恰一份', async () => {
+    const started: string[] = [];
+    const model = fakeModel([
+      {
+        toolCalls: [{ toolCallId: 'call-1', toolName: 'hybrid', input: {} }],
+        toolResults: [{ toolCallId: 'call-1', toolName: 'hybrid', result: 'by-provider' }],
+      },
+    ]);
+    const agent = assistantWithTools(model, {
+      hybrid: createTool({
+        description: 'The provider also executes this one.',
+        execute: () => {
+          started.push('hybrid');
+          return 'by-framework';
+        },
+      }),
+    });
+
+    const stream = agent.stream('Go.', { toolExecution: 'eager' });
+    const chunks = await collect(stream);
+
+    // eager 的代价(明写):provider 结果到达前无法预知,框架那次执行已经启动 —— 但其结果作废,
+    // provider 的才是权威(与串行「不重复执行、provider 结果为准」同一条不变量的 eager 形态)
+    expect(started).toEqual(['hybrid']);
+    const expected = [
+      {
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        toolName: 'hybrid',
+        output: 'by-provider',
+        isError: false,
+      },
+    ];
+    expect(chunks.filter((chunk): chunk is ToolResultChunk => chunk.type === 'tool-result')).toEqual(
+      expected,
+    );
+    expect((await stream.steps)[0]?.toolResults).toEqual(expected);
+    // 全 provider 执行的步:无 framework 执行的结果,run 以模型自身 finishReason 收尾
+    expect(await stream.finishReason).toBe('tool-calls');
   });
 });

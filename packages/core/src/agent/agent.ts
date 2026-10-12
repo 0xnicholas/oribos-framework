@@ -145,6 +145,15 @@ export class Agent {
             `(${String(options.resume.stepCount)}) — resume with a higher maxSteps.`,
         );
       }
+      // The eager mode's one exclusion (`AgentRunOptions.toolExecution`): a gate exists to hold
+      // the step's calls back, which starting them mid-stream would void. Fail at the run's
+      // boundary, before any model call — the same place a bad `maxSteps` fails.
+      if (options.toolExecution === 'eager' && options.stepBoundary?.beforeToolCalls !== undefined) {
+        throw new Error(
+          "toolExecution: 'eager' cannot combine with a stepBoundary.beforeToolCalls gate: eager " +
+            'starts tool calls as they stream in, so the gate could not hold them back.',
+        );
+      }
       const runMemory = toRunMemory(
         resolvedMemory,
         options.memory,
@@ -204,6 +213,8 @@ export class Agent {
           // The resume seed, when this run continues a suspended one — the harness wrapper's
           // re-entry (`AgentRunOptions.resume`); `undefined` = an ordinary run.
           resume: options.resume,
+          // The tool execution mode (`AgentRunOptions.toolExecution`); absent = serial.
+          toolExecution: options.toolExecution,
           tracing,
           // The user's model call settings are recorded on the step span under this name.
           parameters: options.modelSettings,

@@ -41,7 +41,7 @@ interface AgentConfig {
 
 - **归属**:loop 是 Agent 子系统内部实现,围绕模型契约构建(继承「决策:模型层策略」);Workflows 不复用 agent loop,共享 chunk 协议与 step 词汇即可。
 - **停止条件**:模型返回不含 tool-call 即停;`maxSteps`(默认 5,正整数)封顶。不做 stopWhen DSL。`maxSteps` 耗尽前的最后一步照常完整执行(它的 tool-call 已由模型发出),只是结果不再回喂;终值 `finishReason` 为 `'tool-calls'`(截断信号归框架,不 relay provider 的原始 reason)。
-- **工具执行顺序**:同一步的多个 tool-call 按调用顺序**串行**执行,结果按调用顺序并入该步;并发策略 v1 不做,留待需求信号。provider 已执行的工具调用(该步内同 toolCallId 已有结果)不重复执行。
+- **工具执行顺序**:同一步的多个 tool-call 默认按调用顺序**串行**执行,结果按调用顺序并入该步;run option `toolExecution: 'eager'`(opt-in,A2 追赶项,#172)改为参数流完即启动、与模型流交叠执行,结果仍按调用序发射、按调用序并入。eager 与 `stepBoundary.beforeToolCalls` 审批闸互斥(闸要按得住调用),组合在 run 边界报错。provider 已执行的工具调用(该步内同 toolCallId 已有结果)不重复执行——eager 下先启动的那次作废,provider 结果为准。
 - **错误回喂**:execute 抛错捕获为 error 工具结果**回喂模型**,由模型自行恢复或放弃,run 不中止;需要硬停的场景经 Processor 实现。
 - **审批 / 挂起**:不在核心,由「决策:Harness 语义集」(#18,已定)承接——`createDurableAgent` 包装的工具调用边界审批闸 + loop 快照,见 `docs/architecture/harness.md`;核心 loop 保持无快照。
 

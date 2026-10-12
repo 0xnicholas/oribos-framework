@@ -34,4 +34,5 @@ export type {
   ModelSettings,
   RequestContext,
   StructuredOutputConfig,
+  ToolExecution,
 } from './types.js';

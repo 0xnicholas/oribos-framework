@@ -23,7 +23,7 @@ import { missingFinishError } from './stream.js';
 import { runProcessError, runProcessOutputStep } from './processors.js';
 import type { Processor } from './processors.js';
 import { toStructuredObject } from './structured-output.js';
-import type { AgentGenerateResult, AgentRunResume, AgentStep, AgentStepBoundary, AgentStepBoundaryEvent, RequestContext, StructuredOutputConfig } from './types.js';
+import type { AgentGenerateResult, AgentRunResume, AgentStep, AgentStepBoundary, AgentStepBoundaryEvent, RequestContext, StructuredOutputConfig, ToolExecution } from './types.js';
 
 /** How many model calls one run may make when the caller pins no `maxSteps` (execution semantics). */
 export const DEFAULT_MAX_STEPS = 5;
@@ -67,6 +67,15 @@ export interface AgentLoopOptions {
    * `stepCount`, so a resumed segment is one run's continuation, not a fresh count.
    */
   readonly resume?: AgentRunResume | undefined;
+  /**
+   * The run's tool execution mode (`AgentRunOptions.toolExecution`): absent or `'serial'` = a
+   * step's pending calls run one at a time, in call order, after the step's stream has ended —
+   * the loop allocates nothing for the mode. `'eager'` starts each call's whole pipeline (span,
+   * validation, execution, `processError`) the moment its tool-call chunk streams in,
+   * overlapping the rest of the stream; results still emit in call order after the step's
+   * finish chunk.
+   */
+  readonly toolExecution?: ToolExecution | undefined;
   /**
    * The run's structured-output option (`AgentRunOptions.structuredOutput`), present only when the
    * run asked for one: the run's terminal text is parsed as JSON and validated against the schema,
@@ -160,7 +169,6 @@ export async function* runAgentLoop(
   const {
     models,
     callOptions,
-    tools,
     maxSteps,
     requestContext,
     processors,
@@ -218,6 +226,17 @@ export async function* runAgentLoop(
     /** The step's finish — the model's own, or the synthesized one of a resumed step. */
     let finishChunk: FinishChunk;
     let firstChunkMs: number | undefined;
+    /**
+     * The step's in-flight eager calls, keyed by tool call id (`AgentRunOptions.toolExecution`):
+     * present only in an eager run's streamed steps, so the serial loop allocates nothing.
+     * Entries are created as tool-call chunks stream in and awaited in call order when the step's
+     * results emit; whatever remains at the step's end (a thrown step, a call the provider
+     * answered itself) is settled in the step's `finally`, before the step span closes.
+     */
+    const eagerInFlight =
+      resuming || options.toolExecution !== 'eager'
+        ? undefined
+        : new Map<string, Promise<ToolResultChunk>>();
 
     if (resuming) {
       const assistant = prompt.at(-1);
@@ -288,6 +307,16 @@ export async function* runAgentLoop(
                 break;
               case 'tool-call':
                 toolCalls.push(chunk);
+                // Eager execution (`AgentRunOptions.toolExecution`): the call's whole pipeline
+                // starts the moment its chunk has streamed in, overlapping the rest of the
+                // stream — results still emit in call order below. A resume's pre-answered call
+                // never executes. The call's span hangs under the serving candidate's.
+                if (eagerInFlight !== undefined && answers?.has(chunk.toolCallId) !== true) {
+                  eagerInFlight.set(
+                    chunk.toolCallId,
+                    runToolCall(options, candidateSpan, chunk, stepIndex),
+                  );
+                }
                 yield chunk;
                 break;
               case 'tool-result':
@@ -336,8 +365,13 @@ export async function* runAgentLoop(
         } finally {
           // A candidate that did not serve the step is over here: its span carries the failure (or
           // the abandoned attempt) and closes. The serving candidate's span stays open for its
-          // tools, which hang under it.
-          if (served === undefined) candidateSpan?.end();
+          // tools, which hang under it. If the failed candidate already streamed tool-call chunks,
+          // their eager calls may be in flight — settle them before the failure (or the
+          // abandonment) propagates, so no rejection escapes unhandled.
+          if (served === undefined) {
+            candidateSpan?.end();
+            if (eagerInFlight !== undefined) await Promise.allSettled(eagerInFlight.values());
+          }
         }
       }
 
@@ -439,27 +473,11 @@ export async function* runAgentLoop(
           yield preAnswered;
           continue;
         }
-        // A resumed step has no step span (it made no model call): its tool calls hang under the
-        // run span of the resumed segment, the same `agent-run` span the rest of it reports to.
-        const toolSpan = startToolCallSpan(options, stepSpan ?? runSpan, call);
-        const outcome = await executeToolCall(tools, call, requestContext, toolSpan);
-        let result: ToolResultChunk;
-        if ('result' in outcome) {
-          result = outcome.result;
-        } else {
-          // The failure walks the processors' error chain before the error tool result is built;
-          // the replacement is the error the model sees (and the span records).
-          const failure = await runProcessError(
-            processors,
-            outcome.failure.error,
-            { source: 'tool', stepIndex, toolCall: call },
-            requestContext,
-          );
-          result = toolResult(call, outcome.failure.toMessage(failure), true);
-          toolSpan?.error(failure);
-        }
-        toolSpan?.update({ output: result.output });
-        toolSpan?.end();
+        // Eager calls already run their whole pipeline (started when their chunk streamed in);
+        // awaiting them in call order here is what keeps emission deterministic. A serial run
+        // starts the call here, exactly as before.
+        const result = await (eagerInFlight?.get(call.toolCallId) ??
+          runToolCall(options, stepSpan ?? runSpan, call, stepIndex));
         results.push(result);
         yield result;
       }
@@ -518,6 +536,11 @@ export async function* runAgentLoop(
       stepSpan?.error(error);
       throw error;
     } finally {
+      // An eager step's in-flight calls settle here on every exit path: the emitted ones are
+      // already awaited (`allSettled` is a no-op on them); a step that threw, or a call the
+      // provider ended up answering itself, leaves the rest to be observed so no rejection
+      // escapes unhandled — and the step span never closes under an in-flight tool span.
+      if (eagerInFlight !== undefined) await Promise.allSettled(eagerInFlight.values());
       stepSpan?.end();
     }
   }
@@ -634,6 +657,45 @@ function startToolCallSpan(
     input: call.input,
     attributes: { toolCallId: call.toolCallId },
   });
+}
+
+/**
+ * Runs one pending call's whole pipeline and resolves its result chunk: the call's span, the
+ * normalized execution, and — on a tool-line failure — the `processError` chain and the error
+ * tool result built from its replacement. The serial loop awaits it inline; eager mode
+ * (`AgentRunOptions.toolExecution`) starts it when the call's chunk streams in and awaits it in
+ * call order when the step emits its results. Tool-line failures resolve (they become results);
+ * a processor's own throw rejects (a processor failure is the run's failure).
+ *
+ * A resumed step has no step span (it made no model call): its tool calls hang under the
+ * run span of the resumed segment, the same `agent-run` span the rest of it reports to.
+ */
+async function runToolCall(
+  options: AgentLoopOptions,
+  parentSpan: Span | undefined,
+  call: ToolCallChunk,
+  stepIndex: number,
+): Promise<ToolResultChunk> {
+  const toolSpan = startToolCallSpan(options, parentSpan, call);
+  const outcome = await executeToolCall(options.tools, call, options.requestContext, toolSpan);
+  let result: ToolResultChunk;
+  if ('result' in outcome) {
+    result = outcome.result;
+  } else {
+    // The failure walks the processors' error chain before the error tool result is built;
+    // the replacement is the error the model sees (and the span records).
+    const failure = await runProcessError(
+      options.processors,
+      outcome.failure.error,
+      { source: 'tool', stepIndex, toolCall: call },
+      options.requestContext,
+    );
+    result = toolResult(call, outcome.failure.toMessage(failure), true);
+    toolSpan?.error(failure);
+  }
+  toolSpan?.update({ output: result.output });
+  toolSpan?.end();
+  return result;
 }
 
 /**
