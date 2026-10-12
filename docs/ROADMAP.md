@@ -1,6 +1,6 @@
 # 实施路线图
 
-Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件套 / 六能力包能力面,零运行时依赖)的粗粒度实施路线图:**只讲顺序、依赖与可验证产出,不含排期**。规范本体见 `docs/architecture/`(入口:`docs/architecture/README.md`),术语见 `CONTEXT.md`,决策依据见 `docs/adr/`。定位措辞两层结构(2026-10-11,ADR-0016):公开叙事 = 品类语言 + 能力广度 + 零依赖事实担纲(oribos-website 为正典),「轻量」退为内部轴名、不作公开身份词。(2026-10-11 转向重裁:ADR-0017 取代 ADR-0016——定位 = **转向追赶 mastra、轻量轴保留**;公开叙事面随转向再翻转、归后续叙事票,翻转前现行公开口径如实保留。)本图由 [决策:粗粒度实施路线图](https://github.com/0xnicholas/oribos-framework/issues/16) 产出。
+Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件套 / 六能力包能力面,零运行时依赖)的粗粒度实施路线图:**只讲顺序、依赖与可验证产出,不含排期**。规范本体见 `docs/architecture/`(入口:`docs/architecture/README.md`),术语见 `CONTEXT.md`,决策依据见 `docs/adr/`。定位措辞两层结构(2026-10-11,ADR-0016):公开叙事 = 品类语言 + 能力广度 + 零依赖事实担纲(oribos-website 为正典),「轻量」退为内部轴名、不作公开身份词。(2026-10-11 转向重裁:ADR-0017 取代 ADR-0016——定位 = **转向追赶 mastra、轻量轴保留**;公开叙事面已于 2026-10-12 随叙事票翻转,第三次定位摆动公开记录见 README 定位节,[#179](https://github.com/0xnicholas/oribos-framework/issues/179)。)本图由 [决策:粗粒度实施路线图](https://github.com/0xnicholas/oribos-framework/issues/16) 产出。
 
 ## 切分原则
 

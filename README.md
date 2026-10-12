@@ -4,11 +4,26 @@
 
 Build AI agents that run for days. Oribos is a TypeScript agent framework — agents, memory,
 workflows, and the harness trio (durable agents, signals, schedules) — with zero runtime
-dependencies: compose only what you use, run anywhere.
+dependencies: compose only what you use, run anywhere. Its roadmap now chases mastra's proven
+feature surface — inside that lightweight axis, not instead of it.
 
 > **Oribos** is the umbrella brand; this repository — **oribos-framework** — is its framework
 > subproject. Packages publish under the `@oribos/*` scope (starting with `@oribos/core`), and future
 > subprojects live alongside it.
+
+> **Positioning — third swing, stated openly (2026-10-12).** Oribos launched as an intentionally
+> divergent lightweight alternative, and on 2026-10-11 that stance was formally upheld
+> ([ADR-0016](docs/adr/0016-positioning-verdict-maintain-divergence.md)) — then reversed the same
+> day by owner decision
+> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md)): two roadmap waves had produced
+> decisions and documents but zero feature increments, leaving a no-chase roadmap with no
+> feature-side outlet. The new stance: a feature surface mastra has shipped and keeps maintaining
+> counts as demand evidence, and Oribos implements the subset of it compatible with the axis below
+> — zero runtime dependencies, opt-in everything, no resident pipelines — keeping composability as
+> the differentiator it always was. The first catch-up batch has landed (concurrent tool calls,
+> reasoning / tool-input delta frames, time-travel restart, `@oribos/supervisor`, `@oribos/evals`,
+> signal-provider webhooks, a background-task recipe); the rest of the catch-up surface is
+> sequenced on the [roadmap](docs/ROADMAP.md).
 
 > **Status:** pre-1.0. Agents, memory, workflows, the harness trio — durable agents, signals,
 > schedules — and the six M5 capability packages are implemented and verified
@@ -21,6 +36,12 @@ dependencies: compose only what you use, run anywhere.
 > 0.5.0, which was published under the previous `@balsats/*` scope and has since been
 > unpublished — install `@oribos/*` instead. 0.1.0 / 0.2 / 0.3 are **not** published
 > separately. See [Capability packages](#capability-packages-m5) for the core-external packages.
+> The first catch-up batch ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md), see the
+> Positioning note above) is implemented on `main` and
+> ships in the next release: opt-in concurrent tool calls, opt-in reasoning / tool-input delta
+> frames, time-travel restart, `@oribos/supervisor`, `@oribos/evals`, the signal-provider webhook
+> pattern, and the background-task recipe — the version number is set by the content at release
+> time, not predetermined.
 
 ## Why Oribos
 
@@ -110,8 +131,15 @@ Each subsystem lives behind its own subpath export — pull in only the ones you
 Cross-cutting concerns — guardrails, redaction, rate limiting, evals — live in exactly one place:
 **processors**, three hooks (`processInput` / `processOutputStep` / `processError`) run in
 declaration order. Multi-agent collaboration is **as-tool composition**: wrap one agent into a
-tool and hang it on another; delegation is an ordinary tool call, and there is no supervisor
-protocol or sub-agent concept in the core.
+tool and hang it on another; delegation is an ordinary tool call. The core has no supervisor
+protocol or sub-agent concept — [`@oribos/supervisor`](#capability-packages-m5) packages the
+pattern; see [Capability packages](#capability-packages-m5).
+
+Two additive run options extend a run without touching its defaults: `toolExecution: 'eager'`
+starts each tool call the moment its arguments finish streaming (results are still emitted in
+call order), and `deltas: { reasoning, toolInput }` emits incremental reasoning and tool-input
+chunks alongside the default four-frame chunk protocol — consumers that ignore them see the same
+run.
 
 ### Memory — `@oribos/core/memory`
 
@@ -167,7 +195,10 @@ const outcome = await workflow
 The builder compiles to a flat entry list interpreted by a for-loop walker — not a DAG. Every
 boundary (start input, step input, resume data) is validated against its Standard Schema.
 `suspend` / `resume` rest on JSON snapshots at step boundaries, persisted through a storage port
-(in-memory by default).
+(in-memory by default). `run.restart({ step })` is time-travel for a snapshotted run: the records
+at and after the chosen step are truncated and the walk re-enters from there, continuing the same
+trace — omit the step and the whole run re-executes from its start input. It is the load →
+re-enter primitive of `resume` as a thin variant: no new ports, no resume data.
 
 ### Observability — `@oribos/core/observability`
 
@@ -238,7 +269,7 @@ parsing never enters the core. A trigger is either threadless (`agent.generate`)
 | `@oribos/core/model` | the model contract and chunk protocol types |
 | `@oribos/core/tools` | `createTool` and the tool types |
 | `@oribos/core/memory` | `Memory`, `createInMemoryStore`, the memory storage ports |
-| `@oribos/core/workflows` | `createWorkflow`, `createStep`, snapshot store |
+| `@oribos/core/workflows` | `createWorkflow`, `createStep`, snapshot store, `restart` (time-travel) |
 | `@oribos/core/observability` | `createTracer`, console / memory exporters, span types |
 | `@oribos/core/signals` | `createSignals` — inject / wake / queue on a thread |
 | `@oribos/core/durable-agent` | `createDurableAgent`, the approval gate, `AgentRunSnapshotStore` |
@@ -266,6 +297,14 @@ out together under the `@oribos/*` scope, the first Oribos-named release (see
 The bunfold memory bridge was evaluated and ruled out for now; its reopen conditions live in the
 roadmap's deferred list. Packaging and dependency-redline rules are in
 [ADR-0002](docs/adr/0002-package-structure.md) and [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md).
+
+Two catch-up packages have landed since M5 (see the Positioning note above), both dependency-free
+and shipping in the next release:
+
+| Package | What it gives you | Spec |
+| --- | --- | --- |
+| `@oribos/supervisor` | sub-agents as delegation tools — one `createSupervisor` factory over the public as-tool surface, zero new core seams | [agent.md](docs/architecture/agent.md) |
+| `@oribos/evals` | scorers as plain `{ name, score }` objects — wired per-step through a processor, or scoring a settled run after the fact | [agent.md](docs/architecture/agent.md) |
 
 ## Examples
 

@@ -4,10 +4,22 @@
 
 构建能连续运行数天的 AI 智能体。Oribos 是一个 TypeScript 智能体框架——涵盖 agents、memory、
 workflows,以及 harness 三件套(durable agents、signals、schedules)——且**零运行时依赖**:
-只组合你用到的部分,随处运行。
+只组合你用到的部分,随处运行。路线图如今追赶 mastra 已验证的功能面——在这条轻量轴之内,
+而不是取代它。
 
 > **Oribos** 是伞形品牌;本仓库——**oribos-framework**——是其框架子项目。包以 `@oribos/*`
 > scope 发布(始于 `@oribos/core`),后续子项目将与之并列。
+
+> **定位——第三次摆动,如实写明(2026-10-12)。** Oribos 起步时是一个有意分叉的轻量替代品,
+> 2026-10-11 当天该立场先被正式裁定维持
+> ([ADR-0016](docs/adr/0016-positioning-verdict-maintain-divergence.md)),随后又被 owner 决策
+> 推翻([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md)):两波路线图工作产出的
+> 全部是判定与文档、零功能增量,「不追赶」纪律下的路线图没有功能面出口。新立场:mastra
+> 已实装且持续维护的功能面计为需求证据,Oribos 实现其中与下方轴线兼容的子集——零运行时
+> 依赖、一切 opt-in、无常驻管线——按需组合这一差异轴原样保留。首批追赶件已落地(多工具
+> 并发调用、推理 / 工具参数增量帧、time-travel restart、`@oribos/supervisor`、
+> `@oribos/evals`、signal-provider webhook、后台任务配方);追赶面其余部分见
+> [路线图](docs/ROADMAP.md)排序。
 
 > **状态:** 1.0 之前。Agents、memory、workflows、harness 三件套(durable agents、signals、
 > schedules)以及六个 M5 能力包均已实现并验证([路线图](docs/ROADMAP.md))。**0.6.0 已发布**:
@@ -17,7 +29,11 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 > [ADR-0013](docs/adr/0013-naming-and-branding.md))。它覆盖本 README 描述的一切
 > (M1–M5 外加一轮加固)。它取代 0.5.0——后者以旧 `@balsats/*` scope 发布且现已撤下,
 > 请改用 `@oribos/*`。0.1.0 / 0.2 / 0.3 **未**单独发布。核心之外的包见
-> [能力包](#能力包m5)。
+> [能力包](#能力包m5)。首批追赶件
+> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md),见上文「定位」)已在 `main`
+> 落地,随下一次发布:opt-in 多工具并发调用、opt-in 推理 / 工具参数增量帧、time-travel
+> restart、`@oribos/supervisor`、`@oribos/evals`、signal-provider webhook 形态、后台任务配方
+> ——版本号按发布时的实际内容定,不预占。
 
 ## 为什么选择 Oribos
 
@@ -101,8 +117,14 @@ console.log(await result.finishReason, await result.usage);
 `Agent` 把模型、instructions 和 tools 包装成可以 `generate()` / `stream()` 的对象。横切关注点
 ——guardrails、脱敏、限流、evals——只住在一个地方:**processors**,三个钩子
 (`processInput` / `processOutputStep` / `processError`)按声明顺序运行。多智能体协作就是
-**as-tool 组合**:把一个 agent 包成 tool,挂到另一个 agent 上;委托就是一次普通的工具调用,
-核心里没有 supervisor 协议,也没有子智能体概念。
+**as-tool 组合**:把一个 agent 包成 tool,挂到另一个 agent 上;委托就是一次普通的工具调用。
+核心里没有 supervisor 协议,也没有子智能体概念——[`@oribos/supervisor`](#能力包m5) 把这个
+模式打包成了能力包;见[能力包](#能力包m5)。
+
+两个 additive 的 run options 在不动默认值的前提下扩展一次运行:`toolExecution: 'eager'`
+让每个工具调用在参数流完的瞬间即启动(结果仍按调用顺序发射);`deltas: { reasoning,
+toolInput }` 在默认四帧 chunk 协议之外发射推理与工具参数的增量帧——不消费它们的一方看到的
+仍是同一次运行。
 
 ### Memory — `@oribos/core/memory`
 
@@ -155,7 +177,10 @@ const outcome = await workflow
 
 builder 编译为一张扁平的条目列表,由一个 for 循环解释执行——不是 DAG。每条边界(启动输入、
 步骤输入、resume 数据)都对照其 Standard Schema 校验。`suspend` / `resume` 依托步骤边界处的
-JSON 快照,通过一个存储端口持久化(默认内存)。
+JSON 快照,通过一个存储端口持久化(默认内存)。`run.restart({ step })` 是快照 run 的
+time-travel:目标步骤处及其之后的记录被截断,walk 从那里重进,并续接同一条 trace——省略
+step 则整个 run 从启动输入重新执行。它是 `resume` 的 load → 重进原语的薄变种:零新端口、
+无 resume 数据。
 
 ### 可观测性 — `@oribos/core/observability`
 
@@ -222,7 +247,7 @@ await schedules.tick(); // 列出到期的 → 触发 → 推进 nextFireAt
 | `@oribos/core/model` | 模型契约与 chunk 协议类型 |
 | `@oribos/core/tools` | `createTool` 与工具类型 |
 | `@oribos/core/memory` | `Memory`、`createInMemoryStore`、memory 存储端口 |
-| `@oribos/core/workflows` | `createWorkflow`、`createStep`、快照存储 |
+| `@oribos/core/workflows` | `createWorkflow`、`createStep`、快照存储、`restart`(time-travel) |
 | `@oribos/core/observability` | `createTracer`、console / memory exporter、span 类型 |
 | `@oribos/core/signals` | `createSignals`——在 thread 上注入 / 唤醒 / 排队 |
 | `@oribos/core/durable-agent` | `createDurableAgent`、审批闸门、`AgentRunSnapshotStore` |
@@ -248,6 +273,13 @@ scope 一起发出,是首个以 Oribos 命名的发布(见[状态](#状态)):
 bunfold memory 桥经过评估,暂不采用;重新开启的条件列在路线图的延期清单里。打包与依赖红线
 规则见 [ADR-0002](docs/adr/0002-package-structure.md) 和
 [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md)。
+
+M5 之后又落地了两个追赶包(见上文「定位」),均零依赖、随下一次发布:
+
+| 包 | 提供什么 | 规范 |
+| --- | --- | --- |
+| `@oribos/supervisor` | 子 agent 即委派工具——公开 as-tool 表面上的单个 `createSupervisor` 工厂,核心零新缝 | [agent.md](docs/architecture/agent.md) |
+| `@oribos/evals` | scorer 即普通 `{ name, score }` 对象——经 processor 逐步接线,或对已收束的整跑事后打分 | [agent.md](docs/architecture/agent.md) |
 
 ## 示例
 
