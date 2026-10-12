@@ -55,6 +55,8 @@ Processor 是 Agent 的**唯一横切扩展点**(ADR-0005):guardrails、evals、
 
 Processor 钩子自身抛错即 run 失败,不再交给 `processError`(处理器不互相处理)。chunk 级流式 processor(processOutputStream 类)裁出 v1,保留向后扩展位。Observability 的 tracer 挂钩是内部缝(见 `docs/architecture/observability.md`),不占 Processor 名额。
 
+evals 的标准化承载 = `@oribos/evals` 能力包(2026-10-12,#176,CUT-AG1 行):`createScorerProcessor({ scorers, onScore })` 把 per-step scorer 接进 `processOutputStep`——只观察不改写,scorer 故障落 `ok: false` 条目而不炸 run(硬停类 guardrail 仍归手写 processor);`scoreRun` 事后整跑打分,消费 run 终值公开面(generate 终值与 stream 输出对象同一入口)。核心零新缝、零改动。
+
 ## 多 agent 组合
 
 **规范形态 = as-tool 组合,核心零内建协议**(ADR-0012,正式了结 ADR-0005 的暂缓项):Agent 不认识 sub-agent,无 `agents` 字段、无委派协议。组合 = 把 Agent 包装为 Tool 挂进父 agent 容器——`description` + `generate` 签名天然是一个 Tool 的 execute。Tool 的 description 是构造期静态字符串,故动态 description 在包装处用 `resolveDynamicArgument` 取值(包装本身可以是父 agent 动态 `tools` 解析器里的一次逐请求构造),委派 run 的输入仍由包装器显式构造:
@@ -88,7 +90,7 @@ const researcherAsTool = async (ctx: RequestContext) =>
 | **A3** `structuredOutput` 只 strict | `processError` / `processOutputStep` 承载重试与修补 | 有意分叉 | 失败即报错、不静默降级、不做修复轮;与工具校验「失败即报错」同调(ADR-0005;`docs/architecture/tools.md` 校验语义) |
 | **A6** `maxSteps` 耗尽 → `finishReason: 'tool-calls'` | `steps[]` + `usage` 可判「第 N 步仍在要求工具」 | 有意分叉 | 截断信号归框架、不 relay provider 原始 reason,`finishReason` 五值冻结(ADR-0005 / 0004) |
 | **A2** 同一步多工具**串行** | run options additive 的 opt-in 开关,默认串行不变 | **转追赶项**(2026-10-12,#164) | mastra 1.71 eager execution(实装未弃)= ADR-0017 需求证据,触发行自钉预案;默认串行的 determinism / abort 语义保留,差异收窄为默认哪边(ADR-0005);实施票归实施地图(不进本图) |
-| **CUT-AG1** scorers / evals | Processor 或独立 scorer 消费 run 结果(`steps` / `text` / `usage` 均公开面) | **转追赶项**(2026-10-11,#161) | 证据 = mastra scorers 挂 Agent 配置 + 独立评估包,实装存在且未弃(落地页 FAQ 位是营销动作,不计也不需要);零负担;验证面 = 独立 scorer 能力包 + Processor 接线,scorer 单测 + 接线 example;**首批候选**(与既有缝最近层,#161)。原分叉理由(evals 超出 agent 定义表面、Processor 三钩唯一横切点)作为承载缝纪律保留(ADR-0005);延后清单「Evals / scorers」 |
+| **CUT-AG1** scorers / evals | Processor 或独立 scorer 消费 run 结果(`steps` / `text` / `usage` 均公开面) | 转追赶项(2026-10-11,#161)→ **已兑现**(2026-10-12,#176:`@oribos/evals` 落地——`scoreRun` 事后整跑(generate 终值 / stream 输出对象同一入口)+ `createScorerProcessor` per-step 接线(只观察不改写,scorer 故障落 ok:false 不炸 run),核心零改动;验证面 = scorer 单测 + `examples/agent-evals` 接线例) | 证据 = mastra scorers 挂 Agent 配置 + 独立评估包,实装存在且未弃(落地页 FAQ 位是营销动作,不计也不需要);零负担;验证面 = 独立 scorer 能力包 + Processor 接线,scorer 单测 + 接线 example;**首批候选**(与既有缝最近层,#161)。原分叉理由(evals 超出 agent 定义表面、Processor 三钩唯一横切点)作为承载缝纪律保留(ADR-0005);延后清单「Evals / scorers」 |
 | **CUT-AG2** voice / browser / channels / workspace / skills | 能力包 / 应用层;`browser` 具名入延后清单出域档行,`skills` → [#84](https://github.com/0xnicholas/oribos-framework/issues/84) | **维持分叉、理由改写**(2026-10-11,#160) | 证据成立(mastra 渠道解析器 1.72 起运行时热更新,实装未弃),但 = 产品 / 生态面;voice 附装率 1.5%(全清单最薄,#150)且与「无运行时负担」直接冲突;六项与「定义表面最小 + 零权限模型」立场一致的判断不动(ADR-0005);延后清单「channels / voice / …」行 |
 | **CUT-AG3** editor / rawConfig | 应用层 / 宿主工具链 | **维持分叉、理由改写**(2026-10-11,#160) | 证据成立(mastra Editor = agent 的 CMS:DB/code 双轨 + draft/published;Studio 云化持续活跃),但 = 托管产品 / 协作面,撞「嵌入宿主而不接管」;stored agents 无需框架能力(agent 配置 = 普通对象,宿主自有 DB 存取即可,**无缝可承**),不拆行(ADR-0005);延后清单「Studio / editor / stored agents」行 |
 | **CUT-AG4** durable / pubsub / backgroundTasks / signals / goal / notifications | **已落三件**:durable / signals / 进程内 pubsub → 独立子系统已冻结(`docs/architecture/harness.md`,ADR-0011);**已裁三件**:backgroundTasks → 转追赶项(分两期,#161)、goals → 维持分叉但理由改写(thread 状态域前置缺席,#161)、notifications → 出域(#160) | **维持分叉、理由改写**(2026-10-12,#168) | 「已兑现 + 有意分叉」旧表述随六件分流消除;「砍的是字段位置」的原表述随 durable / signals 出账失效(ADR-0005 / 0011) |

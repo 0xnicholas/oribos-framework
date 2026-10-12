@@ -23,4 +23,5 @@
 > | `@oribos/ai-sdk` | [model.md](model.md)「AI SDK 互操作能力包(M5 设计冻结)」 |
 > | `@oribos/croner` | [harness.md](harness.md)「croner 封装能力包」 |
 > | `@oribos/supervisor` | [agent.md](agent.md)「多 agent 组合」(追赶面首批落地,2026-10-12 [#175](https://github.com/0xnicholas/oribos-framework/issues/175)) |
+> | `@oribos/evals` | [agent.md](agent.md)「扩展点:Processor」(追赶面首批落地,2026-10-12 [#176](https://github.com/0xnicholas/oribos-framework/issues/176)) |
 > | bunfold 桥(**已裁**,不建包;[#79](https://github.com/0xnicholas/oribos-framework/issues/79)) | [memory.md](memory.md)「外部记忆引擎(M5 裁定:不产桥接包)」 |

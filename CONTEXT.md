@@ -85,7 +85,7 @@ _Avoid_: iteration、loop iteration(规范统一用 step)
 _Avoid_: generate/stream 分离的双实现、两套流协议
 
 **Processor**:
-Agent 的唯一横切扩展点:挂在 `AgentConfig.processors` 上、按声明顺序串行执行的三钩处理器(processInput / processOutputStep / processError),前一个的返回是后一个的输入;guardrails、evals、脱敏、限流等横切能力的唯一合法承载点。
+Agent 的唯一横切扩展点:挂在 `AgentConfig.processors` 上、按声明顺序串行执行的三钩处理器(processInput / processOutputStep / processError),前一个的返回是后一个的输入;guardrails、evals、脱敏、限流等横切能力的唯一合法承载点。evals 的标准化封装 = `@oribos/evals` 能力包(`scoreRun` 事后整跑 + `createScorerProcessor` per-step 接线,只观察不改写,2026-10-12 #176)。
 _Avoid_: 中间件、plugin、以字段形式焊进 Agent 类
 
 **工具 (Tool)**:

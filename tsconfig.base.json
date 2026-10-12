@@ -24,6 +24,7 @@
       "@oribos/core/*": ["./packages/core/src/*/index.ts"],
       "@oribos/ai-sdk": ["./packages/ai-sdk/src/index.ts"],
       "@oribos/croner": ["./packages/croner/src/index.ts"],
+      "@oribos/evals": ["./packages/evals/src/index.ts"],
       "@oribos/mcp-client": ["./packages/mcp-client/src/index.ts"],
       "@oribos/mcp-server": ["./packages/mcp-server/src/index.ts"],
       "@oribos/otlp": ["./packages/otlp/src/index.ts"],

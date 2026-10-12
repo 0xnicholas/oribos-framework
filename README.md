@@ -294,6 +294,7 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 | [`otlp-collector`](examples/otlp-collector/) | a traced agent run landing in a local collector as GenAI semconv spans |
 | [`cron-schedule`](examples/cron-schedule/) | a cron expression as the injected `next` fragment: save, occurrences advance, `tick` fires |
 | [`agent-supervisor`](examples/agent-supervisor/) | `@oribos/supervisor`: sub-agents as delegation tools — constructed input, bare-text results, one trace |
+| [`agent-evals`](examples/agent-evals/) | `@oribos/evals`: scorers wired live through the Processor seam, the settled run scored after the fact |
 
 ## Documentation
 
@@ -314,10 +315,10 @@ pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surfac
 The offline examples are gated too — the same gate CI runs, one step after `verify`:
 
 ```bash
-pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools (HTTP + stdio) / workflow-time-travel / agent-supervisor
+pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools (HTTP + stdio) / workflow-time-travel / agent-supervisor / agent-evals
 ```
 
-It runs the six offline entries serially, streams each one's output and exits non-zero if any fails
+It runs the seven offline entries serially, streams each one's output and exits non-zero if any fails
 (`pnpm build` first: examples consume the packages through their built exports).
 
 The byte budget (minified size per export path) is checked in CI on every PR — a checked

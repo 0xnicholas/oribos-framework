@@ -33,6 +33,18 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  examples/agent-evals:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/evals':
+        specifier: workspace:*
+        version: link:../../packages/evals
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   examples/agent-supervisor:
     dependencies:
       '@oribos/core':
@@ -203,6 +215,15 @@ importers:
       croner:
         specifier: 10.0.1
         version: 10.0.1
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
+
+  packages/evals:
     devDependencies:
       '@oribos/core':
         specifier: workspace:*
