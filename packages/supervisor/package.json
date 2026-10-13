@@ -1,8 +1,15 @@
 {
   "name": "@oribos/supervisor",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Oribos supervisor capability package — createSupervisor composes sub-agents as delegation tools on one parent agent (the standardized as-tool composition), no dependencies beyond the @oribos/core peer.",
-  "keywords": ["ai-agents", "llm", "typescript", "multi-agent", "supervisor", "delegation"],
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "multi-agent",
+    "supervisor",
+    "delegation"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,

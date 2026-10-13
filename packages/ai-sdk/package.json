@@ -1,8 +1,15 @@
 {
   "name": "@oribos/ai-sdk",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Oribos AI SDK interop — the agent's chunk stream as an AI SDK UI message stream (useChat-compatible routes), zero runtime dependencies.",
-  "keywords": ["ai-agents", "llm", "typescript", "ai-sdk", "usechat", "streaming"],
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "ai-sdk",
+    "usechat",
+    "streaming"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
