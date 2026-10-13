@@ -26,22 +26,20 @@ feature surface — inside that lightweight axis, not instead of it.
 > sequenced on the [roadmap](docs/ROADMAP.md).
 
 > **Status:** pre-1.0. Agents, memory, workflows, the harness trio — durable agents, signals,
-> schedules — and the six M5 capability packages are implemented and verified
-> ([roadmap](docs/ROADMAP.md)). **0.6.0 is published**: all seven packages are on npm
-> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the six capability
-> packages), out together under a single `v0.6.0` tag — the first release under the
-> `@oribos/*` scope, carrying the renamed wire surface (OTel attribute family,
-> environment-variable prefix, service name; [ADR-0013](docs/adr/0013-naming-and-branding.md)).
-> It covers everything this README describes (M1–M5 plus a hardening pass). It supersedes
-> 0.5.0, which was published under the previous `@balsats/*` scope and has since been
-> unpublished — install `@oribos/*` instead. 0.1.0 / 0.2 / 0.3 are **not** published
-> separately. See [Capability packages](#capability-packages-m5) for the core-external packages.
-> The first catch-up batch ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md), see the
-> Positioning note above) is implemented on `main` and
-> ships in the next release: opt-in concurrent tool calls, opt-in reasoning / tool-input delta
-> frames, time-travel restart, `@oribos/supervisor`, `@oribos/evals`, the signal-provider webhook
-> pattern, and the background-task recipe — the version number is set by the content at release
-> time, not predetermined.
+> schedules — and the eight capability packages are implemented and verified
+> ([roadmap](docs/ROADMAP.md)). **0.7.0 is published**: all nine packages are on npm
+> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the eight capability
+> packages), out together under a single `v0.7.0` tag — the first **catch-up** release
+> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md), see the Positioning note
+> above): opt-in concurrent tool calls, opt-in reasoning / tool-input delta frames, time-travel
+> restart, `@oribos/supervisor`, `@oribos/evals`, the signal-provider webhook pattern, and the
+> background-task recipe — all additive, no breaking changes. It supersedes 0.6.0, the first
+> `@oribos/*` release, which carried the renamed wire surface (OTel attribute family,
+> environment-variable prefix, service name; [ADR-0013](docs/adr/0013-naming-and-branding.md))
+> and the M1–M5 line plus a hardening pass; 0.5.0 was published under the previous
+> `@balsats/*` scope and has since been unpublished — install `@oribos/*` instead. 0.1.0 /
+> 0.2 / 0.3 are **not** published separately. See
+> [Capability packages](#capability-packages-m5) for the core-external packages.
 
 ## Why Oribos
 
@@ -69,9 +67,9 @@ from the AI SDK provider ecosystem — no adapters, no registries.
 npm install @oribos/core zod @ai-sdk/openai
 ```
 
-Requires `0.6.0` or later — the first `@oribos/*` release; the earlier 0.5.0 line was published
-under the previous `@balsats/*` scope and has since been unpublished. See [Status](#status)
-for what 0.6.0 covers. To work on this repo itself, follow [Development](#development).
+Requires `0.6.0` or later — the earlier 0.5.0 line was published under the previous
+`@balsats/*` scope and has since been unpublished. See [Status](#status)
+for what 0.7.0 covers. To work on this repo itself, follow [Development](#development).
 
 ## Quick start
 
@@ -281,9 +279,9 @@ Capability packages that carry external dependencies ship as separate `@oribos/<
 packages — install only what you use. All six are implemented and verified: unit tests in
 `pnpm verify`, five end-to-end examples covering all six (see [Examples](#examples)), and
 minified byte budgets plus dependency-closure baselines where there is a dependency to measure
-([roadmap](docs/ROADMAP.md), M5). All six ship in the `0.6.0` release — all seven packages went
-out together under the `@oribos/*` scope, the first Oribos-named release (see
-[Status](#status)):
+([roadmap](docs/ROADMAP.md), M5). All six shipped in the 0.6.0 release; the two catch-up
+packages below followed in 0.7.0 — all nine packages are now out together under the
+`@oribos/*` scope (see [Status](#status)):
 
 | Package | What it gives you | Spec |
 | --- | --- | --- |
@@ -298,8 +296,8 @@ The bunfold memory bridge was evaluated and ruled out for now; its reopen condit
 roadmap's deferred list. Packaging and dependency-redline rules are in
 [ADR-0002](docs/adr/0002-package-structure.md) and [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md).
 
-Two catch-up packages have landed since M5 (see the Positioning note above), both dependency-free
-and shipping in the next release:
+Two catch-up packages have landed since M5 (see the Positioning note above), both
+dependency-free, published in 0.7.0:
 
 | Package | What it gives you | Spec |
 | --- | --- | --- |

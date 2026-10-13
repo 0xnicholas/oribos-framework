@@ -22,18 +22,16 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 > [路线图](docs/ROADMAP.md)排序。
 
 > **状态:** 1.0 之前。Agents、memory、workflows、harness 三件套(durable agents、signals、
-> schedules)以及六个 M5 能力包均已实现并验证([路线图](docs/ROADMAP.md))。**0.6.0 已发布**:
-> 全部七个包均已上架 npm([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) 加上六个
-> 能力包),统一以 `v0.6.0` 标签发布——这是 `@oribos/*` scope 下的首个发布,包含更名的线上
-> 接口面(OTel 属性族、环境变量前缀、服务名;见
-> [ADR-0013](docs/adr/0013-naming-and-branding.md))。它覆盖本 README 描述的一切
-> (M1–M5 外加一轮加固)。它取代 0.5.0——后者以旧 `@balsats/*` scope 发布且现已撤下,
-> 请改用 `@oribos/*`。0.1.0 / 0.2 / 0.3 **未**单独发布。核心之外的包见
-> [能力包](#能力包m5)。首批追赶件
-> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md),见上文「定位」)已在 `main`
-> 落地,随下一次发布:opt-in 多工具并发调用、opt-in 推理 / 工具参数增量帧、time-travel
-> restart、`@oribos/supervisor`、`@oribos/evals`、signal-provider webhook 形态、后台任务配方
-> ——版本号按发布时的实际内容定,不预占。
+> schedules)以及八个能力包均已实现并验证([路线图](docs/ROADMAP.md))。**0.7.0 已发布**:
+> 全部九个包均已上架 npm([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) 加上八个
+> 能力包),统一以 `v0.7.0` 标签发布——首个**追赶版**发布
+> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md),见上文「定位」):opt-in
+> 多工具并发调用、opt-in 推理 / 工具参数增量帧、time-travel restart、`@oribos/supervisor`、
+> `@oribos/evals`、signal-provider webhook 形态、后台任务配方——全部 additive、零破型。它取代
+> 0.6.0——后者是 `@oribos/*` scope 下的首个发布,承载更名后的线上接口面(OTel 属性族、
+> 环境变量前缀、服务名;见 [ADR-0013](docs/adr/0013-naming-and-branding.md))及 M1–M5 外加
+> 一轮加固;0.5.0 以旧 `@balsats/*` scope 发布且现已撤下,请改用 `@oribos/*`。0.1.0 /
+> 0.2 / 0.3 **未**单独发布。核心之外的包见[能力包](#能力包m5)。
 
 ## 为什么选择 Oribos
 
@@ -58,8 +56,8 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 npm install @oribos/core zod @ai-sdk/openai
 ```
 
-要求 `0.6.0` 或更高——`@oribos/*` scope 下的首个发布;更早的 0.5.0 系列以旧 `@balsats/*`
-scope 发布且现已撤下。0.6.0 覆盖的内容见[状态](#状态)。若要在本仓库上开发,请参阅
+要求 `0.6.0` 或更高——更早的 0.5.0 系列以旧 `@balsats/*` scope 发布且现已撤下。0.7.0 覆盖的
+内容见[状态](#状态)。若要在本仓库上开发,请参阅
 [开发](#开发)。
 
 ## 快速上手
@@ -258,8 +256,8 @@ await schedules.tick(); // 列出到期的 → 触发 → 推进 nextFireAt
 携带外部依赖的能力包以独立的 `@oribos/<capability>` 包发布——用哪个装哪个。六个全部已实现
 并验证:`pnpm verify` 中的单元测试、覆盖全部六个包的五个端到端示例(见
 [示例](#示例)),以及在存在依赖可测之处设有压缩后字节预算和依赖闭包基线
-([路线图](docs/ROADMAP.md),M5)。六个全部随 `0.6.0` 发布——七个包统一以 `@oribos/*`
-scope 一起发出,是首个以 Oribos 命名的发布(见[状态](#状态)):
+([路线图](docs/ROADMAP.md),M5)。六个随 `0.6.0` 首发;下面两个追赶包随 `0.7.0` 跟进——九个包
+现已统一以 `@oribos/*` scope 发出(见[状态](#状态)):
 
 | 包 | 提供什么 | 规范 |
 | --- | --- | --- |
@@ -274,7 +272,7 @@ bunfold memory 桥经过评估,暂不采用;重新开启的条件列在路线图
 规则见 [ADR-0002](docs/adr/0002-package-structure.md) 和
 [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md)。
 
-M5 之后又落地了两个追赶包(见上文「定位」),均零依赖、随下一次发布:
+M5 之后又落地了两个追赶包(见上文「定位」),均零依赖、已随 `0.7.0` 发布:
 
 | 包 | 提供什么 | 规范 |
 | --- | --- | --- |
