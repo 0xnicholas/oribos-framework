@@ -4,8 +4,8 @@
 
 Build AI agents that run for days. Oribos is a TypeScript agent framework — agents, memory,
 workflows, and the harness trio (durable agents, signals, schedules) — with zero runtime
-dependencies: compose only what you use, run anywhere. Its roadmap now chases mastra's proven
-feature surface — inside that lightweight axis, not instead of it.
+dependencies: compose only what you use, run anywhere. Its roadmap now chases a feature surface
+already proven in the ecosystem — inside that lightweight axis, not instead of it.
 
 > **Oribos** is the umbrella brand; this repository — **oribos-framework** — is its framework
 > subproject. Packages publish under the `@oribos/*` scope (starting with `@oribos/core`), and future
@@ -15,10 +15,11 @@ feature surface — inside that lightweight axis, not instead of it.
 > divergent lightweight alternative, and on 2026-10-11 that stance was formally upheld
 > ([ADR-0016](docs/adr/0016-positioning-verdict-maintain-divergence.md)) — then reversed the same
 > day by owner decision
-> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md)): two roadmap waves had produced
+> ([ADR-0017](docs/adr/)): two roadmap waves had produced
 > decisions and documents but zero feature increments, leaving a no-chase roadmap with no
-> feature-side outlet. The new stance: a feature surface mastra has shipped and keeps maintaining
-> counts as demand evidence, and Oribos implements the subset of it compatible with the axis below
+> feature-side outlet. The new stance: a feature surface already shipped and actively maintained
+> by a leading framework in the ecosystem counts as demand evidence, and Oribos implements the
+> subset of it compatible with the axis below
 > — zero runtime dependencies, opt-in everything, no resident pipelines — keeping composability as
 > the differentiator it always was. The first catch-up batch has landed (concurrent tool calls,
 > reasoning / tool-input delta frames, time-travel restart, `@oribos/supervisor`, `@oribos/evals`,
@@ -30,7 +31,7 @@ feature surface — inside that lightweight axis, not instead of it.
 > ([roadmap](docs/ROADMAP.md)). **0.7.0 is published**: all nine packages are on npm
 > ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the eight capability
 > packages), out together under a single `v0.7.0` tag — the first **catch-up** release
-> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md), see the Positioning note
+> ([ADR-0017](docs/adr/), see the Positioning note
 > above): opt-in concurrent tool calls, opt-in reasoning / tool-input delta frames, time-travel
 > restart, `@oribos/supervisor`, `@oribos/evals`, the signal-provider webhook pattern, and the
 > background-task recipe — all additive, no breaking changes. It supersedes 0.6.0, the first

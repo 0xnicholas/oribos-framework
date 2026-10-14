@@ -4,7 +4,7 @@
 
 构建能连续运行数天的 AI 智能体。Oribos 是一个 TypeScript 智能体框架——涵盖 agents、memory、
 workflows,以及 harness 三件套(durable agents、signals、schedules)——且**零运行时依赖**:
-只组合你用到的部分,随处运行。路线图如今追赶 mastra 已验证的功能面——在这条轻量轴之内,
+只组合你用到的部分,随处运行。路线图如今追赶已被生态验证的功能面——在这条轻量轴之内,
 而不是取代它。
 
 > **Oribos** 是伞形品牌;本仓库——**oribos-framework**——是其框架子项目。包以 `@oribos/*`
@@ -13,8 +13,8 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 > **定位——第三次摆动,如实写明(2026-10-12)。** Oribos 起步时是一个有意分叉的轻量替代品,
 > 2026-10-11 当天该立场先被正式裁定维持
 > ([ADR-0016](docs/adr/0016-positioning-verdict-maintain-divergence.md)),随后又被 owner 决策
-> 推翻([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md)):两波路线图工作产出的
-> 全部是判定与文档、零功能增量,「不追赶」纪律下的路线图没有功能面出口。新立场:mastra
+> 推翻([ADR-0017](docs/adr/)):两波路线图工作产出的
+> 全部是判定与文档、零功能增量,「不追赶」纪律下的路线图没有功能面出口。新立场:主流框架
 > 已实装且持续维护的功能面计为需求证据,Oribos 实现其中与下方轴线兼容的子集——零运行时
 > 依赖、一切 opt-in、无常驻管线——按需组合这一差异轴原样保留。首批追赶件已落地(多工具
 > 并发调用、推理 / 工具参数增量帧、time-travel restart、`@oribos/supervisor`、
@@ -25,7 +25,7 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 > schedules)以及八个能力包均已实现并验证([路线图](docs/ROADMAP.md))。**0.7.0 已发布**:
 > 全部九个包均已上架 npm([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) 加上八个
 > 能力包),统一以 `v0.7.0` 标签发布——首个**追赶版**发布
-> ([ADR-0017](docs/adr/0017-positioning-repivot-chase-mastra.md),见上文「定位」):opt-in
+> ([ADR-0017](docs/adr/),见上文「定位」):opt-in
 > 多工具并发调用、opt-in 推理 / 工具参数增量帧、time-travel restart、`@oribos/supervisor`、
 > `@oribos/evals`、signal-provider webhook 形态、后台任务配方——全部 additive、零破型。它取代
 > 0.6.0——后者是 `@oribos/*` scope 下的首个发布,承载更名后的线上接口面(OTel 属性族、
