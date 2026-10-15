@@ -1,6 +1,6 @@
 {
   "name": "@oribos/mcp-client",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos MCP client — bridge remote MCP tools into the Tool container (Streamable HTTP + stdio).",
   "keywords": [
     "ai-agents",

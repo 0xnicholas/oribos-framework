@@ -1,6 +1,6 @@
 {
   "name": "@oribos/sqlite",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos SQLite storage adapter — the four storage ports over one embedded file (node:sqlite, zero dependencies).",
   "keywords": [
     "ai-agents",

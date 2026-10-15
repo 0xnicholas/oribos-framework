@@ -1,6 +1,6 @@
 {
   "name": "@oribos/croner",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos croner wrapper — cron expressions as a schedules.save() fragment (next + timezone), no dependencies beyond an exact-pinned croner, no core peer.",
   "keywords": [
     "ai-agents",

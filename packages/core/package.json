@@ -1,6 +1,6 @@
 {
   "name": "@oribos/core",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos core — TypeScript agent framework with zero runtime dependencies: model contract, agents, tools, and observability.",
   "keywords": [
     "ai-agents",

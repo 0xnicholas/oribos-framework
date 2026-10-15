@@ -1,6 +1,6 @@
 {
   "name": "@oribos/ai-sdk",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos AI SDK interop — the agent's chunk stream as an AI SDK UI message stream (useChat-compatible routes), zero runtime dependencies.",
   "keywords": [
     "ai-agents",

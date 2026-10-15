@@ -1,6 +1,6 @@
 {
   "name": "@oribos/otlp",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos OTLP exporter — spans to GenAI semconv shape over OTLP/HTTP (protobuf or JSON), official OpenTelemetry exporter stack underneath.",
   "keywords": [
     "ai-agents",

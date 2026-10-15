@@ -1,6 +1,6 @@
 {
   "name": "@oribos/background-tasks",
-  "version": "0.0.0",
+  "version": "0.9.0",
   "description": "Oribos background-tasks capability package — application-owned background work as task rows: submit → lease → in-process execution → heartbeat → settle, with adopt() re-running orphans and untilIdle() as a package-level wait. In-memory store and lease defaults ship zero-dependency; any Redis-compatible client rides the lease's structural subset. No @oribos/core peer — the types are self-contained.",
   "keywords": [
     "ai-agents",

@@ -1,6 +1,6 @@
 {
   "name": "@oribos/inngest",
-  "version": "0.0.0",
+  "version": "0.9.0",
   "description": "Oribos inngest capability package — trigger-level durable execution: workflow start/resume ride Inngest trigger events, the walker and snapshot store stay in process (the snapshot remains the state truth), a crashed run is continued by the engine's retry re-entering from its snapshot. No dependency beyond the @oribos/core peer and an exact-pinned inngest.",
   "keywords": [
     "ai-agents",

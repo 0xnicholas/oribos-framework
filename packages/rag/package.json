@@ -1,6 +1,6 @@
 {
   "name": "@oribos/rag",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos RAG capability package — semantic recall over message history: wrap a MemoryStore to index saved messages with your embedding model and pull older relevant messages back into the recall window, no dependencies beyond the @oribos/core peer.",
   "keywords": [
     "ai-agents",

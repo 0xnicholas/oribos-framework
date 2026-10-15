@@ -1,6 +1,6 @@
 {
   "name": "@oribos/mcp-server",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Oribos MCP server — expose the Tool container over MCP (HTTP fetch handler + stdio).",
   "keywords": [
     "ai-agents",
