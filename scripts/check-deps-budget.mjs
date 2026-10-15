@@ -14,7 +14,8 @@
 // 慢链路逃生口(本地专用,不动口径):`ORIBOS_DEPS_BUDGET_REGISTRY` 把 npm 解析与体积取数
 // 一并指向同一镜像(两面同源才同闭包;镜像滞后于 pin 的版本会以 npm notarget 落成硬错误,
 // 换个镜像或走缺省)、`ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS` 放宽 npm 解析超时
-// (缺省 300 s,与 npm 自身 fetch-timeout 同量级);CI 与基线口径都走缺省值。
+// (缺省 300 s,与 npm 自身 fetch-timeout 同量级);两个出口取值非法(非 http(s) URL /
+// 非正或超上限的毫秒值)= 配置硬错误(退出 2),开跑前就地报出;CI 与基线口径都走缺省值。
 // 脚手架(开场 / 基线链 / 报表 / CI 记录面)居 gate-kit.mjs(#126),本闸门只留自己的度量与检查。
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -32,13 +33,59 @@ import {
 const METRIC = 'npm-install-closure-packages-and-unpacked-bytes';
 const BUDGET_FILE = 'deps-budget.json';
 const UPDATE_HINT = 'pnpm deps-budget:update';
-/** 口径锚定公共 registry;env 覆盖 = 慢链路逃生(镜像同源元数据,见文件头),不随用户 npm 配置漂移。 */
-const REGISTRY = process.env.ORIBOS_DEPS_BUDGET_REGISTRY ?? 'https://registry.npmjs.org';
-/** npm 解析等待上限:冷 packument 直连 npmjs 在慢链路上远超缺省值,超时即硬错误(退出 2)。 */
-const NPM_TIMEOUT_MS = Number(process.env.ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS ?? 300_000);
+const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
+const DEFAULT_NPM_TIMEOUT_MS = 300_000;
 /** 体积取数并发数:串行 = 每条一次 registry 往返,小并发只压耗时,不动条目集合与合计。 */
 const SIZE_FETCH_CONCURRENCY = 8;
 const CORE_PEER_EXEMPT = '@oribos/core';
+
+/**
+ * 出口值解析:非法 env = 配置硬错误(退出 2,ADR-0015)在起 npm 之前就地报出——
+ * 坏值不许落成 spawnSync 的调用栈(未捕获即退出码 1,撞进 CI 只容忍 1 的档)或下游怪 URL 的噪音。
+ * 缺省 / 空串走缺省值;镜像尾斜杠先剥掉,免出 `//<name>` 的双斜杠取数。
+ */
+function readRegistryEnv() {
+  const raw = process.env.ORIBOS_DEPS_BUDGET_REGISTRY?.trim();
+  if (raw === undefined || raw === '') {
+    return DEFAULT_REGISTRY;
+  }
+  const registry = raw.replace(/\/+$/, '');
+  let url;
+  try {
+    url = new URL(registry);
+  } catch {
+    hardError(
+      `ORIBOS_DEPS_BUDGET_REGISTRY 不是 URL——得到 ${JSON.stringify(raw)};给 http(s) registry 基址,或清掉它走缺省 ${DEFAULT_REGISTRY}`,
+    );
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    hardError(`ORIBOS_DEPS_BUDGET_REGISTRY 只支持 http(s)——得到 ${JSON.stringify(raw)}`);
+  }
+  return registry;
+}
+
+/**
+ * npm 解析等待上限:正整数毫秒且不超 Node 的 spawnSync 上限(2^53-1)——NaN / 0 / 非整数 /
+ * 上限外值在这里就地挡成硬错误:前几者让 spawnSync 抛范围错误(退出 1),0 又静默成了无上限。
+ */
+function readNpmTimeoutEnv() {
+  const raw = process.env.ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS?.trim();
+  if (raw === undefined || raw === '') {
+    return DEFAULT_NPM_TIMEOUT_MS;
+  }
+  const ms = Number(raw);
+  if (!Number.isSafeInteger(ms) || ms <= 0) {
+    hardError(
+      `ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS 不是可用的正整数毫秒——得到 ${JSON.stringify(raw)};给 1..${Number.MAX_SAFE_INTEGER} 的整数,或清掉它走缺省 ${DEFAULT_NPM_TIMEOUT_MS}`,
+    );
+  }
+  return ms;
+}
+
+/** 口径锚定公共 registry;env 覆盖 = 慢链路逃生(镜像同源元数据,见文件头),不随用户 npm 配置漂移。 */
+const REGISTRY = readRegistryEnv();
+/** npm 解析等待上限:冷 packument 直连 npmjs 在慢链路上远超缺省值,超时即硬错误(退出 2)。 */
+const NPM_TIMEOUT_MS = readNpmTimeoutEnv();
 
 /**
  * 单个依赖的安装闭包:空目录里 `npm install --package-lock-only` 解析(自动装 peer,
@@ -77,11 +124,12 @@ async function npmClosure(manifest, deps) {
         .map(([name, range]) => `${name}@${range}`)
         .join(', ');
       // 超时被杀时 status 与 stderr 都是空(`exit null`),给可操作的下一步;
-      // 其余失败(registry 404 / 解析冲突等)照旧原样透出。
+      // 其余失败(registry 404 / 解析冲突等)照旧原样透出;npm 起不来(如不在 PATH)连 stderr 都空,
+      // 补 spawn 层原文,别退回 `exit null`。
       const detail =
         npm.error?.code === 'ETIMEDOUT'
           ? `npm 解析超时(> ${NPM_TIMEOUT_MS / 1000} s,registry ${REGISTRY})——冷 packument 在慢链路上可能超此值;重试(缓存已热)或经 ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS / ORIBOS_DEPS_BUDGET_REGISTRY 放宽后再跑`
-          : (npm.stderr || npm.stdout || `exit ${npm.status}`).trim();
+          : (npm.stderr || npm.stdout || npm.error?.message || `exit ${npm.status}`).trim();
       hardError(`${manifest.name}:npm 解析 ${spec} 闭包失败——${detail}`);
     }
     const lock = readJsonOrHardError(join(probeDir, 'package-lock.json'));

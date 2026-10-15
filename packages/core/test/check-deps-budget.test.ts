@@ -7,7 +7,7 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
  * 依赖数字黄灯的 CLI 契约(ADR-0015 M5 修订)。测量口径要 npm/registry(网络),
  * verify 硬约束无网络(ADR-0015)——本文件只测离线可达的契约面:
  * 零依赖免基线、口径不符硬错误(退出 2)、manifest 不可读硬错误(退出 2)、workspace 范围守护、
- * npm 解析超时硬错误(退出 2,1 ms 超时起手即杀,不等网络);
+ * npm 解析超时硬错误(退出 2,1 ms 超时起手即杀,不等网络)、慢链路出口值非法硬错误(退出 2,不起 npm);
  * 网络路径(闭包实测/超基线/零引用/--update)由实施票的活体夹具与各包基线落数覆盖。
  */
 afterEach(cleanupFixtures);
@@ -89,8 +89,45 @@ describe('check-deps-budget:依赖数字比对', () => {
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('npm 解析超时');
-    expect(result.stderr).toContain('https://registry.example.test/');
+    expect(result.stderr).toContain('https://registry.example.test');
     expect(result.stderr).toContain('ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS');
+    expect(result.stderr).toContain('ORIBOS_DEPS_BUDGET_REGISTRY');
+    expect(result.stdout).toBe('');
+  });
+
+  it.each(['300s', '1e16'])(
+    '超时值 %s 非法时是配置硬错误(退出 2),不落成调用栈',
+    (value) => {
+      const dir = fixturePackage({
+        'package.json': packageManifest({ dependencies: { zod: '^4.0.0' } }),
+      });
+
+      // '300s' → NaN、'1e16' → 超 Node 的 2^53-1 上限:两者都让 spawnSync 抛范围错误、
+      // 以退出码 1 撞进 CI 的容忍档(只容忍 1)——须在这里挡住。
+      const result = runScript('check-deps-budget', [dir], {
+        ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS: value,
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS');
+      expect(result.stderr).not.toContain('\n    at ');
+      expect(result.stdout).toBe('');
+    },
+  );
+
+  it('镜像地址非法(非 http(s) URL)是配置硬错误(退出 2),不起 npm', () => {
+    const dir = fixturePackage({
+      'package.json': packageManifest({ dependencies: { zod: '^4.0.0' } }),
+    });
+
+    // 掉 scheme 的镜像基址:要在起 npm 之前挡住,不让它落成下游怪 URL 的噪音报错。
+    const result = runScript('check-deps-budget', [dir], {
+      ORIBOS_DEPS_BUDGET_REGISTRY: 'registry.example.test/npm',
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('ORIBOS_DEPS_BUDGET_REGISTRY');
+    expect(result.stderr).not.toContain('\n    at ');
     expect(result.stdout).toBe('');
   });
 
