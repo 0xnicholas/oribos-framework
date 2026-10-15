@@ -27,20 +27,25 @@ already proven in the ecosystem — inside that lightweight axis, not instead of
 > sequenced on the [roadmap](docs/ROADMAP.md).
 
 > **Status:** pre-1.0. Agents, memory, workflows, the harness trio — durable agents, signals,
-> schedules — and the fourteen capability packages are implemented and verified
-> ([roadmap](docs/ROADMAP.md)). **0.8.0 is published**: all fifteen packages are on npm
-> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the fourteen capability
-> packages), out together under a single `v0.8.0` tag — the **middle segment** of the catch-up
-> surface ([ADR-0017](docs/adr/), see the Positioning note
-> above): `@oribos/rag` semantic recall, `@oribos/resumable-stream` reconnectable streams,
-> `@oribos/model-router` string routing, `@oribos/checkpoints` per-step checkpoints with crash
-> replay, and `@oribos/otel-bridge` real OpenTelemetry spans (mapping via the shared
-> `@oribos/semconv` leaf) — all additive, no breaking changes, defaults unchanged. It
-> supersedes 0.7.0, the first **catch-up** release: opt-in concurrent tool calls, opt-in
-> reasoning / tool-input delta frames, time-travel restart, `@oribos/supervisor`,
-> `@oribos/evals`, the signal-provider webhook pattern, and the background-task recipe. That in
-> turn superseded 0.6.0, the first `@oribos/*` release, which carried the renamed wire surface
-> (OTel attribute family, environment-variable prefix, service name;
+> schedules — and the eighteen capability packages are implemented and verified
+> ([roadmap](docs/ROADMAP.md)). **0.9.0 is published**: all nineteen packages are on npm
+> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the eighteen capability
+> packages), out together under a single `v0.9.0` tag — the **closing segment** of the catch-up
+> surface, and with it the surface is complete
+> ([ADR-0017](docs/adr/), see the Positioning note
+> above): `@oribos/distributed-signals` cross-instance signals, `@oribos/inngest` an external
+> runner that outsources workflow triggers to Inngest, `@oribos/observational-memory`
+> request-inline memory compression, and `@oribos/background-tasks` coordinated background
+> work — all additive, no breaking changes, defaults unchanged. It supersedes 0.8.0, the
+> **middle segment** of the catch-up surface: `@oribos/rag` semantic recall,
+> `@oribos/resumable-stream` reconnectable streams, `@oribos/model-router` string routing,
+> `@oribos/checkpoints` per-step checkpoints with crash replay, and `@oribos/otel-bridge` real
+> OpenTelemetry spans (mapping via the shared `@oribos/semconv` leaf). That in turn superseded
+> 0.7.0, the first **catch-up** release: opt-in concurrent tool calls, opt-in reasoning /
+> tool-input delta frames, time-travel restart, `@oribos/supervisor`, `@oribos/evals`, the
+> signal-provider webhook pattern, and the background-task recipe; and 0.6.0 was the first
+> `@oribos/*` release, carrying the renamed wire surface (OTel attribute family,
+> environment-variable prefix, service name;
 > [ADR-0013](docs/adr/0013-naming-and-branding.md)) and the M1–M5 line plus a hardening pass;
 > 0.5.0 was published under the previous `@balsats/*` scope and has since been unpublished —
 > install `@oribos/*` instead. 0.1.0 / 0.2 / 0.3 are **not** published separately. See
@@ -74,7 +79,7 @@ npm install @oribos/core zod @ai-sdk/openai
 
 Requires `0.6.0` or later — the earlier 0.5.0 line was published under the previous
 `@balsats/*` scope and has since been unpublished. See [Status](#status)
-for what 0.8.0 covers. To work on this repo itself, follow [Development](#development).
+for what 0.9.0 covers. To work on this repo itself, follow [Development](#development).
 
 ## Quick start
 
@@ -285,8 +290,9 @@ packages — install only what you use. All six are implemented and verified: un
 `pnpm verify`, five end-to-end examples covering all six (see [Examples](#examples)), and
 minified byte budgets plus dependency-closure baselines where there is a dependency to measure
 ([roadmap](docs/ROADMAP.md), M5). All six shipped in the 0.6.0 release; the catch-up packages
-followed in two segments — the first batch (supervisor / evals) in 0.7.0, the middle five in
-0.8.0 — and all fifteen packages are now out together under the
+followed in three segments — the first batch (supervisor / evals) in 0.7.0, the middle five in
+0.8.0, the far layer (distributed-signals / inngest / observational-memory / background-tasks)
+in 0.9.0 — and all nineteen packages are now out together under the
 `@oribos/*` scope (see [Status](#status)):
 
 | Package | What it gives you | Spec |
@@ -303,9 +309,9 @@ The bunfold memory bridge was evaluated and ruled out for now; its reopen condit
 roadmap's deferred list. Packaging and dependency-redline rules are in
 [ADR-0002](docs/adr/0002-package-structure.md) and [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md).
 
-The catch-up packages landed in two release segments: `@oribos/supervisor` / `@oribos/evals`
-in 0.7.0 (the first batch, both dependency-free); the middle five in 0.8.0 (see
-[Status](#status)):
+The catch-up packages landed in three release segments: `@oribos/supervisor` / `@oribos/evals`
+in 0.7.0 (the first batch, both dependency-free); the middle five in 0.8.0; the far layer in
+0.9.0 (see [Status](#status)):
 
 | Package | What it gives you | Spec |
 | --- | --- | --- |
@@ -321,6 +327,16 @@ The middle segment of the catch-up surface (all opt-in, zero cost unconfigured;
 | `@oribos/resumable-stream` | reconnectable streams: an event cache records a run's stream; `observe(runId)` replays it and follows live in-process | [harness.md](docs/architecture/harness.md) |
 | `@oribos/model-router` | string routing: `'provider/model'` → model instances against a models.dev-style catalog you vendor; no registry in the core | [model.md](docs/architecture/model.md) |
 | `@oribos/checkpoints` | per-step checkpoints + crash replay: boundary checkpoints to your own store; `recover(runId)` / `recoverAll()` at boot | [harness.md](docs/architecture/harness.md) |
+
+The closing segment of the catch-up surface (all opt-in, zero cost unconfigured) — with it the
+surface is complete:
+
+| Package | What it gives you | Spec |
+| --- | --- | --- |
+| `@oribos/distributed-signals` | cross-instance signals: wrap a core `Signals` — the three send primitives route over a shared PubSub, a lease arbitrates the idle wake; streams stay local | [harness.md](docs/architecture/harness.md) |
+| `@oribos/inngest` | an external runner: workflow `start` / `resume` as Inngest trigger events while the walker and snapshot store stay in your process | [workflows.md](docs/architecture/workflows.md) |
+| `@oribos/observational-memory` | request-inline compression: wrap a `MemoryStore` — the backlog behind the recall window condenses into observations inside the triggering read | [memory.md](docs/architecture/memory.md) |
+| `@oribos/background-tasks` | coordinated background work: task rows plus a manager that leases, executes, heartbeats, settles, and adopts orphans | [harness.md](docs/architecture/harness.md) |
 
 ## Examples
 
@@ -352,6 +368,14 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 | [`agent-evals`](examples/agent-evals/) | `@oribos/evals`: scorers wired live through the Processor seam, the settled run scored after the fact |
 | [`signal-webhook`](examples/signal-webhook/) | the signal-providers pattern: a thin webhook endpoint → `sendSignal` — translate at the edge, an application-owned registry routes |
 | [`background-tasks`](examples/background-tasks/) | the background-tasks recipe — a tool that acks now, an application-owned worker, one `sendSignal` when the work lands, success and failure through the same door — plus the `@oribos/background-tasks` manager acts: `onSettle` → `sendSignal`, an orphan adopted and re-run |
+| [`semantic-recall`](examples/semantic-recall/) | `@oribos/rag`: a save hook indexes each persisted message; older relevant messages are pulled back into the recall window |
+| [`resumable-stream`](examples/resumable-stream/) | `@oribos/resumable-stream`: a client hangs up mid-stream, reconnects with the run id, and loses nothing |
+| [`model-router`](examples/model-router/) | `@oribos/model-router`: `'provider/model'` strings routed against a committed models.dev catalog cut |
+| [`crash-replay`](examples/crash-replay/) | `@oribos/checkpoints`: a real `SIGKILL` mid-run, then a new process replays from the last completed step |
+| [`otel-bridge`](examples/otel-bridge/) | `@oribos/otel-bridge`: an agent run as real OpenTelemetry spans under the host `TracerProvider` |
+| [`distributed-signals`](examples/distributed-signals/) | `@oribos/distributed-signals`: two Node processes, one thread — a `sendSignal` from one injects into the other's live run, then wakes an idle thread |
+| [`inngest`](examples/inngest/) | `@oribos/inngest`: trigger → suspend → resume → crash retry, offline through the real SDK pathway |
+| [`observational-memory`](examples/observational-memory/) | `@oribos/observational-memory`: messages leaving the recall window condense into observations and reflections, inline |
 
 ## Documentation
 
