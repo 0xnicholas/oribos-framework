@@ -1,6 +1,6 @@
 {
   "name": "@oribos/checkpoints",
-  "version": "0.0.0",
+  "version": "0.8.0",
   "description": "Oribos checkpoints capability package — crash-safe agent runs: a per-step checkpoint of each run goes to a store you own, and recover(runId) / recoverAll() replay runs whose process died from their last completed step — completed steps' model calls are never re-sent. In-memory store by default, no dependencies beyond the @oribos/core peer.",
   "keywords": [
     "ai-agents",

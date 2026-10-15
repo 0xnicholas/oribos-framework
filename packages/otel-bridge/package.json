@@ -1,6 +1,6 @@
 {
   "name": "@oribos/otel-bridge",
-  "version": "0.0.0",
+  "version": "0.8.0",
   "description": "Oribos OTel bridge capability package — one observability exporter that opens real OpenTelemetry spans through the host process's TracerProvider (@opentelemetry/api global tracer), reusing the @oribos/semconv GenAI mapping. Nothing to install, nothing to configure: without a registered provider the bridge is a no-op.",
   "keywords": [
     "ai-agents",

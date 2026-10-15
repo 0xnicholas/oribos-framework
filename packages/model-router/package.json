@@ -1,6 +1,6 @@
 {
   "name": "@oribos/model-router",
-  "version": "0.0.0",
+  "version": "0.8.0",
   "description": "Oribos model-router capability package — route 'provider/model' strings to model instances against a models.dev-style catalog you paste in. Parse and resolve only; the provider packages and the catalog stay yours, and the core keeps no registry and no magic strings.",
   "keywords": [
     "ai-agents",

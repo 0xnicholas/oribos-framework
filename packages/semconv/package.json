@@ -1,6 +1,6 @@
 {
   "name": "@oribos/semconv",
-  "version": "0.0.0",
+  "version": "0.8.0",
   "description": "Oribos semconv leaf package — the GenAI semantic-convention mapping pure parts (name/kind/attributes of an ExportedSpan, message payload conversion, attribute value-domain rules) shared by the OTLP exporter and the OTel bridge.",
   "keywords": [
     "ai-agents",

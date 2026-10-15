@@ -1,6 +1,6 @@
 {
   "name": "@oribos/evals",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Oribos evals capability package — scorers consume a run's public result surface (steps / text / usage / finishReason): scoreRun scores a settled run standalone, createScorerProcessor wires per-step scorers into a live run through the Processor seam. No dependencies beyond the @oribos/core peer.",
   "keywords": [
     "ai-agents",
