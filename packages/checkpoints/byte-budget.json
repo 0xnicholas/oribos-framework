@@ -1,0 +1,6 @@
+{
+  "metric": "esbuild-minified-bytes",
+  "entries": {
+    ".": 2190
+  }
+}

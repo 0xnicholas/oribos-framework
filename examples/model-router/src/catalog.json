@@ -1,0 +1,220 @@
+{
+  "groq": {
+    "id": "groq",
+    "name": "Groq",
+    "npm": "@ai-sdk/groq",
+    "env": [
+      "GROQ_API_KEY"
+    ],
+    "models": {
+      "whisper-large-v3": {
+        "id": "whisper-large-v3",
+        "name": "Whisper",
+        "description": "Speech transcription model for accurate audio-to-text and captioning workflows",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 0,
+          "output": 0
+        }
+      },
+      "llama-3.3-70b-versatile": {
+        "id": "llama-3.3-70b-versatile",
+        "name": "Llama 3.3 70B",
+        "description": "Open Llama instruction model for multilingual chat, reasoning, and coding",
+        "tool_call": true,
+        "reasoning": false,
+        "limit": {
+          "context": 131072,
+          "output": 32768
+        }
+      },
+      "allam-2-7b": {
+        "id": "allam-2-7b",
+        "name": "ALLaM-2-7b",
+        "description": "ALLaM-2-7b instruction tuned model by SDAIA",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 4096,
+          "output": 4096
+        }
+      },
+      "whisper-large-v3-turbo": {
+        "id": "whisper-large-v3-turbo",
+        "name": "Whisper Large V3 Turbo",
+        "description": "Speech transcription model for accurate audio-to-text and captioning workflows",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 0,
+          "output": 0
+        }
+      },
+      "llama-3.1-8b-instant": {
+        "id": "llama-3.1-8b-instant",
+        "name": "Llama 3.1 8B",
+        "description": "Compact Llama instruction model for fast chat and local deployment",
+        "tool_call": true,
+        "reasoning": false,
+        "limit": {
+          "context": 131072,
+          "output": 131072
+        }
+      },
+      "groq/compound-mini": {
+        "id": "groq/compound-mini",
+        "name": "Compound Mini",
+        "description": "Efficient model for low-latency assistance, extraction, and routine automation",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 131072,
+          "output": 8192
+        }
+      },
+      "groq/compound": {
+        "id": "groq/compound",
+        "name": "Compound",
+        "description": "General-purpose chat model for instruction following, writing, and analysis",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 131072,
+          "output": 8192
+        }
+      },
+      "meta-llama/llama-prompt-guard-2-86m": {
+        "id": "meta-llama/llama-prompt-guard-2-86m",
+        "name": "Prompt Guard 2 86M",
+        "description": "Safety model for policy screening, moderation, and risk-aware routing workflows",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 512,
+          "output": 512
+        }
+      },
+      "meta-llama/llama-prompt-guard-2-22m": {
+        "id": "meta-llama/llama-prompt-guard-2-22m",
+        "name": "Llama Prompt Guard 2 22M",
+        "description": "Safety model for policy screening, moderation, and risk-aware routing workflows",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 512,
+          "output": 512
+        }
+      },
+      "canopylabs/orpheus-v1-english": {
+        "id": "canopylabs/orpheus-v1-english",
+        "name": "Canopy Labs Orpheus V1 English",
+        "description": "Speech generation model for controllable voice, narration, and audio delivery",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 4000,
+          "output": 50000
+        }
+      },
+      "canopylabs/orpheus-arabic-saudi": {
+        "id": "canopylabs/orpheus-arabic-saudi",
+        "name": "Canopy Labs Orpheus Arabic Saudi",
+        "description": "Speech generation model for controllable voice, narration, and audio delivery",
+        "tool_call": false,
+        "reasoning": false,
+        "limit": {
+          "context": 4000,
+          "output": 50000
+        }
+      },
+      "qwen/qwen3.8-27b": {
+        "id": "qwen/qwen3.8-27b",
+        "name": "Qwen3.8 27B",
+        "description": "Dense 27B vision-language model for coding, agent tasks, and image and video understanding",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131042,
+          "output": 16384
+        }
+      },
+      "qwen/qwen3.6-27b": {
+        "id": "qwen/qwen3.6-27b",
+        "name": "Qwen3.6 27B",
+        "description": "Qwen vision-language model for visual reasoning, documents, and agent tasks",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131072,
+          "output": 16384
+        }
+      },
+      "openai/gpt-oss-20b": {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT OSS 20B",
+        "description": "Open-weight GPT model for self-hosted reasoning and instruction-following workloads",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131072,
+          "output": 65536
+        }
+      },
+      "openai/gpt-oss-safeguard-20b": {
+        "id": "openai/gpt-oss-safeguard-20b",
+        "name": "Safety GPT OSS 20B",
+        "description": "Safety model for policy screening, moderation, and risk-aware routing workflows",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131072,
+          "output": 65536
+        }
+      },
+      "openai/gpt-oss-120b": {
+        "id": "openai/gpt-oss-120b",
+        "name": "GPT OSS 120B",
+        "description": "Open GPT reasoning model for self-hosted agents and controllable deployments",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131072,
+          "output": 65536
+        }
+      }
+    }
+  },
+  "cerebras": {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "npm": "@ai-sdk/cerebras",
+    "env": [
+      "CEREBRAS_API_KEY"
+    ],
+    "models": {
+      "qwen-3.8-27b": {
+        "id": "qwen-3.8-27b",
+        "name": "Qwen3.8 27B",
+        "description": "Dense 27B vision-language model for coding, agent tasks, and image and video understanding",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131072,
+          "output": 40960
+        }
+      },
+      "gpt-oss-120b": {
+        "id": "gpt-oss-120b",
+        "name": "GPT OSS 120B",
+        "description": "Open GPT reasoning model for self-hosted agents and controllable deployments",
+        "tool_call": true,
+        "reasoning": true,
+        "limit": {
+          "context": 131072,
+          "output": 40960
+        }
+      }
+    }
+  }
+}

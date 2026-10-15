@@ -39,16 +39,40 @@ describe('check-deps-budget:依赖数字比对', () => {
 
   it('非 core peer 的 workspace: 范围即硬错误(能力包之间默认不建依赖边,ADR-0002 M5)', () => {
     const dir = fixturePackage({
-      'package.json': packageManifest({
+      'app/package.json': packageManifest({
         dependencies: { '@oribos/mcp-server': 'workspace:^' },
+      }),
+      // 叶子判词要读目标包清单:非叶子目标(dependencies 携 @oribos 边)真实在场,守护消息才可达。
+      'mcp-server/package.json': packageManifest({
+        dependencies: { '@oribos/core': 'workspace:^' },
       }),
     });
 
-    const result = runScript('check-deps-budget', [dir]);
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('workspace');
     expect(result.stderr).toContain('@oribos/mcp-server');
+  });
+
+  it('dependencies 里的过判词叶子是豁免边(不打 workspace 硬错误,走基线黄灯)', () => {
+    const dir = fixturePackage({
+      'app/package.json': packageManifest({
+        dependencies: { '@oribos/leafy': 'workspace:^' },
+      }),
+      // 叶子 = 运行时 @oribos 边仅 peer core、零外部依赖(免 npm,离线可达)。
+      'leafy/package.json': packageManifest({
+        peerDependencies: { '@oribos/core': 'workspace:^' },
+      }),
+    });
+
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
+
+    // 叶子边放行测量(叶子外部闭包 0 + 本体 1 包),无基线 = 黄灯退出 1,不是硬错误 2。
+    expect(result.status).toBe(1);
+    expect(result.stderr).not.toContain('显式单议');
+    expect(result.stdout).toContain('@oribos/leafy');
+    expect(result.stdout).toContain('未建基线');
   });
 
   it('基线口径与脚本口径不符时拒绝比对(硬错误,退出 2)', () => {

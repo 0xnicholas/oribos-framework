@@ -44,12 +44,16 @@ _Avoid_: 内核、平台包
 因携带外部依赖而与核心包隔离的独立 npm 包(如 MCP、OTel exporter、存储 adapter、AI SDK 互操作),用户按需安装;命名一律 `@oribos/<能力>` 短名词、无类型后缀(如 `@oribos/mcp-server`、`@oribos/otlp`)。
 _Avoid_: plugin、integration
 
+**叶子包 (Leaf package)**:
+被能力包复用的无状态纯件包:运行时 `@oribos/*` 依赖仅 peer 核心包,无身份语义、用户永不直接安装;能力包以 `dependencies` 依赖它(能力包间依赖边的唯一例外,ADR-0002)。首个实例 = `@oribos/semconv`(GenAI semconv 映射纯件,OTLP 能力包与 OTel bridge 共用,2026-10-14 #193)。
+_Avoid_: 共享库、utils 包(叶子包是判词定死的结构位,不是杂物抽屉)
+
 **组合根 (Composition root)**:
 可选的薄组装点,负责把 storage/logger/tracer 等横切依赖注入给挂上来的子系统;子系统不挂它也能独立完整使用。
 _Avoid_: 中央实例、registry(易与模型注册表混淆)
 
 **模型契约 (Model contract)**:
-核心与"一个模型"对话的结构类型契约,vendor 自 AI SDK provider spec 当前一代的最小子集;用户直接传入 AI SDK 生态 provider 包的模型实例,核心保持零依赖。
+核心与"一个模型"对话的结构类型契约,vendor 自 AI SDK provider spec 当前一代的最小子集;用户直接传入 AI SDK 生态 provider 包的模型实例,核心保持零依赖。字符串路由的标准化承载 = `@oribos/model-router` 能力包(parse 首斜杠拆分 + models.dev 目录存在性校验 + 用户自带 provider 工厂,零新缝,2026-10-14 #185)。
 _Avoid_: 自有 provider SPI、provider 注册表、magic string
 
 **Chunk 协议 (Chunk protocol)**:
@@ -109,7 +113,7 @@ _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
 _Avoid_: suspendedPaths 式多路径挂起模型(不建路径模型,现场尽量由记录承载)、把迭代现场当作执行历史(只保留最新一份)
 
 **Memory**:
-框架的记忆子系统:thread/resource 身份 + 消息历史 + 可选工作记忆;存储走 port、默认内存实现;语义召回与 OM 类重机制不进核心,外部记忆系统(如 bunfold)经能力包桥接。
+框架的记忆子系统:thread/resource 身份 + 消息历史 + 可选工作记忆;存储走 port、默认内存实现;重机制不进核心——语义召回的标准化承载 = `@oribos/rag` 能力包(store 包装:落库 hook 索引 + recall 语义增强,零新缝,2026-10-13 #182),OM 类压缩的标准化承载 = `@oribos/observational-memory` 能力包(请求内联触发、包自有存储 port,零新缝,表面冻结 2026-10-14 #189),外部记忆系统(如 bunfold)桥接维持分叉。
 _Avoid_: 把 Memory 等同于存储 adapter(adapter 归存储决策)、内建后台压缩管线
 
 **Thread**:
@@ -133,7 +137,7 @@ _Avoid_: short-term memory、chat history 作术语
 _Avoid_: long-term memory(向量召回、后台压缩类"长期记忆"机制不在核心,经能力包桥接)
 
 **Span**:
-观测域的单个操作记录:自有最小形状(id / 32-hex traceId / parentSpanId / name / type / 起止时间 / 一等公民 input/output / attributes / metadata / error / isEvent),非 OTel span——OTel 映射只发生在 OTLP 能力包。框架只写 7 个类型常量(agent-run / agent-step / tool-call / workflow-run / workflow-step / memory-recall / memory-save),type 字段开放给用户自定义。
+观测域的单个操作记录:自有最小形状(id / 32-hex traceId / parentSpanId / name / type / 起止时间 / 一等公民 input/output / attributes / metadata / error / isEvent),非 OTel span——OTel 映射只发生在 semconv 映射(叶子包 `@oribos/semconv`,OTLP 能力包与 OTel bridge 复用)。框架只写 7 个类型常量(agent-run / agent-step / tool-call / workflow-run / workflow-step / memory-recall / memory-save),type 字段开放给用户自定义。
 _Avoid_: OTel span 作内核概念、metrics/logs 信号(v1 只定 tracing)
 
 **Tracer**:
@@ -141,7 +145,7 @@ _Avoid_: OTel span 作内核概念、metrics/logs 信号(v1 只定 tracing)
 _Avoid_: OTel Tracer、全局单例
 
 **观测导出器 (Observability exporter)**:
-把 tracing 事件送出进程的接口:`{ export(event), flush?(), shutdown?() }`;核心自带 console 与 memory 两个,OTLP(GenAI semconv 映射)在能力包,厂商专用 exporter 不做(裸 OTLP + gen_ai.* 已覆盖各家后端)。
+把 tracing 事件送出进程的接口:`{ export(event), flush?(), shutdown?() }`;核心自带 console 与 memory 两个,OTLP 在能力包(GenAI semconv 映射居叶子包 `@oribos/semconv`),OTel bridge 在能力包 `@oribos/otel-bridge`(三事件桥成宿主 TracerProvider 的真 OTel span,复用同一叶子),厂商专用 exporter 不做(裸 OTLP + gen_ai.* 已覆盖各家后端)。
 _Avoid_: plugin、integration(那是能力包的词)
 
 **存储 port (Storage port)**:
@@ -162,7 +166,7 @@ _Avoid_: Harness 类、中央运行时(那是 mastra 已废弃的形状)
 
 **Durable agent**:
 经 `createDurableAgent` 包装的 agent:run 可在工具调用边界挂起(审批闸),loop 快照走 storage port,`resume` 携带审批结论恢复;挂起语义只存在于包装内,裸 agent 无挂起。
-_Avoid_: 崩溃自动恢复、resumable stream(已裁出;恢复 = resume 原语)
+_Avoid_: 崩溃自动恢复、resumable stream(两者均另立能力包:`@oribos/checkpoints` / `@oribos/resumable-stream`;本词的恢复 = `resume` 原语)
 
 **信号 (Signal)**:
 thread 导向的交互原语:向活跃 run 注入、唤醒空闲 thread 开新 run、或排队保序;注入内容落消息历史,单进程语义。
@@ -171,3 +175,31 @@ _Avoid_: 跨实例 PubSub/租约(归能力包)、notification inbox(已裁出)
 **调度 (Schedule)**:
 未来触发 agent 的记录 + `tick` 原语(给定时刻返回到期项并触发);记录是到期缓存,不含 cron 表达式——表达式由宿主侧调度定义持有、构建 `next` 注入(`next` 函数不序列化);触发执行交给平台 cron 或可选进程内 ticker,核心不做轮询调度器。
 _Avoid_: 内建调度轮询循环、存储 CAS 认领(多实例安全归平台/部署方)
+
+**可恢复流 (Resumable stream)**:
+断连重连的流式承载:事件缓存逐 chunk 记录 run 的输出流,`observe(runId)` 按序重放缓存 + 进程内跟随到 run 终态(`closeOnSuspend` 无机制——durable 流以 suspended finish 收尾即自然关闭)。标准化承载 = `@oribos/resumable-stream` 能力包(事件缓存 port 内存默认零依赖、Redis 结构子集适配 opt-in,零新缝,2026-10-14 #184);核心无恢复端点(GET 端点归应用),跨实例实时跟随归 PubSub 能力包(显式拒绝不轮询)。
+_Avoid_: 核心内建 resume 端点、轮询跟随循环(无常驻管线)
+
+**检查点 (Checkpoint)**:
+崩溃安全的 run 承载:每个继续的步骤在边界写一条检查点(run 的 prompt + 该步 assistant 消息 + 步数 + 持有调用 + trace),run 终态(成功 / 失败 / 挂起)即清除;残留 = 进程死于途中的 run。标准化承载 = `@oribos/checkpoints` 能力包(`recover(runId)` 经 `AgentRunResume` 重放:重放步零模型调用、只重发 in-flight 那一次,其工具重执行 = 显式幂等成本;`recoverAll()` = boot 扫描;store 四方法 port、内存默认、持久归部署方,零新缝,2026-10-14 #186)。
+_Avoid_: 常驻恢复守护 / 轮询扫描(无常驻管线)、核心内建 recoverAll、多副本抢同一批 run(leader election 归部署方,与跨实例 signals 行同口径)
+
+**跨实例 signals (Distributed signals)**:
+基础信号原语的跨实例承载:包装核心 `Signals`(`createDistributedSignals`),send 三原语与空闲唤醒经共享 PubSub 路由、租约裁定唤醒竞态;stream / generate 永远本地。标准化承载 = `@oribos/distributed-signals` 能力包(at-most-once、进程死在途即丢,与核心单进程语义同构,表面冻结 2026-10-14 #187)。
+_Avoid_: 核心注入缝 / transport 配置(核心单进程语义不变)、跨实例 chunk 实时跟随(v1 显式拒绝)、notification inbox(已裁出)
+
+**租约 (Lease)**:
+排他所有权凭证:TTL + 持有期心跳续约,acquire 竞争失败方不作为;形状一份(#187 冻结)、两域复用——thread 活跃 run 所有权(本地 run 开始即持、settle 即释放,唤醒竞态的裁定者)与后台任务执行权(领到才执行),各能力包声明同形 port、零依赖边,不进核心 port 清单。标准化承载 = `@oribos/distributed-signals` 与 `@oribos/background-tasks`。
+_Avoid_: leader election(归部署方)、核心存储域 port(v1 四个冻结)、与 CUT-ST3 裁出的 lease 分域(概念只有一个)
+
+**外部 runner (External runner)**:
+workflow 触发层耐久性的外包:start / resume / 恢复事件化到外部耐久执行引擎,进程死于途中由引擎重试重放、快照续起;walker 与快照 store 原样在进程内(触发级外包,非步级接管)。标准化承载 = `@oribos/inngest` 能力包(引擎裁定 Inngest 单落,Temporal 维持分叉;最小触发式表面、零核心新缝,表面冻结 2026-10-14 #188)。
+_Avoid_: 步级执行接管(需核心执行缝)、耐久 sleep / workflow cron / 实时 stream(均不透出,各归既有裁行与能力包地界)
+
+**观察记忆 (Observational memory)**:
+把滑出最近窗口的旧消息由模型压缩成**观察**、观察累计再压缩为**反思**的长程记忆承载:无游标窗口读内联触发(积压过阈跑 Observer、观察过阈跑 Reflector),观察/反思以一条 system 消息前置、窗口原样。标准化承载 = `@oribos/observational-memory` 能力包(`createObservationalMemoryStore` 包装 store;观察记录 = 包自有 port,内存默认、持久归部署方;核心零新缝,表面冻结 2026-10-14 #189)。
+_Avoid_: 常驻压缩管线 / 响应后写(mastra 式异步缓冲 + `settled()`)、priority 排序、resource scope 跨线程压缩、把观察记录当消息(消息不可变,观察/反思是附加派生记录)
+
+**后台任务 (Background tasks)**:
+应用自有工作的持久协调:任务行(accepted → running → done | failed,attempt 计数)+ 租约执行——manager 收 handler 驱动:提交 → 领租约 → 进程内执行 → 心跳 → settle;`adopt()` 重跑孤儿(幂等成本显式)、`untilIdle()` 包级等待(不改 agent 流)。标准化承载 = `@oribos/background-tasks` 能力包(与 signals 解耦:settle 经回调交应用,一期「工具 ack + sendSignal 唤醒」配方零负担照旧;任务行 / 租约两 port 内存默认,持久与多实例归部署方,表面冻结 2026-10-14 #190)。
+_Avoid_: 常驻 worker / 重试策略(归部署方)、核心内建 manager(零常驻红线)、接管宿主进程

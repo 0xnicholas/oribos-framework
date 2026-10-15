@@ -1,0 +1,19 @@
+{
+  "name": "@oribos/example-model-router",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oribos model-router example: 'provider/model' strings routed against a committed models.dev catalog snapshot to contract-validated model instances, with the catalog as the guard — scripted offline provider stubs, no key, no network.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/model-router": "workspace:*"
+  }
+}

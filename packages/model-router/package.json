@@ -1,0 +1,55 @@
+{
+  "name": "@oribos/model-router",
+  "version": "0.0.0",
+  "description": "Oribos model-router capability package — route 'provider/model' strings to model instances against a models.dev-style catalog you paste in. Parse and resolve only; the provider packages and the catalog stay yours, and the core keeps no registry and no magic strings.",
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "agent-framework",
+    "model-router",
+    "models-dev"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:dist": "node ../../scripts/check-dist.mjs",
+    "check:export-surface": "node ../../scripts/check-export-surface.mjs",
+    "check:runtime-deps": "node ../../scripts/check-runtime-deps.mjs",
+    "check:byte-budget": "node ../../scripts/check-byte-budget.mjs",
+    "byte-budget:update": "node ../../scripts/check-byte-budget.mjs --update",
+    "check:deps-budget": "node ../../scripts/check-deps-budget.mjs",
+    "deps-budget:update": "node ../../scripts/check-deps-budget.mjs --update",
+    "prepublishOnly": "pnpm -w verify"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xnicholas/oribos-framework.git",
+    "directory": "packages/model-router"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@oribos/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/testing": "workspace:*"
+  }
+}

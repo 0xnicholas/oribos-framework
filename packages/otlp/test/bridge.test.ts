@@ -84,6 +84,29 @@ describe('createOtlpExporter: span_ended bridge', () => {
     }
   });
 
+  it('maps error to status ERROR with the message, success stays UNSET', async () => {
+    const capture = await startCapture();
+    try {
+      const exporter = createOtlpExporter({ protocol: 'json', url: capture.url });
+      await exportAndFlush(
+        exporter,
+        { kind: 'span_ended', span: testSpan({ name: 'ok' }) },
+        {
+          kind: 'span_ended',
+          span: testSpan({ name: 'boom', error: { message: 'gateway down', details: {} } }),
+        },
+      );
+
+      const [ok, boom] = decodeSpans((await capture.waitForRequests(1))[0]!.body);
+      expect(ok!.name).toBe('ok');
+      expect(ok!.status).toMatchObject({ code: 0 }); // UNSET
+      expect(boom!.name).toBe('boom');
+      expect(boom!.status).toMatchObject({ code: 2, message: 'gateway down' }); // ERROR
+    } finally {
+      await capture.close();
+    }
+  });
+
   it('synthesizes the resource (service.name oribos, no telemetry.sdk.*) and the scope', async () => {
     const capture = await startCapture();
     try {

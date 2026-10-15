@@ -10,7 +10,7 @@ import type { SpanContext } from '@opentelemetry/api';
 import type { Resource } from '@opentelemetry/resources';
 import type { ReadableSpan } from '@opentelemetry/sdk-trace';
 import type { ExportedSpan } from '@oribos/core/observability';
-import { mapSpan } from './mapping.js';
+import { mapSpan } from '@oribos/semconv';
 
 /** `instrumentationScope` without a version — the packages release in lockstep anyway. */
 const INSTRUMENTATION_SCOPE = { name: '@oribos/otlp' };

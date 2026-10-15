@@ -7,7 +7,10 @@
 // `--update` 用实测值重写基线(基线调整与代码同 PR);缺基线/超基线 = 黄灯,
 // 「声明但产物零引用」追加黄灯记录——都不卡合并(CI 用 `|| test $? -eq 1` 容忍)。
 // 退出码契约(ADR-0015):0 = 在预算内;1 = 需处理(黄灯);2 = 配置/测量硬错误
-// (口径不符、npm/registry 解析失败、非 core 的 workspace: 范围)——CI 照常变红。
+// (口径不符、npm/registry 解析失败、非豁免的 workspace: 范围)——CI 照常变红。
+// workspace: 豁免 = peer `@oribos/core` + ADR-0002 叶子包判词(能力包 dependencies
+// 依赖叶子包,#193;叶子未发布、workspace 范围不可 npm 解析,叶子边按叶子外部闭包 + 本体
+// 计 1 包测量,本体字节 0 下界,#183);其余依赖边须先改 ADR 再改这里。
 // 脚手架(开场 / 基线链 / 报表 / CI 记录面)居 gate-kit.mjs(#126),本闸门只留自己的度量与检查。
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,11 +37,18 @@ const CORE_PEER_EXEMPT = '@oribos/core';
  * 返回 { packages, bytes };npm 失败即硬错误(退出码 2)。
  */
 async function measureClosure(manifest, name, range) {
+  return npmClosure(manifest, { [name]: range });
+}
+
+/**
+ * 闭包测量的共用底座:按 deps 记录做一次 npm 解析 + registry 体积合计。
+ */
+async function npmClosure(manifest, deps) {
   const probeDir = mkdtempSync(join(tmpdir(), 'oribos-deps-budget-'));
   try {
     writeFileSync(
       join(probeDir, 'package.json'),
-      `${JSON.stringify({ name: 'oribos-deps-budget-probe', private: true, dependencies: { [name]: range } }, null, 2)}\n`,
+      `${JSON.stringify({ name: 'oribos-deps-budget-probe', private: true, dependencies: deps }, null, 2)}\n`,
     );
     const npm = spawnSync(
       'npm',
@@ -47,7 +57,7 @@ async function measureClosure(manifest, name, range) {
     );
     if (npm.status !== 0) {
       hardError(
-        `${manifest.name}:npm 解析 ${name}@${range} 闭包失败——${(npm.stderr || npm.stdout || `exit ${npm.status}`).trim()}`,
+        `${manifest.name}:npm 解析 ${Object.entries(deps).map(([n, r]) => `${n}@${r}`).join(', ')} 闭包失败——${(npm.stderr || npm.stdout || `exit ${npm.status}`).trim()}`,
       );
     }
     const lock = readJsonOrHardError(join(probeDir, 'package-lock.json'));
@@ -72,6 +82,27 @@ async function measureClosure(manifest, name, range) {
   } finally {
     rmSync(probeDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * ADR-0002 叶子依赖边的测量:叶子未发布,`workspace:` 范围不能进 npm 探针——
+ * 以叶子的外部依赖闭包 + 叶子本体计 1 包(字节 0,未发布无 registry 数字,#6「体积为下界」口径;
+ * 发布票复核时随 `--update` 吸收实数)。
+ */
+async function measureLeafClosure(manifest, packageDir, name) {
+  const leaf = readJsonOrHardError(join(packageDir, '..', name.slice('@oribos/'.length), 'package.json'));
+  const external = {};
+  for (const section of [leaf.dependencies, leaf.optionalDependencies]) {
+    for (const [depName, range] of Object.entries(section ?? {})) {
+      if (depName.startsWith('@oribos/')) continue;
+      external[depName] = range;
+    }
+  }
+  const closure = Object.keys(external).length === 0 ? { packages: 0, bytes: 0 } : await npmClosure(manifest, external);
+  console.warn(
+    `${manifest.name}:${name} 是 ADR-0002 叶子依赖(workspace 范围)——按叶子外部闭包 + 本体计 1 包测量,本体字节计 0(下界,发布票复核)`,
+  );
+  return { packages: closure.packages + 1, bytes: closure.bytes };
 }
 
 /**
@@ -105,6 +136,29 @@ async function fetchUnpackedSize(manifest, name, version) {
   return size;
 }
 
+/**
+ * ADR-0002 叶子包判词:目标包运行时 `@oribos/*` 依赖仅 peer `@oribos/core`——无状态
+ * 纯件、用户永不直接安装,能力包可 `dependencies` 依赖(ADR-0002 叶子包修订,#193)。
+ * 包目录与声明方同层平铺(ADR-0002 M5):`packages/<短名>`。
+ */
+function isLeafPackage(packageDir, name) {
+  const manifestPath = join(packageDir, '..', name.slice('@oribos/'.length), 'package.json');
+  if (!existsSync(manifestPath)) {
+    hardError(`${name} 的清单不存在(${manifestPath})——先建包再声明依赖边`);
+  }
+  const target = readJsonOrHardError(manifestPath);
+  const oribosRuntimeEdges = Object.entries({
+    dependencies: target.dependencies,
+    optionalDependencies: target.optionalDependencies,
+    peerDependencies: target.peerDependencies,
+  }).flatMap(([field, section]) =>
+    Object.keys(section ?? {})
+      .filter((dep) => dep.startsWith('@oribos/'))
+      .map((dep) => `${field}:${dep}`),
+  );
+  return oribosRuntimeEdges.length === 1 && oribosRuntimeEdges[0] === 'peerDependencies:@oribos/core';
+}
+
 const statusOf = (row) =>
   row.budget === undefined
     ? '🟡 未建基线'
@@ -119,13 +173,14 @@ await runBudgetGate({
   budgetFile: BUDGET_FILE,
   updateHint: UPDATE_HINT,
   displayName: '依赖数字',
-  description: `口径 \`${METRIC}\`:每个声明运行时依赖的 npm 安装闭包(自动装 peer)传递包数 + registry 解包体积合计;peer \`${CORE_PEER_EXEMPT}\` 豁免。ADR-0001:仅内部回归参考,不卡合并。`,
+  description: `口径 \`${METRIC}\`:每个声明运行时依赖的 npm 安装闭包(自动装 peer)传递包数 + registry 解包体积合计;peer \`${CORE_PEER_EXEMPT}\` 豁免、ADR-0002 叶子包例外。ADR-0001:仅内部回归参考,不卡合并。`,
   columns: ['dependency', 'budget', 'current', 'budget', 'current', 'status'],
 
   /**
-   * 条目 = manifest 运行时字段声明的依赖。peer `@oribos/core`(workspace: 范围)豁免;
-   * 其余 workspace: 范围即硬错误——能力包之间默认不建依赖边(ADR-0002 M5),
-   * 例外若出现须先改 ADR 再改这里。零声明且无基线 = 无可测亦无可比(如 core),直接 ok。
+   * 条目 = manifest 运行时字段声明的依赖。workspace: 范围豁免两类——peer `@oribos/core`,
+   * 以及 `dependencies` 里过 ADR-0002 叶子包判词的目标;其余 workspace: 范围即硬错误——
+   * 能力包之间默认不建依赖边(ADR-0002 M5),例外若出现须先改 ADR 再改这里。
+   * 零声明且无基线 = 无可测亦无可比(如 core),直接 ok。
    * 行组装后附零引用注记:声明了却从未被产物导入的依赖——超重或冗余的信号。
    */
   async collectRows({ manifest, packageDir, baseline }) {
@@ -138,9 +193,12 @@ await runBudgetGate({
       for (const [name, range] of Object.entries(section ?? {})) {
         if (name === CORE_PEER_EXEMPT && field === 'peerDependencies') continue;
         if (range.startsWith('workspace:')) {
-          hardError(
-            `${manifest.name}:${field} 的 ${name}@${range} 是 workspace 范围——仅 peer ${CORE_PEER_EXEMPT} 豁免;其余依赖边须按 ADR-0002 M5 显式单议`,
-          );
+          const leafExempt = field === 'dependencies' && isLeafPackage(packageDir, name);
+          if (!leafExempt) {
+            hardError(
+              `${manifest.name}:${field} 的 ${name}@${range} 是 workspace 范围——豁免仅 peer ${CORE_PEER_EXEMPT} 与 ADR-0002 叶子包(dependencies);其余依赖边须按 ADR-0002 M5 显式单议`,
+            );
+          }
         }
         declared.set(name, { field, range });
       }
@@ -153,7 +211,10 @@ await runBudgetGate({
 
     const rows = [];
     for (const [name, { field, range }] of declared) {
-      const measured = await measureClosure(manifest, name, range);
+      const measured =
+        field === 'dependencies' && range.startsWith('workspace:')
+          ? await measureLeafClosure(manifest, packageDir, name)
+          : await measureClosure(manifest, name, range);
       rows.push({ name, field, range, measured, budget: baseline?.dependencies?.[name] });
     }
 

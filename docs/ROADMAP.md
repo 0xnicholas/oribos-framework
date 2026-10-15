@@ -167,7 +167,7 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 | 每步检查点 + 崩溃重放 | 能力包 / 部署方(boot 恢复 = 用户调用的函数、非常驻循环) | fake model 重发计数单测 + 崩溃重放 example | 中 |
 | 跨实例 signals | 能力包:共享 PubSub + 租约抽象 + Redis 适配(核心单进程语义不变) | fake PubSub/lease 单测 + 双进程 example | 远 |
 | 外部 runner 适配 | 能力包:引擎接缝已留(Inngest / Temporal) | 引擎适配单测 +(可选)Inngest example | 远 |
-| OM 类后台压缩 | 能力包(Observer/Reflector 进程内 opt-in 式),消费 memory 落库 hook——**核心新缝,须过演化门**;存储 additive 可选方法 + 能力标志 | fake model 单测 + example | **最远**(新缝 + 存储扩展),不进首批 |
+| OM 类后台压缩 | 能力包(Observer/Reflector 进程内 opt-in 式),消费 memory 落库 hook——**核心新缝,须过演化门**;存储 additive 可选方法 + 能力标志 **→ 表面冻结**(2026-10-14,#189:核缝取消——store 包装同缝、存储收包内 `@oribos/observational-memory`;见 `memory.md` CUT-MEM2 行) | fake model 单测 + example | **最远**(新缝 + 存储扩展),不进首批 **→ 冻结后:与 RAG 同缝 + 包自有存储 port;graduate 实施票已立** |
 
 维持分叉但理由改写 7 行:延后档 2(外部记忆引擎桥接——证据不成立 + 轴冲突;Goals / State signals——thread 状态域前置缺席)+ 出域档 5(Studio / channels·voice·workspaces / 托管平台 / notification inbox / AgentController)——逐行理由见各规范表行与延后清单行,不在此复述。观察项:mastra knowledge v2(仅 alpha 线,非证据),稳定线转正后随 gap analysis 刷新重估;「thread 状态域立不立」为 Goals / State signals 行唯一真前置,登记地图 Fog。
 

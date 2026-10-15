@@ -44,6 +44,7 @@ Capability packages — separate installs, they carry the external dependencies:
 | Package | What it gives |
 | --- | --- |
 | `@oribos/otlp` | OTLP exporter: Oribos spans mapped to GenAI semantic conventions |
+| `@oribos/otel-bridge` | OTel bridge: Oribos spans as real OpenTelemetry spans in the host TracerProvider |
 | `@oribos/mcp-server` | a Tool container served over MCP (Streamable HTTP + stdio) |
 | `@oribos/mcp-client` | a remote MCP server's tools bridged into the Tool container |
 | `@oribos/sqlite` | the four storage ports over one SQLite file (`node:sqlite`) |
@@ -313,7 +314,8 @@ subsystem spec's cut table). **Do not invent APIs for them:**
   do not scaffold them as if they existed.
 - Evals *in the core* — scorers live in `@oribos/evals`; `processors` is the only core seam.
 - OTel-native spans or metrics/logs signals in the core — the span model is Oribos's own; OTel
-  mapping lives in `@oribos/otlp`.
+  mapping lives in the `@oribos/semconv` leaf (reused by `@oribos/otlp` and `@oribos/otel-bridge`);
+  real OTel spans in the host TracerProvider come from `@oribos/otel-bridge`.
 - Dependencies added to `@oribos/core` — external dependencies live in capability packages.
 
 ## When something looks wrong

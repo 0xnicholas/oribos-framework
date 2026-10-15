@@ -1,0 +1,59 @@
+{
+  "name": "@oribos/otel-bridge",
+  "version": "0.0.0",
+  "description": "Oribos OTel bridge capability package — one observability exporter that opens real OpenTelemetry spans through the host process's TracerProvider (@opentelemetry/api global tracer), reusing the @oribos/semconv GenAI mapping. Nothing to install, nothing to configure: without a registered provider the bridge is a no-op.",
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "opentelemetry",
+    "tracing",
+    "observability"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:dist": "node ../../scripts/check-dist.mjs",
+    "check:export-surface": "node ../../scripts/check-export-surface.mjs",
+    "check:runtime-deps": "node ../../scripts/check-runtime-deps.mjs",
+    "check:byte-budget": "node ../../scripts/check-byte-budget.mjs",
+    "byte-budget:update": "node ../../scripts/check-byte-budget.mjs --update",
+    "check:deps-budget": "node ../../scripts/check-deps-budget.mjs",
+    "deps-budget:update": "node ../../scripts/check-deps-budget.mjs --update",
+    "prepublishOnly": "pnpm -w verify"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xnicholas/oribos-framework.git",
+    "directory": "packages/otel-bridge"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@oribos/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@oribos/core": "workspace:*",
+    "@opentelemetry/sdk-trace": "2.11.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@oribos/semconv": "workspace:^"
+  }
+}

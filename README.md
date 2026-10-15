@@ -287,6 +287,7 @@ packages below followed in 0.7.0 — all nine packages are now out together unde
 | Package | What it gives you | Spec |
 | --- | --- | --- |
 | `@oribos/otlp` | an OTLP exporter: Oribos spans mapped to GenAI semantic conventions | [observability.md](docs/architecture/observability.md) |
+| `@oribos/otel-bridge` | an OTel bridge: Oribos spans as real OpenTelemetry spans in the host TracerProvider (mapping via the shared `@oribos/semconv` leaf) | [observability.md](docs/architecture/observability.md) |
 | `@oribos/mcp-server` | your tools served over MCP (HTTP / stdio) | [tools.md](docs/architecture/tools.md) |
 | `@oribos/mcp-client` | another MCP server's tools, as Oribos tools | [tools.md](docs/architecture/tools.md) |
 | `@oribos/sqlite` | a SQLite adapter for all four storage ports | [storage.md](docs/architecture/storage.md) |
@@ -355,7 +356,7 @@ pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surfac
 The offline examples are gated too — the same gate CI runs, one step after `verify`:
 
 ```bash
-pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools (HTTP + stdio) / workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks
+pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools (HTTP + stdio) / workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks / semantic-recall / resumable-stream / model-router / crash-replay / otel-bridge
 ```
 
 It runs the nine offline entries serially, streams each one's output and exits non-zero if any fails

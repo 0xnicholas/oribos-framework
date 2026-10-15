@@ -26,7 +26,7 @@ const EXIT_HARD_ERROR = 2;
 /** 单案默认超时上限;实测最长一例约 1.6s(mcp-tools stdio),余量约 20×。 */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-/** 内建案表:九个离线入口 / 八个 example(HTTP 与 stdio 是 mcp-tools 的两个入口)。 */
+/** 内建案表:十六个离线入口 / 十四个 example(HTTP 与 stdio 是 mcp-tools 的两个入口)。 */
 const CASES = [
   { name: 'cron-schedule', cmd: 'pnpm', args: ['--filter', '@oribos/example-cron-schedule', 'start'] },
   { name: 'otlp-collector', cmd: 'pnpm', args: ['--filter', '@oribos/example-otlp-collector', 'start'] },
@@ -61,6 +61,36 @@ const CASES = [
     name: 'background-tasks',
     cmd: 'pnpm',
     args: ['--filter', '@oribos/example-background-tasks', 'start'],
+  },
+  {
+    name: 'semantic-recall',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-semantic-recall', 'start'],
+  },
+  {
+    name: 'resumable-stream',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-resumable-stream', 'start'],
+  },
+  {
+    name: 'model-router',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-model-router', 'start'],
+  },
+  {
+    name: 'crash-replay',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-crash-replay', 'start'],
+  },
+  {
+    name: 'otel-bridge',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-otel-bridge', 'start'],
+  },
+  {
+    name: 'distributed-signals',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-distributed-signals', 'start'],
   },
 ];
 

@@ -1,0 +1,56 @@
+{
+  "name": "@oribos/checkpoints",
+  "version": "0.0.0",
+  "description": "Oribos checkpoints capability package — crash-safe agent runs: a per-step checkpoint of each run goes to a store you own, and recover(runId) / recoverAll() replay runs whose process died from their last completed step — completed steps' model calls are never re-sent. In-memory store by default, no dependencies beyond the @oribos/core peer.",
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "agent-framework",
+    "checkpoints",
+    "crash-recovery",
+    "durable-execution"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:dist": "node ../../scripts/check-dist.mjs",
+    "check:export-surface": "node ../../scripts/check-export-surface.mjs",
+    "check:runtime-deps": "node ../../scripts/check-runtime-deps.mjs",
+    "check:byte-budget": "node ../../scripts/check-byte-budget.mjs",
+    "byte-budget:update": "node ../../scripts/check-byte-budget.mjs --update",
+    "check:deps-budget": "node ../../scripts/check-deps-budget.mjs",
+    "deps-budget:update": "node ../../scripts/check-deps-budget.mjs --update",
+    "prepublishOnly": "pnpm -w verify"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xnicholas/oribos-framework.git",
+    "directory": "packages/checkpoints"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@oribos/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/testing": "workspace:*"
+  }
+}

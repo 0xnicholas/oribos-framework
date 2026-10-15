@@ -162,7 +162,7 @@ port 是框架唯一面向「生态作者」的契约,稳定性与核心同步:*
 | --- | --- | --- | --- |
 | **CUT-ST1** 分域 composite / 域路由 | 四子系统 config 各收 store 实例 | 有意分叉 | 一个 store 实例一个域;分后端是用户侧自由(ADR-0010) |
 | **CUT-ST2** 观测存储域(span 落库) | exporter 流式模型;落库归用户侧 exporter / collector | 有意分叉 | span 出进程即观测模型(ADR-0009) |
-| **CUT-ST3** harness 专属存储域(lease / notifications / thread-state) | `AgentRunSnapshotStore` / `ScheduleStore` 已落;lease / PubSub 归能力包,inbox 裁出 | **维持分叉、互注改写**(2026-10-11,#160/#161) | 挂起快照与调度 = 两个最小 port(#18 已裁)不动(ADR-0011);lease / PubSub 归能力包 = 延后清单「跨实例 signals」行转追赶项的既有缝(#161);thread-state 域**维持不建**——它是「Goals / State signals」行维持分叉的唯一真前置(该域未进任何清单,登记地图 Fog,#161);inbox 维持裁出(理由改写见 `harness.md` CUT-H3 行,#160) |
+| **CUT-ST3** harness 专属存储域(lease / notifications / thread-state) | `AgentRunSnapshotStore` / `ScheduleStore` 已落;lease / PubSub 归能力包 → **表面冻结**(2026-10-14,#187):`@oribos/distributed-signals`,租约 = thread 活跃 run 所有权、即本行裁出的 lease 概念、不进核心 port 清单(定义见 `harness.md`「跨实例 signals 能力包」节),inbox 裁出 → **已兑现**(2026-10-15,#194:租约 port 同形落地,`SignalLease` / `LeaseHandle`,D5 行) | **维持分叉、互注改写**(2026-10-11,#160/#161) | 挂起快照与调度 = 两个最小 port(#18 已裁)不动(ADR-0011);lease / PubSub 归能力包 = 延后清单「跨实例 signals」行转追赶项的既有缝(#161);thread-state 域**维持不建**——它是「Goals / State signals」行维持分叉的唯一真前置(该域未进任何清单,登记地图 Fog,#161);inbox 维持裁出(理由改写见 `harness.md` CUT-H3 行,#160) |
 | **CUT-ST4** PG / Redis 等第一方 adapter | 统一 adapter 家族 + 作者指南(上文) | 有意分叉 | 第一方清单只收内存 + SQLite;后端生态归社区(ADR-0010);延后清单「适配器生态」 |
 | **CUT-ST5** CAS 进基础 port | SQLite 已实现 `compareAndSave`;基础 port 只留 `load` / `save` | 有意分叉 | 可选扩展 + 能力标志;内存版不必假装支持(ADR-0010) |
 | **CUT-ST6** 核心托管连接生命周期(进程 hook / settled 式) | adapter 自拥 `init?()` / `close?()`(`@oribos/sqlite` 已落),应用调用;组合根**不代管** | 有意分叉 | 核心永不隐式 init / close;生命周期归 adapter 与应用(ADR-0010 / 0002) |
@@ -172,7 +172,7 @@ port 是框架唯一面向「生态作者」的契约,稳定性与核心同步:*
 - **Workflows(#11,已定)**:钉 `WorkflowSnapshotStore` 需求;CAS 与快照管理扩展承载其「跨进程 resume 去重」「保留期清理」缝。
 - **Memory(#12,已定)**:钉 `MemoryStore` 需求(6+2);其条件 2 即能力标志模式的首个实例。
 - **Observability(#14,已定)**:无 storage port;span 经 exporter 出进程。
-- **Harness(#18,已定)**:`AgentRunSnapshotStore` 与 `ScheduleStore` 两个新 port 定义见 `docs/architecture/harness.md`,进统一 adapter 家族;lease / PubSub / notifications / thread-state 域不建。
+- **Harness(#18,已定)**:`AgentRunSnapshotStore` 与 `ScheduleStore` 两个新 port 定义见 `docs/architecture/harness.md`,进统一 adapter 家族;lease / PubSub / notifications / thread-state 域不建(lease / PubSub 归 `@oribos/distributed-signals`,表面冻结 2026-10-14 #187,CUT-ST3 行互注)。
 - **组合根(ADR-0002)**:可选薄注入点;**不代管** adapter 的 `init`/`close`——核心永不隐式 init / close,生命周期归 adapter 与应用;子系统独立 `new` 仍是一等用法。
 
 ## 依赖预算

@@ -1,0 +1,9 @@
+{
+  "metric": "npm-install-closure-packages-and-unpacked-bytes",
+  "dependencies": {
+    "@opentelemetry/api": {
+      "packages": 1,
+      "bytes": 1001329
+    }
+  }
+}

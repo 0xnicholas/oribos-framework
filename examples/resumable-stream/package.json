@@ -1,0 +1,19 @@
+{
+  "name": "@oribos/example-resumable-stream",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oribos resumable-stream example: a client hangs up mid-stream, reconnects with the run id, and loses nothing — @oribos/resumable-stream's event cache and observe over a scripted offline model.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/resumable-stream": "workspace:*"
+  }
+}

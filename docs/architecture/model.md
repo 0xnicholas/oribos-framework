@@ -42,7 +42,12 @@ type ModelInput =
 
 - **无自有 provider SPI、无注册表、无 `'provider/model'` magic string。** AI SDK 生态的 provider 包就是插件机制;网关类需求(OpenRouter 等)由对应 provider 包承担。
 - 自定义端点(Ollama / LMStudio / OpenAI-compatible 网关):用户自装 `@ai-sdk/openai-compatible` 类现成包,核心无特殊机制。
-- 字符串路由(models.dev 目录 + 解析器)若做,是独立能力包——经 ADR-0017 重判(2026-10-11,#161)**转追赶项**:证据 = mastra 211-provider 注册表 + 网关链 + `ModelSelectionProcessor`,活跃维护(实装存在且未弃);形态 = 能力包(目录 + 解析映射),核心「无注册表 / 无 magic string」钉子不动;验证面 = 解析单测 + 目录快照 example;**中层**(#161)。延后清单「字符串路由(models.dev 类)」行。
+- 字符串路由(models.dev 目录 + 解析器)是独立能力包——经 ADR-0017 重判(2026-10-11,#161)**转追赶项**:证据 = mastra 211-provider 注册表 + 网关链 + `ModelSelectionProcessor`,活跃维护(实装存在且未弃);形态 = 能力包(目录 + 解析映射),核心「无注册表 / 无 magic string」钉子不动;验证面 = 解析单测 + 目录快照 example;**中层**(#161)→ **已兑现** = `@oribos/model-router` 能力包(2026-10-14,#185,见下「字符串路由(model-router 能力包,已兑现)」节)。延后清单「字符串路由(models.dev 类)」行。
+
+### 字符串路由(model-router 能力包,已兑现)
+
+`@oribos/model-router`(2026-10-14,#185,篇级字符串路由行)落在数据缝上、核心零改动,两件:`parseModelString(value)` 按首个 `/` 拆 `'provider/model'`——model id 自身可含斜杠(deepinfra 式 id、groq 托管的 `openai/gpt-oss-120b`),只有第一段是 provider;`createModelRouter({ catalog, providers })` 把拆出的串对目录校验后交用户注册的 provider 工厂(`(id) => groq(id)`,用户自装的 AI SDK provider 包),结果过核心 `assertModel` 契约校验——非语言模型 / 代际不符在解析时即报,不进 run。目录是 vendored 形状类型(`ModelCatalog`,models.dev api.json 快照原样粘贴、多余字段透传),核心增值 = **存在性**:未知 provider、未列 model、目录有而未注册工厂(错误点名该装的 npm 包)三类均在解析时显式拒绝。钉子不动:无注册表——目录与工厂全是调用方自带数据,不建 router 即零成本;provider 包依赖随调用方,不随本包不随核心。验证面 = 解析 / 路由 / 错误面 / 契约校验单测(14 例)+ `examples/model-router`(models.dev 目录快照 cut + 离线脚本桩,进 `check:examples` 闸门)。
+
 
 ## AI SDK 互操作能力包(M5 设计冻结)
 
@@ -126,7 +131,7 @@ type ModelInput =
 | --- | --- | --- | --- | --- |
 | **CUT-M1** 反向互操作(`withMastra` 类:给纯 AI SDK 用户套 processor / memory) | `Memory` 类可独立 `new`(port 直用);processor / 挂起点属自有 loop——纯 AI SDK 侧只能手写等价钩子 | 有意分叉 | 方向倒置:核心须接受 AI SDK 流 part 词汇作回调输入,把外部流格式塞进自有 seam;永久兼容面(ADR-0004) | ≥1 真实用例(AI SDK 原生应用在其 `streamText` 循环里用 memory / processor 且接受外部依赖) |
 | **CUT-M2** workflow / network 路由(mastra `workflowRoute` / `networkRoute` 类) | 应用端点自行把 workflow 事件流 / run 记录映射为 UI 流(事件面公开) | **维持分叉、理由改写**(2026-10-12,#168) | networkRoute 半行前提因 `.network()` 弃用(官方迁移文档)失据;workflowRoute 半行快照未登记 = 无需求信号;「本包只做 agent chunk 面」主张不动——workflow lifecycle 事件流是另一套词汇(ADR-0004 / 0006) | 真实用例要求 workflow run 直出 UI stream |
-| **CUT-M3** AI SDK `resume: true` 的 GET 恢复端点 | 应用自建 GET 端点;事件缓存**归能力包**(2026-10-11,#161 随「resumable stream」转追赶项改写:能力包 = 事件缓存 + observe,内存默认零负担、Redis opt-in) | 有意分叉、理由改写(2026-10-11,#161) | 官方明言 resume 与 abort 不互容;核心 resumable stream 已裁不动(ADR-0004)——转项的是事件缓存 + observe 能力包,不触碰本行端点形态(ADR-0004) | 沿 `docs/ROADMAP.md` 延后清单「resumable stream」行(已转追赶项) |
+| **CUT-M3** AI SDK `resume: true` 的 GET 恢复端点 | 应用自建 GET 端点;事件缓存**归能力包**(2026-10-11,#161 随「resumable stream」转追赶项改写:能力包 = 事件缓存 + observe,内存默认零负担、Redis opt-in)→ **缓存侧已兑现** = `@oribos/resumable-stream` 能力包(2026-10-14,#184;`observe(cache, runId)` 即该端点的读侧,HTTP 形状仍归应用) | 有意分叉、理由改写(2026-10-11,#161) | 官方明言 resume 与 abort 不互容;核心 resumable stream 已裁不动(ADR-0004)——转项的是事件缓存 + observe 能力包,不触碰本行端点形态(ADR-0004) | 沿 `docs/ROADMAP.md` 延后清单「resumable stream」行(已转追赶项) |
 | **CUT-M4** 无状态全量 `UIMessage[] → ModelMessage[]` 转换 | `ModelInput` 三形状直通(`Message[]` 直传);缺的只是 UI part → `ModelMessage` 转换件,由用户侧承担 | 有意分叉 | 与 memory 权威双喂冲突;无状态 chat 不是本框架形态(ADR-0004 / 0007) | 真实用例要求无 memory 的纯无状态路由 |
 | **CUT-M5** typed 工具渲染(`dynamic: false` 直通) | `dynamic: true` 兜底(tool part 带 input 已可渲染);typed 诉求由客户端按 `toolName` 自查 | 有意分叉 | 工具 schema 只在服务端,客户端类型面不可知(ADR-0004) | 真实用例要求 typed 工具 part(opt-in minor) |
 | **A4** chunk 协议仅四帧(无推理增量 / 参数增量) | 核心 chunk 协议 additive 两族帧(推理增量 / 参数增量),opt-in 发射、默认四帧不变;互操作包归一层映射、不再静默丢弃 | **转追赶项**(2026-10-12,#166) | mastra / AI SDK 推理与参数增量帧实装未弃 = ADR-0017 需求证据,触发行自钉「加帧 additive minor」预案;差异收窄为默认发不发帧,词汇最小以默认值保住(ADR-0004);实施归实施地图(不进本图) | 已触发(2026-10-12,#166)——转追赶项 |

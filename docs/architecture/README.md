@@ -24,4 +24,10 @@
 > | `@oribos/croner` | [harness.md](harness.md)「croner 封装能力包」 |
 > | `@oribos/supervisor` | [agent.md](agent.md)「多 agent 组合」(追赶面首批落地,2026-10-12 [#175](https://github.com/0xnicholas/oribos-framework/issues/175)) |
 > | `@oribos/evals` | [agent.md](agent.md)「扩展点:Processor」(追赶面首批落地,2026-10-12 [#176](https://github.com/0xnicholas/oribos-framework/issues/176)) |
+> | `@oribos/rag` | [memory.md](memory.md)「语义召回(RAG 能力包,已兑现)」(追赶面中层落地,2026-10-13 [#182](https://github.com/0xnicholas/oribos-framework/issues/182)) |
+> | `@oribos/resumable-stream` | [harness.md](harness.md)「裁单」CUT-H1 行(追赶面中层落地,2026-10-14 [#184](https://github.com/0xnicholas/oribos-framework/issues/184)) |
+> | `@oribos/model-router` | [model.md](model.md)「字符串路由(model-router 能力包,已兑现)」(追赶面中层落地,2026-10-14 [#185](https://github.com/0xnicholas/oribos-framework/issues/185)) |
+> | `@oribos/checkpoints` | [harness.md](harness.md)「裁单」CUT-H1 行(追赶面中层落地,2026-10-14 [#186](https://github.com/0xnicholas/oribos-framework/issues/186)) |
+> | `@oribos/otel-bridge` | [observability.md](observability.md)「OTel bridge 能力包(已兑现)」(追赶面中层落地,2026-10-15 [#183](https://github.com/0xnicholas/oribos-framework/issues/183)) |
+> | `@oribos/semconv`(叶子包) | [observability.md](observability.md)「OTLP 能力包(M5 设计冻结)」依赖路线行(ADR-0002 叶子包判词首个实例,2026-10-14 [#193](https://github.com/0xnicholas/oribos-framework/issues/193);otlp 与 otel-bridge 复用) |
 > | bunfold 桥(**已裁**,不建包;[#79](https://github.com/0xnicholas/oribos-framework/issues/79)) | [memory.md](memory.md)「外部记忆引擎(M5 裁定:不产桥接包)」 |

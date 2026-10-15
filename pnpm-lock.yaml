@@ -78,6 +78,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  examples/crash-replay:
+    dependencies:
+      '@oribos/checkpoints':
+        specifier: workspace:*
+        version: link:../../packages/checkpoints
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   examples/cron-schedule:
     dependencies:
       '@oribos/core':
@@ -86,6 +95,15 @@ importers:
       '@oribos/croner':
         specifier: workspace:*
         version: link:../../packages/croner
+
+  examples/distributed-signals:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/distributed-signals':
+        specifier: workspace:*
+        version: link:../../packages/distributed-signals
 
   examples/durable-approval:
     dependencies:
@@ -138,6 +156,33 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  examples/model-router:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/model-router':
+        specifier: workspace:*
+        version: link:../../packages/model-router
+
+  examples/otel-bridge:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: 1.9.1
+        version: 1.9.1
+      '@opentelemetry/sdk-trace':
+        specifier: 2.11.0
+        version: 2.11.0(@opentelemetry/api@1.9.1)
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/otel-bridge':
+        specifier: workspace:*
+        version: link:../../packages/otel-bridge
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   examples/otlp-collector:
     dependencies:
       '@oribos/core':
@@ -149,6 +194,24 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  examples/resumable-stream:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/resumable-stream':
+        specifier: workspace:*
+        version: link:../../packages/resumable-stream
+
+  examples/semantic-recall:
+    dependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oribos/rag':
+        specifier: workspace:*
+        version: link:../../packages/rag
 
   examples/signal-webhook:
     dependencies:
@@ -216,6 +279,15 @@ importers:
         specifier: 7.0.123
         version: 7.0.123(zod@4.6.5)
 
+  packages/checkpoints:
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
+
   packages/core:
     devDependencies:
       '@oribos/testing':
@@ -227,6 +299,15 @@ importers:
       croner:
         specifier: 10.0.1
         version: 10.0.1
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
+
+  packages/distributed-signals:
     devDependencies:
       '@oribos/core':
         specifier: workspace:*
@@ -267,6 +348,31 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/model-router:
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
+
+  packages/otel-bridge:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: 1.9.1
+        version: 1.9.1
+      '@oribos/semconv':
+        specifier: workspace:^
+        version: link:../semconv
+    devDependencies:
+      '@opentelemetry/sdk-trace':
+        specifier: 2.11.0
+        version: 2.11.0(@opentelemetry/api@1.9.1)
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/otlp:
     dependencies:
       '@opentelemetry/api':
@@ -284,6 +390,40 @@ importers:
       '@opentelemetry/sdk-trace':
         specifier: 2.11.0
         version: 2.11.0(@opentelemetry/api@1.9.1)
+      '@oribos/semconv':
+        specifier: workspace:^
+        version: link:../semconv
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/rag:
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
+  packages/resumable-stream:
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
+
+  packages/semconv:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: 1.9.1
+        version: 1.9.1
     devDependencies:
       '@oribos/core':
         specifier: workspace:*

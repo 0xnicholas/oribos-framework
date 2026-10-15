@@ -262,6 +262,7 @@ await schedules.tick(); // 列出到期的 → 触发 → 推进 nextFireAt
 | 包 | 提供什么 | 规范 |
 | --- | --- | --- |
 | `@oribos/otlp` | OTLP exporter:Oribos span 映射到 GenAI 语义约定 | [observability.md](docs/architecture/observability.md) |
+| `@oribos/otel-bridge` | OTel bridge:Oribos span 变成宿主 TracerProvider 上的真 OpenTelemetry span(映射经共享叶子包 `@oribos/semconv`) | [observability.md](docs/architecture/observability.md) |
 | `@oribos/mcp-server` | 你的工具经 MCP(HTTP / stdio)对外提供服务 | [tools.md](docs/architecture/tools.md) |
 | `@oribos/mcp-client` | 别家 MCP server 的工具,变成 Oribos 工具 | [tools.md](docs/architecture/tools.md) |
 | `@oribos/sqlite` | 覆盖全部四个存储端口的 SQLite 适配器 | [storage.md](docs/architecture/storage.md) |
@@ -329,7 +330,7 @@ pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surfac
 离线示例同样有闸门——与 CI 运行的同一个闸门,排在 `verify` 之后一步:
 
 ```bash
-pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools(HTTP + stdio)/ workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks
+pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools(HTTP + stdio)/ workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks / semantic-recall / resumable-stream / model-router / crash-replay / otel-bridge
 ```
 
 它串行运行九个离线条目,流式输出各自的日志,任何一个失败即以非零码退出

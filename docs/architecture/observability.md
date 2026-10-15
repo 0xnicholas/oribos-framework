@@ -99,7 +99,7 @@ tracer 存在时框架自动开 span,缺席时 NoOp 零开销:
 ## 上下文传播与身份
 
 - **框架内部显式传播**:Agent loop / Workflow walker 沿执行树把 parent span 传给下一代——**不用 AsyncLocalStorage**(edge / CF Workers 需 compat flag,且隐式上下文是魔法)。用户 tool 内自建 span 同样走显式 parent(tracer API 参数)。内核缝是 `startSpan` 的两种入参:`{ parent }` 传活 span(正常执行树),或 root 创建时传 `{ traceId, parentSpanId }` 续接别处开始的 trace——二者互斥,`parentSpanId` 必须与 `traceId` 同来。
-- **外部 trace 延续**:run 级 option(Agent generate/stream 与 workflow createRun)接受可选 `{ traceId?, parentSpanId? }`;解析 `traceparent` header 是应用层的事。空串不是可续接的 id(tool ctx 对"无 trace"的编码,见 `tools.md`「执行上下文」):`traceId` 为空串时整对作废——run 起自己的新 trace,不产生空 trace id 的残破 span;`parentSpanId` 为空串则只丢 parent。(ALS 集成归延后的 OTel bridge。)
+- **外部 trace 延续**:run 级 option(Agent generate/stream 与 workflow createRun)接受可选 `{ traceId?, parentSpanId? }`;解析 `traceparent` header 是应用层的事。空串不是可续接的 id(tool ctx 对"无 trace"的编码,见 `tools.md`「执行上下文」):`traceId` 为空串时整对作废——run 起自己的新 trace,不产生空 trace id 的残破 span;`parentSpanId` 为空串则只丢 parent。(OTel bridge 已兑现(2026-10-15,#183)——它是 exporter 侧的桥,不改本节显式传播纪律,无 ALS。)
 - **suspend/resume**:traceId 进 workflow 快照,resume 续同一 trace。
 
 ## Exporter 清单
@@ -107,11 +107,11 @@ tracer 存在时框架自动开 span,缺席时 NoOp 零开销:
 - **核心包自带两个**:`console`(开发调试美化打印)与 `memory`(环形缓冲,测试/集成断言的抓手)。
 - **OTLP 能力包一个**(独立 npm 包 `@oribos/otlp`,沿 ADR-0002 M5 修订记):把 span 映射为 GenAI semconv 形状——`{operation} {model}` 命名、`gen_ai.operation.name / provider.name / request.model / usage.*` 属性、parts 格式消息;usage 只挂 `chat` span 防后端重复计数。transport 仅 HTTP/protobuf + HTTP/JSON,**不做 gRPC**(Langfuse 不收 gRPC,`@grpc/grpc-js` 依赖重);协议层依赖 OTel 官方 exporter 包,隔离在包边界。带 env-var 零配置 preset。设计冻结见下节「OTLP 能力包(M5 设计冻结)」。
 - **不做厂商专用 exporter**:Langfuse / LangSmith 均把裸 OTLP + `gen_ai.*` 当一等摄入路径,发标准形状即同时覆盖多家后端。
-- **OTel bridge**(复用进程内 OTel SDK 上下文):经 ADR-0017 重判(2026-10-11,#161)**转追赶项**——证据 = mastra 观测 OTel 生态向 + 1.71 能力协商(实装存在且未弃);范围界定 = 宿主既有 OTel SDK 原生互操作(TracerProvider 接入 + trace-context 传播),复用 `@oribos/otlp` 的 semconv 映射,与 M5 已交付的 OTLP 导出分属两件事;metrics / logs 维持砍单(v1 只 tracing,ADR-0009 不动);验证面 = TracerProvider 互操作单测 + example;**中层**(既有缝上的新能力包,#161)。CUT-OBS2 行。
+- **OTel bridge 能力包**(独立 npm 包 `@oribos/otel-bridge`,2026-10-15 兑现,#183;转追赶项判定见 2026-10-11,#161):一个 `ObservabilityExporter`(`createOtelBridge()`,三事件桥法)把 tracing 事件桥成宿主进程 `TracerProvider` 上的**真 OTel span**——经 `@opentelemetry/api` 全局 tracer 接入,映射复用叶子包 `@oribos/semconv`(ADR-0002 叶子边;**不经** `@oribos/otlp` 依赖,不装不付保全)。身份是结构性的:宿主 SDK 生成 span / trace id,oribos 树经父子关系映射;无 provider 注册即 API no-op——opt-in、零成本、无常驻管线。详见面「OTel bridge 能力包(已兑现)」。metrics / logs 维持砍单(v1 只 tracing,ADR-0009 不动)。
 
 ## OTLP 能力包(M5 设计冻结)
 
-> 决策:wayfinder ticket #73(决策:OTLP exporter 能力包)。包名 `@oribos/otlp`(沿 ADR-0002 M5 修订记),对 `@oribos/core` 走 peer(`workspace:^`)、与全 `@oribos/*` 锁步发布;事实底座 = `docs/research/otlp-js-packages.md`(2026-09-30 实测,版本钉 `exporter-trace-otlp-{proto,http}@0.222.0` / `sdk-trace@2.11.0` / `resources@2.11.0` / `api@1.9.1`)。本节是冻结态:包面、依赖路线、三事件桥法与映射契约都不留实现期判断。
+> 决策:wayfinder ticket #73(决策:OTLP exporter 能力包)。包名 `@oribos/otlp`(沿 ADR-0002 M5 修订记),对 `@oribos/core` 走 peer(`workspace:^`)、与全 `@oribos/*` 锁步发布;事实底座 = `docs/research/otlp-js-packages.md`(2026-09-30 实测,版本钉 `exporter-trace-otlp-{proto,http}@0.222.0` / `sdk-trace@2.11.0` / `resources@2.11.0` / `api@1.9.1`)。本节是冻结态:包面、依赖路线、三事件桥法与映射契约都不留实现期判断。映射落位修订(2026-10-14,#193):映射纯件迁叶子包 `@oribos/semconv`(ADR-0002 叶子包例外),本节契约文本不变、代码自叶子包复用——传输侧(`to-readable` + exporter 基座)留本包。
 
 ### 包面
 
@@ -138,6 +138,7 @@ createOtlpExporter(options?: {
 
 ### 依赖路线
 
+- **映射纯件落位(2026-10-14,#193)**:`mapping` / `messages` / `values` 三件居叶子包 `@oribos/semconv`(唯一外部依赖 `@opentelemetry/api`;ADR-0002 叶子包例外),本包以 `dependencies`(`workspace:^`)依赖之;`to-readable.ts` 留本包、import 叶子的 `mapSpan`。下游 `@oribos/*`(OTel bridge)对映射的复用 = 同一叶子包依赖,不再经本包。
 - **路线 = 官方 exporter 包 + 官方批处理器**(调研 §7 路线①):直接依赖 `@opentelemetry/exporter-trace-otlp-proto` / `-http`(双协议)、`@opentelemetry/sdk-trace`(`BatchSpanProcessor`)、`@opentelemetry/resources`(`resourceFromAttributes` + env 检测器)、`@opentelemetry/api`(`SpanKind` / `SpanStatusCode` / `TraceFlags`);五件全部**精确钉版本**并以 `dependencies` 声明(exporter 系列走 0.x 且对 SDK 用精确版本;`api` 作直接依赖,免 peer 解析面)。
 - **安装树实测 12 包 / 19,312,287 B(≈18.42 MiB unpacked)**:`semantic-conventions` 单包 12.0 MB(62%,`core` / `resources` / `sdk-trace` 的传递依赖,无法从树里移除)、`sdk-metrics` + `sdk-logs` + `api-logs` ≈2.67 MB(transformer 同时编码三信号)。数字口径归 `deps-budget.json` 黄灯(实施图落基线,#72);`@oribos/core` peer 豁免。
 - 不选的路线:仅 `otlp-transformer` + 自写 HTTP(只省 0.67 MiB,却把传输 / 重试 / 并发簿记搬进本包);自实现序列化(把 semconv 演进从「跟版本」升级成「自己维护」)。
@@ -191,6 +192,33 @@ createOtlpExporter(options?: {
 
 本包的裁单行统一归篇章级「砍单与承载缝」表(CUT-OBS1–5 行),此处不再重列——单一真相源。
 
+## OTel bridge 能力包(已兑现)
+
+> 判定:CUT-OBS2 行(2026-10-11,#161 转追赶项);依赖边形状:wayfinder ticket [设计:OTel bridge 映射复用的依赖边形状](https://github.com/0xnicholas/oribos-framework/issues/193)(映射抽叶子包,非整包依赖)。2026-10-15 兑现(#183):包名 `@oribos/otel-bridge`,对 `@oribos/core` 走 peer、`@opentelemetry/api` 与 `@oribos/semconv` 走 `dependencies`(叶子边,ADR-0002 判词);包体 994 B minified,外部闭包 = `api` 1 包 / 1,001,329 B。
+
+### 包面
+
+```ts
+createOtelBridge(): ObservabilityExporter
+```
+
+零配置、零选项:桥没有自己的 provider、processor、批处理管线——span 生命周期全归宿主 SDK,`flush` / `shutdown` 皆无(tracer 的转发对它是 no-op)。接入方式与任何 exporter 相同:放进 `createTracer({ exporters: [...] })`。
+
+### 三事件桥法
+
+- **`span_started` → 开真 span**:经 `@opentelemetry/api` 全局 tracer(`instrumentationScope = { name: '@oribos/otel-bridge' }`,不带 version),以叶子的 `mapSpan` 造名(kind + 属性),`startTime` 用 oribos 起始时刻。
+- **`span_updated` → 补属性**:重映射后的属性集合并入活 span(同名键覆盖);名字与 kind 不追改(桥面冻结为三事件字面)。
+- **`span_ended` → 终态**:补最终属性 + status(`error` 时 `{ code: ERROR, message }`,否则 UNSET)后 `end(endTime)`;无活 span 可收(isEvent 单 `span_ended`,或 started 缺席)则现场开合——`endTime` 缺省即 `startTime`,零时长。
+- **父子树是结构映射,不是 id 保真**:API 不允许指定 span/trace id,宿主 SDK 自生成;桥以 oribos `parentSpanId` 对账——活父挂其真 OTel span(子承父 trace);父不活(外部续接、或已收尾)则挂 **remote `SpanContext`**(oribos id 拼装、`isRemote: true`),子保 oribos trace 身份。根 span 显式挂根上下文,**不接宿主环境上下文**——一条新 oribos trace 就是一条新 OTel trace,即便宿主自身正有活跃 span。
+
+### 保轴
+
+opt-in(exporters 列表里的一员)、不配置即零成本(无 provider 注册 = API no-op tracer 吞掉全部事件,单测钉死)、无常驻管线(不自建 processor / 批处理;验证面 = TracerProvider 互操作单测 + `examples/otel-bridge` 进 `check:examples` 闸门,均已交付)。
+
+### 裁单
+
+bridge 件的裁单行归篇章级「砍单与承载缝」表 CUT-OBS2 行;metrics / logs 维持分叉。
+
 ## 砍单与承载缝
 
 判定口径见 `docs/ROADMAP.md`「下一阶段(完善)」;`CUT-OBS*` 行 = 审计 §2 砍单行集(`docs/research/completeness-audit.md`),`E*` 行 = 对比总账 §3「形状内语义差异」(`docs/research/mastra-gap-analysis.md`)。判定三值:有意分叉 / 已兑现(非差异) / 提升(→ 必须项表 ID)。2026-10-11 起按 ADR-0017 逐行重判,判定值增**转追赶项**与**维持分叉但理由改写**两值(程序、口径与已裁行见 `docs/ROADMAP.md`「追赶面」段)。
@@ -198,7 +226,7 @@ createOtlpExporter(options?: {
 | 项 | 承载缝 | 判定 | 理由·ADR 指针 |
 | --- | --- | --- | --- |
 | **CUT-OBS1** gRPC transport / 厂商专用 exporter | 官方 OTel exporter 包可自拼(不装不付) | 有意分叉 | Langfuse 不收 gRPC;裸 OTLP + `gen_ai.*` 覆盖各家(ADR-0009) |
-| **CUT-OBS2** OTel bridge / metrics / logs | OTLP 导出面 + 用户已有 OTel 采集管线自接;**bridge 转追赶项**:能力包(TracerProvider 接入 + trace-context 传播,复用 `@oribos/otlp` semconv 映射)(2026-10-11,#161) | **转追赶项(bridge 件)、维持分叉(metrics / logs 件)** | 证据 = mastra 观测 OTel 生态向 + 1.71 能力协商,实装存在且未弃;零负担、不装不付;v1 只 tracing 的裁单不动——metrics / logs 维持分叉(ADR-0009);验证面 = TracerProvider 互操作单测 + example;延后清单「OTel bridge 能力包」行 |
+| **CUT-OBS2** OTel bridge / metrics / logs | OTLP 导出面 + 用户已有 OTel 采集管线自接;**bridge 已兑现**:`@oribos/otel-bridge` 能力包(2026-10-15,#183——三事件桥成宿主 TracerProvider 真 span,映射居 `@oribos/semconv` 叶子,见「OTel bridge 能力包(已兑现)」) | **已兑现(bridge 件)、维持分叉(metrics / logs 件)** | 证据 = mastra 观测 OTel 生态向 + 1.71 能力协商,实装存在且未弃;零负担、不装不付;v1 只 tracing 的裁单不动——metrics / logs 维持分叉(ADR-0009);验证面 = TracerProvider 互操作单测 + example,均已交付 |
 | **CUT-OBS3** 自研批处理 / 重试 / 日志 / 错误回调 | 官方 `BatchSpanProcessor` / OTel 侧配置 | 有意分叉 | 官方基座在树内且更完整;诊断走 diag(ADR-0009) |
 | **CUT-OBS4** 内建截断 / 敏感数据规则库 | `spanProcessors` 同步改写 + `hideInput` / `hideOutput` trace 级擦除 | 有意分叉 | 上游处理器 + hide 开关是唯一整形缝;「不截断」是记明的已知代价(ADR-0009) |
 | **CUT-OBS5** `gen_ai.conversation.id` 补全 | memory span 已发 `oribos.thread_id`;需要时用户 spanProcessor 自补 | 有意分叉 | agent-step 属性面无 threadId;不做跨 span 推断(ADR-0009) |
@@ -217,4 +245,4 @@ createOtlpExporter(options?: {
 
 ## 依赖预算
 
-核心(含 observability 子路径)运行时依赖 = 0(ADR-0001 红线,内部 CI 回归参考);OTLP 能力包依赖 OTel 官方 exporter 包(清单与实测数字见「OTLP 能力包(M5 设计冻结)」),不装不付。
+核心(含 observability 子路径)运行时依赖 = 0(ADR-0001 红线,内部 CI 回归参考);OTLP 能力包依赖 OTel 官方 exporter 包(清单与实测数字见「OTLP 能力包(M5 设计冻结)」),不装不付;OTel bridge 能力包仅 `@opentelemetry/api`(闭包 1 包 / 1,001,329 B)+ `@oribos/semconv` 叶子边(ADR-0002 判词),包体 994 B minified,不装不付。
