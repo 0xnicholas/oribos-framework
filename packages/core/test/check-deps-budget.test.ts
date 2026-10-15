@@ -6,7 +6,8 @@ import { cleanupFixtures, fixturePackage, packageManifest, runScript } from './h
 /**
  * 依赖数字黄灯的 CLI 契约(ADR-0015 M5 修订)。测量口径要 npm/registry(网络),
  * verify 硬约束无网络(ADR-0015)——本文件只测离线可达的契约面:
- * 零依赖免基线、口径不符硬错误(退出 2)、manifest 不可读硬错误(退出 2)、workspace 范围守护;
+ * 零依赖免基线、口径不符硬错误(退出 2)、manifest 不可读硬错误(退出 2)、workspace 范围守护、
+ * npm 解析超时硬错误(退出 2,1 ms 超时起手即杀,不等网络);
  * 网络路径(闭包实测/超基线/零引用/--update)由实施票的活体夹具与各包基线落数覆盖。
  */
 afterEach(cleanupFixtures);
@@ -73,6 +74,24 @@ describe('check-deps-budget:依赖数字比对', () => {
     expect(result.stderr).not.toContain('显式单议');
     expect(result.stdout).toContain('@oribos/leafy');
     expect(result.stdout).toContain('未建基线');
+  });
+
+  it('npm 解析超时是硬错误(退出 2),报错带镜像 / 超时两个出口的实名', () => {
+    const dir = fixturePackage({
+      'package.json': packageManifest({ dependencies: { zod: '^4.0.0' } }),
+    });
+
+    // 1 ms 超时:npm 起手即被杀,是慢链路上冷 packument 卡死的离线等价形态(不等网络)。
+    const result = runScript('check-deps-budget', [dir], {
+      ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS: '1',
+      ORIBOS_DEPS_BUDGET_REGISTRY: 'https://registry.example.test/',
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('npm 解析超时');
+    expect(result.stderr).toContain('https://registry.example.test/');
+    expect(result.stderr).toContain('ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS');
+    expect(result.stdout).toBe('');
   });
 
   it('基线口径与脚本口径不符时拒绝比对(硬错误,退出 2)', () => {

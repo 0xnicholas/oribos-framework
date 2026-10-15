@@ -11,6 +11,10 @@
 // workspace: 豁免 = peer `@oribos/core` + ADR-0002 叶子包判词(能力包 dependencies
 // 依赖叶子包,#193;叶子未发布、workspace 范围不可 npm 解析,叶子边按叶子外部闭包 + 本体
 // 计 1 包测量,本体字节 0 下界,#183);其余依赖边须先改 ADR 再改这里。
+// 慢链路逃生口(本地专用,不动口径):`ORIBOS_DEPS_BUDGET_REGISTRY` 把 npm 解析与体积取数
+// 一并指向同一镜像(两面同源才同闭包;镜像滞后于 pin 的版本会以 npm notarget 落成硬错误,
+// 换个镜像或走缺省)、`ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS` 放宽 npm 解析超时
+// (缺省 300 s,与 npm 自身 fetch-timeout 同量级);CI 与基线口径都走缺省值。
 // 脚手架(开场 / 基线链 / 报表 / CI 记录面)居 gate-kit.mjs(#126),本闸门只留自己的度量与检查。
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,7 +32,12 @@ import {
 const METRIC = 'npm-install-closure-packages-and-unpacked-bytes';
 const BUDGET_FILE = 'deps-budget.json';
 const UPDATE_HINT = 'pnpm deps-budget:update';
-const REGISTRY = 'https://registry.npmjs.org';
+/** 口径锚定公共 registry;env 覆盖 = 慢链路逃生(镜像同源元数据,见文件头),不随用户 npm 配置漂移。 */
+const REGISTRY = process.env.ORIBOS_DEPS_BUDGET_REGISTRY ?? 'https://registry.npmjs.org';
+/** npm 解析等待上限:冷 packument 直连 npmjs 在慢链路上远超缺省值,超时即硬错误(退出 2)。 */
+const NPM_TIMEOUT_MS = Number(process.env.ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS ?? 300_000);
+/** 体积取数并发数:串行 = 每条一次 registry 往返,小并发只压耗时,不动条目集合与合计。 */
+const SIZE_FETCH_CONCURRENCY = 8;
 const CORE_PEER_EXEMPT = '@oribos/core';
 
 /**
@@ -52,13 +61,28 @@ async function npmClosure(manifest, deps) {
     );
     const npm = spawnSync(
       'npm',
-      ['install', '--package-lock-only', '--no-audit', '--no-fund', '--ignore-scripts', '--loglevel=error'],
-      { cwd: probeDir, encoding: 'utf8', timeout: 120_000 },
+      [
+        'install',
+        '--package-lock-only',
+        '--no-audit',
+        '--no-fund',
+        '--ignore-scripts',
+        '--loglevel=error',
+        `--registry=${REGISTRY}`,
+      ],
+      { cwd: probeDir, encoding: 'utf8', timeout: NPM_TIMEOUT_MS },
     );
     if (npm.status !== 0) {
-      hardError(
-        `${manifest.name}:npm 解析 ${Object.entries(deps).map(([n, r]) => `${n}@${r}`).join(', ')} 闭包失败——${(npm.stderr || npm.stdout || `exit ${npm.status}`).trim()}`,
-      );
+      const spec = Object.entries(deps)
+        .map(([name, range]) => `${name}@${range}`)
+        .join(', ');
+      // 超时被杀时 status 与 stderr 都是空(`exit null`),给可操作的下一步;
+      // 其余失败(registry 404 / 解析冲突等)照旧原样透出。
+      const detail =
+        npm.error?.code === 'ETIMEDOUT'
+          ? `npm 解析超时(> ${NPM_TIMEOUT_MS / 1000} s,registry ${REGISTRY})——冷 packument 在慢链路上可能超此值;重试(缓存已热)或经 ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS / ORIBOS_DEPS_BUDGET_REGISTRY 放宽后再跑`
+          : (npm.stderr || npm.stdout || `exit ${npm.status}`).trim();
+      hardError(`${manifest.name}:npm 解析 ${spec} 闭包失败——${detail}`);
     }
     const lock = readJsonOrHardError(join(probeDir, 'package-lock.json'));
     const resolved = Object.entries(lock.packages ?? {})
@@ -71,15 +95,21 @@ async function npmClosure(manifest, deps) {
         const name = typeof entry.name === 'string' && entry.name !== '' ? entry.name : segment;
         return { name, version: entry.version };
       });
+    // 体积取数是逐条 registry 往返(慢链路上 231 条 = 整闸门的耗时大头):小并发取数,
+    // 条目集合与求和都与顺序无关,数字与串行一致。
+    const queue = [...new Map(resolved.map((entry) => [`${entry.name}@${entry.version}`, entry])).values()];
     const sizeCache = new Map();
-    let bytes = 0;
-    for (const { name: depName, version } of resolved) {
-      const key = `${depName}@${version}`;
-      if (!sizeCache.has(key)) {
-        sizeCache.set(key, await fetchUnpackedSize(manifest, depName, version));
+    const drainQueue = async () => {
+      for (let entry = queue.pop(); entry !== undefined; entry = queue.pop()) {
+        const key = `${entry.name}@${entry.version}`;
+        sizeCache.set(key, await fetchUnpackedSize(manifest, entry.name, entry.version));
       }
-      bytes += sizeCache.get(key);
-    }
+    };
+    await Promise.all(Array.from({ length: SIZE_FETCH_CONCURRENCY }, drainQueue));
+    const bytes = resolved.reduce(
+      (total, { name, version }) => total + sizeCache.get(`${name}@${version}`),
+      0,
+    );
     return { packages: resolved.length, bytes };
   } finally {
     rmSync(probeDir, { recursive: true, force: true });
@@ -108,25 +138,30 @@ async function measureLeafClosure(manifest, packageDir, name) {
 }
 
 /**
- * registry 元数据取单包解包体积;获取失败即硬错误(测量失败,退出码 2)。
+ * registry 元数据取单包解包体积;两次取数都失败即硬错误(测量失败,退出码 2)——
+ * 慢链路上单条请求偶发卡住不等于测量结论,故先重试一次。
  * 老包元数据可能缺 dist.unpackedSize(如 isexe@2.0.0,2014 年发布)——沿 #6 事实底座口径
  * (docs/research/lightweight-benchmarks-mcp.md 方法学:「体积为下界」):计包数、字节计 0、
  * 黄灯注记下界;不硬错误。
  */
 async function fetchUnpackedSize(manifest, name, version) {
+  const url = `${REGISTRY}/${encodeURIComponent(name)}/${version}`;
   let document;
-  try {
-    const response = await fetch(`${REGISTRY}/${encodeURIComponent(name)}/${version}`, {
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      document = await response.json();
+      break;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : error;
+      if (attempt > 0) {
+        hardError(`${manifest.name}:registry 元数据获取 ${name}@${version} 失败——${detail}`);
+      }
+      console.warn(`${manifest.name}:${name}@${version} 元数据取数失败(${detail}),重试一次`);
     }
-    document = await response.json();
-  } catch (error) {
-    hardError(
-      `${manifest.name}:registry 元数据获取 ${name}@${version} 失败——${error instanceof Error ? error.message : error}`,
-    );
   }
   const size = document?.dist?.unpackedSize;
   if (typeof size !== 'number') {
