@@ -201,5 +201,5 @@ _Avoid_: 步级执行接管(需核心执行缝)、耐久 sleep / workflow cron /
 _Avoid_: 常驻压缩管线 / 响应后写(mastra 式异步缓冲 + `settled()`)、priority 排序、resource scope 跨线程压缩、把观察记录当消息(消息不可变,观察/反思是附加派生记录)
 
 **后台任务 (Background tasks)**:
-应用自有工作的持久协调:任务行(accepted → running → done | failed,attempt 计数)+ 租约执行——manager 收 handler 驱动:提交 → 领租约 → 进程内执行 → 心跳 → settle;`adopt()` 重跑孤儿(幂等成本显式)、`untilIdle()` 包级等待(不改 agent 流)。标准化承载 = `@oribos/background-tasks` 能力包(与 signals 解耦:settle 经回调交应用,一期「工具 ack + sendSignal 唤醒」配方零负担照旧;任务行 / 租约两 port 内存默认,持久与多实例归部署方,表面冻结 2026-10-14 #190)。
+应用自有工作的持久协调:任务行(accepted → running → done | failed,attempt 计数)+ 租约执行——manager 收 handler 驱动:提交 → 领租约 → 进程内执行 → 心跳 → settle;`adopt()` 重跑孤儿(幂等成本显式)、`untilIdle()` 包级等待(不改 agent 流)。标准化承载 = `@oribos/background-tasks` 能力包(与 signals 解耦:settle 经回调交应用,一期「工具 ack + sendSignal 唤醒」配方零负担照旧;任务行 / 租约两 port 内存默认,持久与多实例归部署方,表面冻结 2026-10-14 #190,落地 2026-10-15 #197)。
 _Avoid_: 常驻 worker / 重试策略(归部署方)、核心内建 manager(零常驻红线)、接管宿主进程

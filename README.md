@@ -351,7 +351,7 @@ Any OpenAI-compatible endpoint works too, e.g. a local Ollama:
 | [`agent-supervisor`](examples/agent-supervisor/) | `@oribos/supervisor`: sub-agents as delegation tools — constructed input, bare-text results, one trace |
 | [`agent-evals`](examples/agent-evals/) | `@oribos/evals`: scorers wired live through the Processor seam, the settled run scored after the fact |
 | [`signal-webhook`](examples/signal-webhook/) | the signal-providers pattern: a thin webhook endpoint → `sendSignal` — translate at the edge, an application-owned registry routes |
-| [`background-tasks`](examples/background-tasks/) | the background-tasks recipe: a tool that acks now, an application-owned worker, one `sendSignal` when the work lands — success and failure through the same door |
+| [`background-tasks`](examples/background-tasks/) | the background-tasks recipe — a tool that acks now, an application-owned worker, one `sendSignal` when the work lands, success and failure through the same door — plus the `@oribos/background-tasks` manager acts: `onSettle` → `sendSignal`, an orphan adopted and re-run |
 
 ## Documentation
 

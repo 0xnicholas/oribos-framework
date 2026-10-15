@@ -23,6 +23,7 @@
       "@oribos/core": ["./packages/core/src/index.ts"],
       "@oribos/core/*": ["./packages/core/src/*/index.ts"],
       "@oribos/ai-sdk": ["./packages/ai-sdk/src/index.ts"],
+      "@oribos/background-tasks": ["./packages/background-tasks/src/index.ts"],
       "@oribos/checkpoints": ["./packages/checkpoints/src/index.ts"],
       "@oribos/croner": ["./packages/croner/src/index.ts"],
       "@oribos/distributed-signals": ["./packages/distributed-signals/src/index.ts"],

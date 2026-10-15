@@ -6,6 +6,9 @@ const mcpServerSource = fileURLToPath(new URL('./packages/mcp-server/src', impor
 const mcpClientSource = fileURLToPath(new URL('./packages/mcp-client/src', import.meta.url));
 const sqliteSource = fileURLToPath(new URL('./packages/sqlite/src', import.meta.url));
 const aiSdkSource = fileURLToPath(new URL('./packages/ai-sdk/src', import.meta.url));
+const backgroundTasksSource = fileURLToPath(
+  new URL('./packages/background-tasks/src', import.meta.url),
+);
 const checkpointsSource = fileURLToPath(new URL('./packages/checkpoints/src', import.meta.url));
 const otlpSource = fileURLToPath(new URL('./packages/otlp/src', import.meta.url));
 const ragSource = fileURLToPath(new URL('./packages/rag/src', import.meta.url));
@@ -36,6 +39,7 @@ export default defineConfig({
       { find: /^@oribos\/mcp-client$/, replacement: `${mcpClientSource}/index.ts` },
       { find: /^@oribos\/sqlite$/, replacement: `${sqliteSource}/index.ts` },
       { find: /^@oribos\/ai-sdk$/, replacement: `${aiSdkSource}/index.ts` },
+      { find: /^@oribos\/background-tasks$/, replacement: `${backgroundTasksSource}/index.ts` },
       { find: /^@oribos\/checkpoints$/, replacement: `${checkpointsSource}/index.ts` },
       { find: /^@oribos\/otlp$/, replacement: `${otlpSource}/index.ts` },
       { find: /^@oribos\/rag$/, replacement: `${ragSource}/index.ts` },

@@ -323,7 +323,7 @@ OPENAI_API_KEY=sk-... pnpm --filter @oribos/example-minimal-agent start
 | [`agent-supervisor`](examples/agent-supervisor/) | `@oribos/supervisor`:子 agent 即委派工具——显式构造输入、纯文本回喂、同一条 trace |
 | [`agent-evals`](examples/agent-evals/) | `@oribos/evals`:scorer 经 Processor 缝接进 live run 逐步打分,整跑结果事后打分 |
 | [`signal-webhook`](examples/signal-webhook/) | signal providers 的示例形态:薄 webhook 端点 → `sendSignal`——边缘翻译校验、应用自有登记簿路由 |
-| [`background-tasks`](examples/background-tasks/) | background tasks 配方:工具立即 ack、应用自有 worker 后台完工、落地即一次 `sendSignal`——成功与失败同门回告 |
+| [`background-tasks`](examples/background-tasks/) | background tasks 配方:工具立即 ack、应用自有 worker 后台完工、落地即一次 `sendSignal`——成功与失败同门回告;另含 `@oribos/background-tasks` manager 二期幕(`onSettle` → `sendSignal`、孤儿 adopt 重跑) |
 
 ## 文档
 

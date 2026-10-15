@@ -1,21 +1,25 @@
 /**
- * Oribos background-tasks example — a tool that acks now, a signal that reports later.
+ * Oribos background-tasks example — a tool that acks now, a signal that reports later — and the
+ * capability package that coordinates the work in between.
  *
- * Background tasks are a recipe here, not a subsystem (ADR-0011 judged the primitive combination
- * equivalent): the tool's `execute` registers the job with an application-owned worker and returns
- * immediately, the run finishes on that ack — the core's completion semantics are untouched, no
- * `untilIdle`, nothing in the framework waits for the work — and when the work is done the worker
- * calls `sendSignal` on the thread the run carried. The idle thread wakes with the rendered
- * `[signal]` message and the desk reports to the customer. One script, no external services: a
- * scripted model stub plays the desk (no API key, no network) and a `setTimeout` plays the worker's
- * latency. Zero new seams, zero dependencies.
+ * Acts 1–3 are the phase-one recipe verbatim: background tasks are a recipe here, not a
+ * subsystem (ADR-0011 judged the primitive combination equivalent). The tool's `execute`
+ * registers the job with an application-owned worker and returns immediately, the run finishes
+ * on that ack — the core's completion semantics are untouched, no `untilIdle`, nothing in the
+ * framework waits for the work — and when the work is done the worker calls `sendSignal` on the
+ * thread the run carried. Acts 4–5 add the phase-two manager, `@oribos/background-tasks` — the
+ * same three pieces, now driven by the package instead of by hand: `submit` writes the task row
+ * and runs the handler, the settle hands the record to an app-owned `onSettle` (the join back
+ * into `sendSignal`), and `adopt()` re-runs an orphan whose first attempt died in flight.
  *
- * The three pieces the recipe is about:
+ * The pieces the recipe is about:
  *
  * - **The tool acks, the work is yours.** `runReport` hands the job to the application's worker and
  *   returns `{ taskId, status: 'accepted' }` in the same breath. The loop's next model call
  *   composes on that ack and the run ends — the "background" is entirely the application's own
- *   worker, which is why nothing resident ever runs inside the framework.
+ *   worker, which is why nothing resident ever runs inside the framework. The manager does not
+ *   change that shape: `runManagedReport` acks the same way, and what runs in the background is
+ *   still the application's own handler.
  * - **The thread rides the request context.** A tool's `ctx` does not carry the run's memory
  *   identity, so the run is started with `replyTo` — the same thread target every signal method
  *   takes — on its open request-context bag, and the tool reads it back to route the report. The
@@ -23,7 +27,7 @@
  * - **Completion is one `sendSignal`.** Success and failure go through the same door: a finished
  *   job signals `{ type: 'report-completed', … }`, a failed one `{ type: 'report-failed', error }`.
  *   The payload's shape is the receiver's protocol; the thread wakes with it in its prompt and in
- *   history, like any message.
+ *   history, like any message. In the manager acts, that one call is the `onSettle` body.
  *
  * The acts:
  *
@@ -36,16 +40,27 @@
  *    table nobody is working: no run wakes and no model call happens. Between an ack and its
  *    signal the process holds only the application's own machinery — a registered job row and,
  *    normally, its timer.
+ * 4. **The manager drives the same recipe.** The payments report goes through
+ *    `@oribos/background-tasks`: `submit` writes the row (`accepted`), the lease takes it, the
+ *    handler runs in-process, and the settle lands in `onSettle` — which makes the one
+ *    `sendSignal` that wakes the thread. Same three pieces, package-driven.
+ * 5. **An orphan is adopted.** A churn report's first attempt dies in flight (a promise that
+ *    never settles stands in for the process that died mid-job) — the row stays `running`, the
+ *    lease un-renewed. The script ages the lease past its window and calls `adopt()`: the orphan
+ *    is taken, `attempt` becomes 2, the handler runs again to completion and the signal posts
+ *    the report. At-least-once, by design — idempotency would be the handler's own business.
  *
  * The script asserts its own payoff (`node:assert/strict`): a run that waited for the work, a
  * signal that missed the woken run's prompt, a failure that masqueraded as success, a job nobody
- * worked that woke something — each exits non-zero instead of printing a happy face.
+ * worked that woke something, a dead attempt that reported anyway, an adoption that did not
+ * re-run — each exits non-zero instead of printing a happy face.
  *
  * Run it (from the repo root, after `pnpm install && pnpm build`):
  *
  *   pnpm --filter @oribos/example-background-tasks start
  */
 import assert from 'node:assert/strict';
+import { createBackgroundTasks, createInMemoryLeaseStore } from '@oribos/background-tasks';
 import { createApp } from '@oribos/core';
 import type { AgentMemoryOptions } from '@oribos/core/agent';
 import { Memory, createInMemoryStore } from '@oribos/core/memory';
@@ -123,6 +138,12 @@ const SCRIPT: readonly ScriptEntry[] = [
   { text: 'Inventory report r-2 failed: the warehouse feed is down. Want me to retry?' },
   { toolCalls: [{ toolCallId: 'call-3', toolName: 'runReport', input: { kind: 'churn' } }] },
   { text: 'Churn report r-3 is queued — I will post here when it is ready.' },
+  { toolCalls: [{ toolCallId: 'call-4', toolName: 'runManagedReport', input: { kind: 'payments' } }] },
+  { text: 'Payments report is running under the manager — I will post here when it is ready.' },
+  { text: 'Payments report is ready: https://reports.example/payments.' },
+  { toolCalls: [{ toolCallId: 'call-5', toolName: 'runManagedReport', input: { kind: 'churn-adopt' } }] },
+  { text: 'Churn report is running under the manager — I will post here when it is ready.' },
+  { text: 'Churn report is ready: https://reports.example/churn-adopt (the adopted re-run finished it).' },
 ];
 
 // ── The application's worker: a job table and a timer, nothing more ───────────────────────────
@@ -222,6 +243,42 @@ const app = createApp({ tracer, storage: { memory: memoryStore } });
 let signals: Signals;
 const worker = reportWorker((target, payload) => signals.sendSignal(target, payload));
 
+// ── Phase two: the background-tasks manager (opt-in, in-process) ──────────────────────────────
+
+// The lease's clock is the script's, so act 5 can age a dead attempt's lease past its window
+// without sleeping 30 real seconds. Otherwise this is the package default: in-memory, no timers.
+let leaseClock = Date.now();
+const taskLease = createInMemoryLeaseStore({ now: () => leaseClock });
+
+// The manager is the phase-two counterpart of `reportWorker`: rows instead of a job Map, a lease
+// instead of the `scheduling` flag, `onSettle` instead of the worker's own `report` call. With no
+// `heartbeatMs` it holds zero timers — between a submit and its settle, the process still holds
+// only the application's own work.
+const tasks = createBackgroundTasks({
+  lease: taskLease,
+  onSettle: (record) => {
+    // The settled record is the app's protocol: `payload` carries the thread it belongs to,
+    // `result` / `error` the outcome — the same one `sendSignal` the phase-one worker makes.
+    const payload = record.payload as { readonly kind: string; readonly replyTo: AgentMemoryOptions };
+    const signal: SignalPayload =
+      record.status === 'done'
+        ? {
+            type: 'report-completed',
+            taskId: record.id,
+            kind: payload.kind,
+            url: (record.result as { readonly url: string }).url,
+          }
+        : { type: 'report-failed', taskId: record.id, kind: payload.kind, error: record.error };
+    return signals.sendSignal(payload.replyTo, signal);
+  },
+});
+
+/** The report work itself: the wait, then the result — what both manager acts run. */
+async function runReportJob(kind: string): Promise<{ readonly url: string }> {
+  await new Promise((resolve) => setTimeout(resolve, WORK_MS));
+  return { url: `https://reports.example/${kind}` };
+}
+
 const model = scriptedModel(SCRIPT);
 const runReport = createTool({
   description:
@@ -240,6 +297,35 @@ const runReport = createTool({
   },
 });
 
+const runManagedReport = createTool({
+  description:
+    'Starts a report job through the background-task manager and returns immediately with its ' +
+    'task id. The manager runs the job in-process; its result arrives later as a [signal] ' +
+    'message in this conversation.',
+  inputSchema: reportInputSchema,
+  execute: (input, ctx) => {
+    const replyTo = ctx.requestContext['replyTo'];
+    if (typeof replyTo !== 'object' || replyTo === null) {
+      throw new Error('runManagedReport: no `replyTo` on the request context — start the run with its thread target on the options.');
+    }
+    // One closure per submission — the job's handler. Attempt-aware on purpose: act 5 plays the
+    // attempt that died by leaving `churn-adopt`'s first invocation never settling.
+    let invocations = 0;
+    return tasks
+      .submit({
+        payload: { kind: input.kind, replyTo: replyTo as AgentMemoryOptions },
+        run: async (payload) => {
+          invocations += 1;
+          if (payload.kind === 'churn-adopt' && invocations === 1) {
+            return new Promise<never>(() => {});
+          }
+          return runReportJob(payload.kind);
+        },
+      })
+      .then((record) => ({ taskId: record.id, status: record.status }));
+  },
+});
+
 const desk = app.agent({
   name: 'desk',
   instructions:
@@ -247,7 +333,7 @@ const desk = app.agent({
     'start one, tell the customer it is running and that you will post here when it is done. ' +
     'Results and failures arrive later as [signal] messages — report each in one short sentence.',
   model,
-  tools: { runReport },
+  tools: { runReport, runManagedReport },
 });
 signals = app.signals({ agent: desk });
 
@@ -381,16 +467,83 @@ try {
   assert.deepEqual(result3.toolResults[0]?.output, { taskId: 'r-3', status: 'accepted' });
   assert.equal(worker.status('r-3'), 'accepted');
   exporter.clear();
+  const callsBeforeAct3sWait = model.calls();
   await new Promise((resolve) => setTimeout(resolve, 200));
   assert.equal(endedRuns().length, 0);
-  assert.equal(model.calls(), SCRIPT.length);
+  assert.equal(model.calls(), callsBeforeAct3sWait);
   console.log(`  worker stopped, r-3 registered (${worker.size()} job rows) — no run woke, no model call`);
   console.log('  between an ack and its signal the framework holds nothing: the application owns the background\n');
 
+  console.log('Act 4 — the manager drives the same recipe');
+  const result4 = await signals.generate('Please run the payments report through the manager.', {
+    memory: TARGET,
+    replyTo: TARGET,
+  });
+  const managed4 = result4.toolResults[0]?.output as { taskId: string; status: string };
+  assert.equal(managed4.status, 'accepted');
+  assert.equal(typeof managed4.taskId, 'string');
+  // Same trick as act 1: the run ended on the ack — the manager's handler is still running.
+  assert.equal((await tasks.get(managed4.taskId))?.status, 'running');
+  console.log(`  desk acked ${managed4.taskId.slice(0, 8)}… — run ended, the manager's handler still running`);
+
+  exporter.clear();
+  await waitForRuns(1);
+  const tail4 = promptTail(stepSpans().at(0));
+  assert.ok(
+    tail4.startsWith('[signal] {"type":"report-completed"'),
+    `the woken run's prompt ends with the completed report, got "${tail4}"`,
+  );
+  assert.ok(tail4.includes('"url":"https://reports.example/payments"'), `the signal carries the report url, got "${tail4}"`);
+  assert.equal(reportedText(endedRuns().at(0)), SCRIPT[10]?.text);
+  const record4 = await tasks.get(managed4.taskId);
+  assert.equal(record4?.status, 'done');
+  assert.equal(record4?.attempt, 1);
+  console.log('  [settled] record done, attempt 1 — onSettle made the one sendSignal');
+  console.log(`  [woken run] ${reportedText(endedRuns().at(0))}\n`);
+
+  console.log('Act 5 — an orphan is adopted and re-run');
+  const result5 = await signals.generate('Also run the churn report through the manager.', {
+    memory: TARGET,
+    replyTo: TARGET,
+  });
+  const managed5 = result5.toolResults[0]?.output as { taskId: string; status: string };
+  assert.equal(managed5.status, 'accepted');
+  const record5 = await tasks.get(managed5.taskId);
+  assert.equal(record5?.status, 'running');
+  assert.equal(record5?.attempt, 1);
+  // The first attempt died in flight: no signal, no wake — the row just sits there, running.
+  exporter.clear();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(endedRuns().length, 0);
+  // Age the dead attempt's lease past its window (30 s with no heartbeat): a restart takes at
+  // least that long. The row is still running and its lease is now free — the orphan's definition.
+  leaseClock += 31_000;
+  const adopted5 = await tasks.adopt();
+  assert.equal(adopted5.length, 1);
+  assert.equal(adopted5[0]?.id, managed5.taskId);
+  assert.equal(adopted5[0]?.attempt, 2);
+  console.log('  lease aged past its window — adopt() took the orphan (attempt 2)');
+
+  await tasks.untilIdle();
+  await waitForRuns(1);
+  const record5Settled = await tasks.get(managed5.taskId);
+  assert.equal(record5Settled?.status, 'done');
+  assert.equal(record5Settled?.attempt, 2);
+  const tail5 = promptTail(stepSpans().at(0));
+  assert.ok(
+    tail5.startsWith('[signal] {"type":"report-completed"'),
+    `the adopted re-run wakes its thread too, got "${tail5}"`,
+  );
+  assert.ok(tail5.includes('"url":"https://reports.example/churn-adopt"'), `the re-run's signal carries its url, got "${tail5}"`);
+  assert.equal(reportedText(endedRuns().at(0)), SCRIPT[13]?.text);
+  console.log(`  [adopted re-run] ${reportedText(endedRuns().at(0))}\n`);
+
   console.log(
-    'Done — ack in the tool, work in your own worker, one sendSignal when it lands. Success and ' +
-      'failure through the same door, and the core never waited for any of it.',
+    'Done — ack in the tool, work in your own worker or the manager, one sendSignal when it ' +
+      'lands. Success and failure through the same door, orphans adopted and re-run, and the ' +
+      'core never waited for any of it.',
   );
 } finally {
-  // Nothing to release: every timer the worker started has fired, and the framework opened none.
+  // Nothing to release: every timer the worker started has fired, the manager holds none (no
+  // heartbeat configured), and the framework opened none.
 }

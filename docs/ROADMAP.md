@@ -157,7 +157,7 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 | Evals / scorers | 独立 scorer 能力包 + Processor 接线(`steps` / `text` / `usage` 均公开面) | scorer 单测 + 接线 example | **最近(首批候选)** |
 | Supervisor 能力包 | as-tool 公开表面,零新缝 | fake model 单测 + 多 agent example | **最近(首批候选)** |
 | time-travel / restart | load→重进原语薄变种(先截断该位之后的记录,无 port 变更) | 截断 + 重进单测 + 调试场景 example | **最近(首批候选)** |
-| Background tasks(一期) | 配方文档 + example(「工具 ack + `sendSignal` 唤醒」,ADR-0011 判等效) | example 进 `check:examples` 闸门 | **最近(首批候选)**;二期(manager/lease 包)= 远 |
+| Background tasks(一期) | 配方文档 + example(「工具 ack + `sendSignal` 唤醒」,ADR-0011 判等效) | example 进 `check:examples` 闸门 | **最近(首批候选)**;二期(manager/lease 包)= 远 **→ 二期已兑现**(2026-10-15,[#197](https://github.com/0xnicholas/oribos-framework/issues/197):`@oribos/background-tasks` 落地——manager/租约/心跳 + `adopt()` / `untilIdle()`;见 `harness.md` CUT-H5 行) |
 | A2 同一步多工具并发(opt-in) | run options additive 的 opt-in 开关,默认串行不变 | 调用序确定性 / abort 打断 eager 中途 / eager 失败路径与流交织 | **最近(首批候选)** |
 | A4 chunk 协议推理 / 参数增量帧(opt-in) | 核心 chunk 协议 additive 两族帧(推理增量 / 参数增量),opt-in 发射、默认四帧不变;互操作包归一层映射、不再静默丢弃 | 推理 / 参数增量帧往返保真(核心 → 互操作 → UI stream)+ 不消费方零影响(默认四帧流逐字节不变)+ 未知帧忽略语义 | **最近(首批候选)** |
 | RAG / 语义召回 | 能力包:落库 hook 索引 + recall 语义增强(`Memory.save → saveMessages` 缝;向量库依赖随包) | save→索引 / recall 增强单测 + example | 中 |
@@ -273,7 +273,7 @@ Oribos(TypeScript/Node agent 框架:agent / 记忆 / 工作流 / Harness 三件�
 | Evals / scorers | **转追赶项**——scorers 挂 Agent 配置 + 独立评估包,实装未弃;零负担;**首批候选** | 独立 scorer 能力包 + Processor 接线 | `agent.md`(CUT-AG1) |
 | 字符串路由(models.dev 类) | **转追赶项**——211-provider 注册表 + 网关链 + `ModelSelectionProcessor`,活跃维护;中层 | 能力包(目录 + 解析映射;核心无注册表 / magic string 钉子不动) | `model.md` 砍单与承载缝(篇级) |
 | OTel bridge 能力包 | **转追赶项**——mastra 观测 OTel 生态向 + 1.71 能力协商;范围 = 宿主 OTel SDK 原生互操作;metrics / logs 维持砍单;中层 | 能力包(复用 `@oribos/otlp` semconv 映射) | `observability.md`(CUT-OBS2) |
-| Background tasks | **转追赶项(分两期)**——manager + 持久化租约(1.72)+ 心跳 + `untilIdle` + `adopt()`,实装未弃;一期配方零负担(**首批候选**)、二期包 opt-in 不接管宿主(远) | 一期 = 配方 + example(「工具 ack + sendSignal 唤醒」);二期 = manager/lease 能力包 | `harness.md`(CUT-H5) |
+| Background tasks | **转追赶项(分两期)**——manager + 持久化租约(1.72)+ 心跳 + `untilIdle` + `adopt()`,实装未弃;一期配方零负担(**首批候选**)、二期包 opt-in 不接管宿主(远)→ **二期已兑现**(2026-10-15,[#197](https://github.com/0xnicholas/oribos-framework/issues/197)) | 一期 = 配方 + example(「工具 ack + sendSignal 唤醒」);二期 = manager/lease 能力包 **→ 已落地**(`@oribos/background-tasks`,细节见 `harness.md`「后台任务能力包」节) | `harness.md`(CUT-H5) |
 | Goals / State signals | **维持分叉、理由改写**——证据成立(judge + 预算 + thread state 持久化,Beta 未弃),但前置 thread 状态域未建且未进任何清单(转项先立新核心域,超出本行判定面;登记地图 Fog,唯一真前置) | —(thread 状态域立不立为前置) | `harness.md`(CUT-H2 / H6) |
 | 跨实例 signals | **转追赶项**——Redis Streams PubSub + LeaseProvider + `PubSub.trimTopic()`(1.72),实装未弃;opt-in 包 + 外部 Redis,不装不配零成本,核心单进程语义不变;远 | 能力包(共享 PubSub + 租约抽象 + Redis 适配) | `harness.md`「Signals(基础层)」运行时段 |
 | resumable stream | **转追赶项**——事件缓存(内存默认 / 生产 Redis)+ `observe(runId)` + `closeOnSuspend`(1.70),实装未弃;内存默认零负担、Redis opt-in;中层 | 能力包(事件缓存 + observe) | `harness.md`(CUT-H1)· `model.md`(CUT-M3) |

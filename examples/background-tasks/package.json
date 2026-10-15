@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@oribos/background-tasks": "workspace:*",
     "@oribos/core": "workspace:*"
   }
 }

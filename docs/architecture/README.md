@@ -31,4 +31,5 @@
 > | `@oribos/otel-bridge` | [observability.md](observability.md)「OTel bridge 能力包(已兑现)」(追赶面中层落地,2026-10-15 [#183](https://github.com/0xnicholas/oribos-framework/issues/183)) |
 > | `@oribos/semconv`(叶子包) | [observability.md](observability.md)「OTLP 能力包(M5 设计冻结)」依赖路线行(ADR-0002 叶子包判词首个实例,2026-10-14 [#193](https://github.com/0xnicholas/oribos-framework/issues/193);otlp 与 otel-bridge 复用) |
 > | `@oribos/observational-memory` | [memory.md](memory.md)「观察记忆(OM 类压缩能力包,已兑现)」(追赶面远层落地,2026-10-15 [#196](https://github.com/0xnicholas/oribos-framework/issues/196)) |
+> | `@oribos/background-tasks` | [harness.md](harness.md)「后台任务能力包(`@oribos/background-tasks`)」(追赶面远层落地,2026-10-15 [#197](https://github.com/0xnicholas/oribos-framework/issues/197)) |
 > | bunfold 桥(**已裁**,不建包;[#79](https://github.com/0xnicholas/oribos-framework/issues/79)) | [memory.md](memory.md)「外部记忆引擎(M5 裁定:不产桥接包)」 |

@@ -3,13 +3,15 @@
 Background tasks as a recipe, not a subsystem: a tool that **acks now**, an application-owned
 worker that finishes the job out-of-band, and **one `sendSignal`** that reports the result back to
 the thread the run carried. The run ends on the ack — the core's completion semantics never wait
-for the work (no `untilIdle`), and between an ack and its signal the framework holds nothing
-resident: the application's own worker is the entire background. Zero new seams, zero
-dependencies. Oribos is a TypeScript agent framework with zero runtime dependencies — compose
-only what you use, run anywhere.
+for the work — and between an ack and its signal the framework holds nothing resident: the
+application's own worker is the entire background. Acts 4–5 keep the same shape but let
+[`@oribos/background-tasks`](https://www.npmjs.com/package/@oribos/background-tasks) drive it: the
+opt-in manager, task rows, a lease — still in a package you install, still never in the core.
+Oribos is a TypeScript agent framework with zero runtime dependencies — compose only what you
+use, run anywhere.
 
 The example is a single file (`src/index.ts`) with a scripted model stub — **no API key and no
-network** (`setTimeout` plays the worker's latency). Three acts:
+network** (`setTimeout` plays the worker's — and the manager handler's — latency). Five acts:
 
 1. **Ack now, report later.** The desk starts a revenue report; the tool returns
    `{ taskId: 'r-1', status: 'accepted' }` immediately and the run ends while the work is still
@@ -21,6 +23,15 @@ network** (`setTimeout` plays the worker's latency). Three acts:
 3. **The framework holds nothing.** The worker is stopped and a third report acks into a job table
    nobody is working: no run wakes, no model call happens. The only things left in the process are
    the application's own job rows (and, normally, their timers).
+4. **The manager drives the same recipe.** `runManagedReport` submits through
+   `createBackgroundTasks`: the row is written `accepted`, the lease takes it, the handler runs
+   in-process, and the settle lands in `onSettle` — which makes the one `sendSignal` that wakes
+   the thread. Same three pieces, package-driven instead of hand-wired.
+5. **An orphan is adopted.** A churn report's first attempt dies in flight (a promise that never
+   settles stands in for the process that died mid-job) — the row stays `running` with its lease
+   un-renewed. The script ages the lease past its window and calls `adopt()`: `attempt` becomes 2,
+   the handler runs again to completion, and the signal posts the report. At-least-once, by
+   design — idempotency is the handler's own business.
 
 ## The recipe
 
@@ -45,9 +56,11 @@ Three pieces, all application code:
 
 Hardening a real worker stays in the same shape: idempotency on the tool call (`ctx.toolCallId` is
 the idempotency key for retried calls), real job persistence in your own store, retries and
-dead-lettering in the worker. None of it touches the framework — the manager, leases, heartbeats
-and boot-time recovery of a full background-task subsystem are deliberately **not** here: they are
-the shape of a future opt-in capability package (ROADMAP "Background tasks 二期"), not of the core.
+dead-lettering in the worker. The manager covers the coordination acts as an opt-in package —
+[`@oribos/background-tasks`](https://www.npmjs.com/package/@oribos/background-tasks): rows, the
+lease, `heartbeatMs`, `adopt()`, `untilIdle()` (acts 4–5), never in the core — while retries /
+backoff, priorities and cross-process handler execution stay outside even the package (its v1
+refusals). The rest of the hardening stays yours.
 
 ## Run
 
@@ -60,7 +73,9 @@ pnpm --filter @oribos/example-background-tasks start
 ```
 
 Expected output: the ack run ending while the work is still running, both signals with their
-rendered payloads and woken-run replies, and the stopped worker's job row waking nothing. The
-script **asserts its own payoff** — a run that waited for the work, a signal that missed the woken
-run's prompt, a failure that masqueraded as success, or a job nobody worked that woke something,
-each exits non-zero instead of printing a happy face.
+rendered payloads and woken-run replies, the stopped worker's job row waking nothing, the
+manager's settle landing in `onSettle`, and the adopted orphan re-running to completion
+(`attempt 2`). The script **asserts its own payoff** — a run that waited for the work, a signal
+that missed the woken run's prompt, a failure that masqueraded as success, a job nobody worked
+that woke something, a dead attempt that reported anyway, or an adoption that did not re-run, each
+exits non-zero instead of printing a happy face.

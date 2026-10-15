@@ -74,6 +74,9 @@ importers:
 
   examples/background-tasks:
     dependencies:
+      '@oribos/background-tasks':
+        specifier: workspace:*
+        version: link:../../packages/background-tasks
       '@oribos/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -302,6 +305,15 @@ importers:
       ai:
         specifier: 7.0.123
         version: 7.0.123(zod@4.6.5)
+
+  packages/background-tasks:
+    devDependencies:
+      '@oribos/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oribos/testing':
+        specifier: workspace:*
+        version: link:../testing
 
   packages/checkpoints:
     devDependencies:
