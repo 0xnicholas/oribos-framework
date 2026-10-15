@@ -22,13 +22,16 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 > [路线图](docs/ROADMAP.md)排序。
 
 > **状态:** 1.0 之前。Agents、memory、workflows、harness 三件套(durable agents、signals、
-> schedules)以及八个能力包均已实现并验证([路线图](docs/ROADMAP.md))。**0.7.0 已发布**:
-> 全部九个包均已上架 npm([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) 加上八个
-> 能力包),统一以 `v0.7.0` 标签发布——首个**追赶版**发布
-> ([ADR-0017](docs/adr/),见上文「定位」):opt-in
-> 多工具并发调用、opt-in 推理 / 工具参数增量帧、time-travel restart、`@oribos/supervisor`、
-> `@oribos/evals`、signal-provider webhook 形态、后台任务配方——全部 additive、零破型。它取代
-> 0.6.0——后者是 `@oribos/*` scope 下的首个发布,承载更名后的线上接口面(OTel 属性族、
+> schedules)以及十四个能力包均已实现并验证([路线图](docs/ROADMAP.md))。**0.8.0 已发布**:
+> 全部十五个包均已上架 npm([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) 加上十四个
+> 能力包),统一以 `v0.8.0` 标签发布——追赶面**中层段**发布
+> ([ADR-0017](docs/adr/),见上文「定位」):`@oribos/rag` 语义召回、
+> `@oribos/resumable-stream` 可重连流、`@oribos/model-router` 字符串路由、
+> `@oribos/checkpoints` 每步检查点 + 崩溃重放、`@oribos/otel-bridge` 真 OpenTelemetry
+> span(映射经共享叶子包 `@oribos/semconv`)——全部 additive、零破型、默认不变。它取代
+> 0.7.0——后者是首个**追赶版**发布:opt-in 多工具并发调用、opt-in 推理 / 工具参数增量帧、
+> time-travel restart、`@oribos/supervisor`、`@oribos/evals`、signal-provider webhook 形态、
+> 后台任务配方;0.6.0 是 `@oribos/*` scope 下的首个发布,承载更名后的线上接口面(OTel 属性族、
 > 环境变量前缀、服务名;见 [ADR-0013](docs/adr/0013-naming-and-branding.md))及 M1–M5 外加
 > 一轮加固;0.5.0 以旧 `@balsats/*` scope 发布且现已撤下,请改用 `@oribos/*`。0.1.0 /
 > 0.2 / 0.3 **未**单独发布。核心之外的包见[能力包](#能力包m5)。
@@ -56,7 +59,7 @@ workflows,以及 harness 三件套(durable agents、signals、schedules)——�
 npm install @oribos/core zod @ai-sdk/openai
 ```
 
-要求 `0.6.0` 或更高——更早的 0.5.0 系列以旧 `@balsats/*` scope 发布且现已撤下。0.7.0 覆盖的
+要求 `0.6.0` 或更高——更早的 0.5.0 系列以旧 `@balsats/*` scope 发布且现已撤下。0.8.0 覆盖的
 内容见[状态](#状态)。若要在本仓库上开发,请参阅
 [开发](#开发)。
 
@@ -256,7 +259,8 @@ await schedules.tick(); // 列出到期的 → 触发 → 推进 nextFireAt
 携带外部依赖的能力包以独立的 `@oribos/<capability>` 包发布——用哪个装哪个。六个全部已实现
 并验证:`pnpm verify` 中的单元测试、覆盖全部六个包的五个端到端示例(见
 [示例](#示例)),以及在存在依赖可测之处设有压缩后字节预算和依赖闭包基线
-([路线图](docs/ROADMAP.md),M5)。六个随 `0.6.0` 首发;下面两个追赶包随 `0.7.0` 跟进——九个包
+([路线图](docs/ROADMAP.md),M5)。六个随 `0.6.0` 首发;追赶包分两段跟进——首批
+(supervisor / evals)随 `0.7.0`,中层五件随 `0.8.0`——十五个包
 现已统一以 `@oribos/*` scope 发出(见[状态](#状态)):
 
 | 包 | 提供什么 | 规范 |
@@ -273,12 +277,22 @@ bunfold memory 桥经过评估,暂不采用;重新开启的条件列在路线图
 规则见 [ADR-0002](docs/adr/0002-package-structure.md) 和
 [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md)。
 
-M5 之后又落地了两个追赶包(见上文「定位」),均零依赖、已随 `0.7.0` 发布:
+M5 之后落地的追赶包分两段发布:`@oribos/supervisor` / `@oribos/evals` 随 `0.7.0`(首批,
+均零依赖);中层五件随 `0.8.0`(见上文「状态」):
 
 | 包 | 提供什么 | 规范 |
 | --- | --- | --- |
 | `@oribos/supervisor` | 子 agent 即委派工具——公开 as-tool 表面上的单个 `createSupervisor` 工厂,核心零新缝 | [agent.md](docs/architecture/agent.md) |
 | `@oribos/evals` | scorer 即普通 `{ name, score }` 对象——经 processor 逐步接线,或对已收束的整跑事后打分 | [agent.md](docs/architecture/agent.md) |
+
+追赶面中层段(均 opt-in、不配置零成本;`@oribos/otel-bridge` 见上表):
+
+| 包 | 提供什么 | 规范 |
+| --- | --- | --- |
+| `@oribos/rag` | 语义召回:包装 `MemoryStore`,save 落库 hook 索引 + recall 窗口语义增强,向量库客户端随调用方 | [memory.md](docs/architecture/memory.md) |
+| `@oribos/resumable-stream` | 可重连流:事件缓存录 run 流,`observe(runId)` 重放 + 进程内跟随 | [harness.md](docs/architecture/harness.md) |
+| `@oribos/model-router` | 字符串路由:`'provider/model'` → 模型实例,models.dev 类目录随包 vendored,核心无注册表 | [model.md](docs/architecture/model.md) |
+| `@oribos/checkpoints` | 每步检查点 + 崩溃重放:边界检查点落自有 store,`recover(runId)` / `recoverAll()` boot 恢复 | [harness.md](docs/architecture/harness.md) |
 
 ## 示例
 

@@ -27,19 +27,23 @@ already proven in the ecosystem — inside that lightweight axis, not instead of
 > sequenced on the [roadmap](docs/ROADMAP.md).
 
 > **Status:** pre-1.0. Agents, memory, workflows, the harness trio — durable agents, signals,
-> schedules — and the eight capability packages are implemented and verified
-> ([roadmap](docs/ROADMAP.md)). **0.7.0 is published**: all nine packages are on npm
-> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the eight capability
-> packages), out together under a single `v0.7.0` tag — the first **catch-up** release
-> ([ADR-0017](docs/adr/), see the Positioning note
-> above): opt-in concurrent tool calls, opt-in reasoning / tool-input delta frames, time-travel
-> restart, `@oribos/supervisor`, `@oribos/evals`, the signal-provider webhook pattern, and the
-> background-task recipe — all additive, no breaking changes. It supersedes 0.6.0, the first
-> `@oribos/*` release, which carried the renamed wire surface (OTel attribute family,
-> environment-variable prefix, service name; [ADR-0013](docs/adr/0013-naming-and-branding.md))
-> and the M1–M5 line plus a hardening pass; 0.5.0 was published under the previous
-> `@balsats/*` scope and has since been unpublished — install `@oribos/*` instead. 0.1.0 /
-> 0.2 / 0.3 are **not** published separately. See
+> schedules — and the fourteen capability packages are implemented and verified
+> ([roadmap](docs/ROADMAP.md)). **0.8.0 is published**: all fifteen packages are on npm
+> ([`@oribos/core`](https://www.npmjs.com/package/@oribos/core) plus the fourteen capability
+> packages), out together under a single `v0.8.0` tag — the **middle segment** of the catch-up
+> surface ([ADR-0017](docs/adr/), see the Positioning note
+> above): `@oribos/rag` semantic recall, `@oribos/resumable-stream` reconnectable streams,
+> `@oribos/model-router` string routing, `@oribos/checkpoints` per-step checkpoints with crash
+> replay, and `@oribos/otel-bridge` real OpenTelemetry spans (mapping via the shared
+> `@oribos/semconv` leaf) — all additive, no breaking changes, defaults unchanged. It
+> supersedes 0.7.0, the first **catch-up** release: opt-in concurrent tool calls, opt-in
+> reasoning / tool-input delta frames, time-travel restart, `@oribos/supervisor`,
+> `@oribos/evals`, the signal-provider webhook pattern, and the background-task recipe. That in
+> turn superseded 0.6.0, the first `@oribos/*` release, which carried the renamed wire surface
+> (OTel attribute family, environment-variable prefix, service name;
+> [ADR-0013](docs/adr/0013-naming-and-branding.md)) and the M1–M5 line plus a hardening pass;
+> 0.5.0 was published under the previous `@balsats/*` scope and has since been unpublished —
+> install `@oribos/*` instead. 0.1.0 / 0.2 / 0.3 are **not** published separately. See
 > [Capability packages](#capability-packages-m5) for the core-external packages.
 
 ## Why Oribos
@@ -70,7 +74,7 @@ npm install @oribos/core zod @ai-sdk/openai
 
 Requires `0.6.0` or later — the earlier 0.5.0 line was published under the previous
 `@balsats/*` scope and has since been unpublished. See [Status](#status)
-for what 0.7.0 covers. To work on this repo itself, follow [Development](#development).
+for what 0.8.0 covers. To work on this repo itself, follow [Development](#development).
 
 ## Quick start
 
@@ -280,8 +284,9 @@ Capability packages that carry external dependencies ship as separate `@oribos/<
 packages — install only what you use. All six are implemented and verified: unit tests in
 `pnpm verify`, five end-to-end examples covering all six (see [Examples](#examples)), and
 minified byte budgets plus dependency-closure baselines where there is a dependency to measure
-([roadmap](docs/ROADMAP.md), M5). All six shipped in the 0.6.0 release; the two catch-up
-packages below followed in 0.7.0 — all nine packages are now out together under the
+([roadmap](docs/ROADMAP.md), M5). All six shipped in the 0.6.0 release; the catch-up packages
+followed in two segments — the first batch (supervisor / evals) in 0.7.0, the middle five in
+0.8.0 — and all fifteen packages are now out together under the
 `@oribos/*` scope (see [Status](#status)):
 
 | Package | What it gives you | Spec |
@@ -298,13 +303,24 @@ The bunfold memory bridge was evaluated and ruled out for now; its reopen condit
 roadmap's deferred list. Packaging and dependency-redline rules are in
 [ADR-0002](docs/adr/0002-package-structure.md) and [ADR-0015](docs/adr/0015-ci-lightweight-redlines.md).
 
-Two catch-up packages have landed since M5 (see the Positioning note above), both
-dependency-free, published in 0.7.0:
+The catch-up packages landed in two release segments: `@oribos/supervisor` / `@oribos/evals`
+in 0.7.0 (the first batch, both dependency-free); the middle five in 0.8.0 (see
+[Status](#status)):
 
 | Package | What it gives you | Spec |
 | --- | --- | --- |
 | `@oribos/supervisor` | sub-agents as delegation tools — one `createSupervisor` factory over the public as-tool surface, zero new core seams | [agent.md](docs/architecture/agent.md) |
 | `@oribos/evals` | scorers as plain `{ name, score }` objects — wired per-step through a processor, or scoring a settled run after the fact | [agent.md](docs/architecture/agent.md) |
+
+The middle segment of the catch-up surface (all opt-in, zero cost unconfigured;
+`@oribos/otel-bridge` is in the table above):
+
+| Package | What it gives you | Spec |
+| --- | --- | --- |
+| `@oribos/rag` | semantic recall: wraps a `MemoryStore` — a save hook indexes messages, the recall window is semantically enhanced; the vector-store client is yours | [memory.md](docs/architecture/memory.md) |
+| `@oribos/resumable-stream` | reconnectable streams: an event cache records a run's stream; `observe(runId)` replays it and follows live in-process | [harness.md](docs/architecture/harness.md) |
+| `@oribos/model-router` | string routing: `'provider/model'` → model instances against a models.dev-style catalog you vendor; no registry in the core | [model.md](docs/architecture/model.md) |
+| `@oribos/checkpoints` | per-step checkpoints + crash replay: boundary checkpoints to your own store; `recover(runId)` / `recoverAll()` at boot | [harness.md](docs/architecture/harness.md) |
 
 ## Examples
 
