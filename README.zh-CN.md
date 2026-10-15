@@ -344,10 +344,10 @@ pnpm verify    # typecheck + build + tests + dist / runtime-deps / export-surfac
 离线示例同样有闸门——与 CI 运行的同一个闸门,排在 `verify` 之后一步:
 
 ```bash
-pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools(HTTP + stdio)/ workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks / semantic-recall / resumable-stream / model-router / crash-replay / otel-bridge
+pnpm build && pnpm check:examples   # cron-schedule / otlp-collector / mcp-tools(HTTP + stdio)/ workflow-time-travel / agent-supervisor / agent-evals / signal-webhook / background-tasks / semantic-recall / resumable-stream / model-router / crash-replay / otel-bridge / distributed-signals / inngest / observational-memory
 ```
 
-它串行运行九个离线条目,流式输出各自的日志,任何一个失败即以非零码退出
+它串行运行十七个离线条目,流式输出各自的日志,任何一个失败即以非零码退出
 (先 `pnpm build`:示例通过包构建后的 exports 消费它们)。
 
 字节预算(每个 export 路径压缩后的大小)在每个 PR 的 CI 中检查——是受检属性,不是口号——

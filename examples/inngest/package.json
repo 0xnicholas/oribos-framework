@@ -1,0 +1,20 @@
+{
+  "name": "@oribos/example-inngest",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oribos inngest example: workflow start/resume ride Inngest trigger events through the real SDK serve pathway — a local event bus and an offline serve endpoint stand in for the Dev Server, and the chain runs trigger → suspend → resume → crash retry → snapshot continuation with @oribos/inngest.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/inngest": "workspace:*",
+    "inngest": "4.24.0"
+  }
+}

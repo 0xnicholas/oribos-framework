@@ -1,0 +1,57 @@
+{
+  "name": "@oribos/observational-memory",
+  "version": "0.0.0",
+  "description": "Oribos observational-memory capability package — compaction over message history: wrap a MemoryStore so older messages that left the recall window are condensed inline, within the request that read them, into observation notes and reflections by your own model, stored through the package's own port. No dependencies beyond the @oribos/core peer.",
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "agent-framework",
+    "memory",
+    "observational-memory",
+    "compaction"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:dist": "node ../../scripts/check-dist.mjs",
+    "check:export-surface": "node ../../scripts/check-export-surface.mjs",
+    "check:runtime-deps": "node ../../scripts/check-runtime-deps.mjs",
+    "check:byte-budget": "node ../../scripts/check-byte-budget.mjs",
+    "byte-budget:update": "node ../../scripts/check-byte-budget.mjs --update",
+    "check:deps-budget": "node ../../scripts/check-deps-budget.mjs",
+    "deps-budget:update": "node ../../scripts/check-deps-budget.mjs --update",
+    "prepublishOnly": "pnpm -w verify"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xnicholas/oribos-framework.git",
+    "directory": "packages/observational-memory"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@oribos/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@oribos/core": "workspace:*",
+    "@oribos/testing": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

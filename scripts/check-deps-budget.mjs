@@ -65,9 +65,11 @@ async function npmClosure(manifest, deps) {
       .filter(([key, entry]) => key !== '' && entry.version !== undefined)
       .map(([key, entry]) => {
         // key 形如 node_modules/<name> 或嵌套 node_modules/<a>/node_modules/<b>;
-        // 同名不同版本各占一条(都会被装),按条目计数。
+        // 同名不同版本各占一条(都会被装),按条目计数。npm 别名(string-width-cjs →
+        // string-width)下 key 是别名、entry.name 才是真包名——体积必须按真包名查 registry。
         const segment = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
-        return { name: segment, version: entry.version };
+        const name = typeof entry.name === 'string' && entry.name !== '' ? entry.name : segment;
+        return { name, version: entry.version };
       });
     const sizeCache = new Map();
     let bytes = 0;

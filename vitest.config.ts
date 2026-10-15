@@ -17,6 +17,10 @@ const distributedSignalsSource = fileURLToPath(
   new URL('./packages/distributed-signals/src', import.meta.url),
 );
 const cronerSource = fileURLToPath(new URL('./packages/croner/src', import.meta.url));
+const inngestSource = fileURLToPath(new URL('./packages/inngest/src', import.meta.url));
+const observationalMemorySource = fileURLToPath(
+  new URL('./packages/observational-memory/src', import.meta.url),
+);
 const evalsSource = fileURLToPath(new URL('./packages/evals/src', import.meta.url));
 const supervisorSource = fileURLToPath(new URL('./packages/supervisor/src', import.meta.url));
 const testingSource = fileURLToPath(new URL('./packages/testing/src', import.meta.url));
@@ -41,6 +45,8 @@ export default defineConfig({
       { find: /^@oribos\/semconv$/, replacement: `${semconvSource}/index.ts` },
       { find: /^@oribos\/distributed-signals$/, replacement: `${distributedSignalsSource}/index.ts` },
       { find: /^@oribos\/croner$/, replacement: `${cronerSource}/index.ts` },
+      { find: /^@oribos\/inngest$/, replacement: `${inngestSource}/index.ts` },
+      { find: /^@oribos\/observational-memory$/, replacement: `${observationalMemorySource}/index.ts` },
       { find: /^@oribos\/evals$/, replacement: `${evalsSource}/index.ts` },
       { find: /^@oribos\/supervisor$/, replacement: `${supervisorSource}/index.ts` },
       { find: /^@oribos\/testing$/, replacement: `${testingSource}/index.ts` },

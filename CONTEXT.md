@@ -113,7 +113,7 @@ _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
 _Avoid_: suspendedPaths 式多路径挂起模型(不建路径模型,现场尽量由记录承载)、把迭代现场当作执行历史(只保留最新一份)
 
 **Memory**:
-框架的记忆子系统:thread/resource 身份 + 消息历史 + 可选工作记忆;存储走 port、默认内存实现;重机制不进核心——语义召回的标准化承载 = `@oribos/rag` 能力包(store 包装:落库 hook 索引 + recall 语义增强,零新缝,2026-10-13 #182),OM 类压缩的标准化承载 = `@oribos/observational-memory` 能力包(请求内联触发、包自有存储 port,零新缝,表面冻结 2026-10-14 #189),外部记忆系统(如 bunfold)桥接维持分叉。
+框架的记忆子系统:thread/resource 身份 + 消息历史 + 可选工作记忆;存储走 port、默认内存实现;重机制不进核心——语义召回的标准化承载 = `@oribos/rag` 能力包(store 包装:落库 hook 索引 + recall 语义增强,零新缝,2026-10-13 #182),OM 类压缩的标准化承载 = `@oribos/observational-memory` 能力包(请求内联触发、包自有存储 port,零新缝,表面冻结 2026-10-14 #189,落地 2026-10-15 #196),外部记忆系统(如 bunfold)桥接维持分叉。
 _Avoid_: 把 Memory 等同于存储 adapter(adapter 归存储决策)、内建后台压缩管线
 
 **Thread**:
@@ -193,11 +193,11 @@ _Avoid_: 核心注入缝 / transport 配置(核心单进程语义不变)、跨�
 _Avoid_: leader election(归部署方)、核心存储域 port(v1 四个冻结)、与 CUT-ST3 裁出的 lease 分域(概念只有一个)
 
 **外部 runner (External runner)**:
-workflow 触发层耐久性的外包:start / resume / 恢复事件化到外部耐久执行引擎,进程死于途中由引擎重试重放、快照续起;walker 与快照 store 原样在进程内(触发级外包,非步级接管)。标准化承载 = `@oribos/inngest` 能力包(引擎裁定 Inngest 单落,Temporal 维持分叉;最小触发式表面、零核心新缝,表面冻结 2026-10-14 #188)。
+workflow 触发层耐久性的外包:start / resume / 恢复事件化到外部耐久执行引擎,进程死于途中由引擎重试重放、快照续起;walker 与快照 store 原样在进程内(触发级外包,非步级接管)。标准化承载 = `@oribos/inngest` 能力包(引擎裁定 Inngest 单落,Temporal 维持分叉;最小触发式表面、零核心新缝,表面冻结 2026-10-14 #188,落地 2026-10-15 #195)。
 _Avoid_: 步级执行接管(需核心执行缝)、耐久 sleep / workflow cron / 实时 stream(均不透出,各归既有裁行与能力包地界)
 
 **观察记忆 (Observational memory)**:
-把滑出最近窗口的旧消息由模型压缩成**观察**、观察累计再压缩为**反思**的长程记忆承载:无游标窗口读内联触发(积压过阈跑 Observer、观察过阈跑 Reflector),观察/反思以一条 system 消息前置、窗口原样。标准化承载 = `@oribos/observational-memory` 能力包(`createObservationalMemoryStore` 包装 store;观察记录 = 包自有 port,内存默认、持久归部署方;核心零新缝,表面冻结 2026-10-14 #189)。
+把滑出最近窗口的旧消息由模型压缩成**观察**、观察累计再压缩为**反思**的长程记忆承载:无游标窗口读内联触发(积压过阈跑 Observer、观察过阈跑 Reflector),观察/反思以一条 system 消息前置、窗口原样。标准化承载 = `@oribos/observational-memory` 能力包(`createObservationalMemoryStore` 包装 store;观察记录 = 包自有 port,内存默认、持久归部署方;核心零新缝,表面冻结 2026-10-14 #189,落地 2026-10-15 #196)。
 _Avoid_: 常驻压缩管线 / 响应后写(mastra 式异步缓冲 + `settled()`)、priority 排序、resource scope 跨线程压缩、把观察记录当消息(消息不可变,观察/反思是附加派生记录)
 
 **后台任务 (Background tasks)**:

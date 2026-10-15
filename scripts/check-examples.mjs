@@ -26,7 +26,7 @@ const EXIT_HARD_ERROR = 2;
 /** 单案默认超时上限;实测最长一例约 1.6s(mcp-tools stdio),余量约 20×。 */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-/** 内建案表:十六个离线入口 / 十四个 example(HTTP 与 stdio 是 mcp-tools 的两个入口)。 */
+/** 内建案表:十七个离线入口 / 十六个 example(HTTP 与 stdio 是 mcp-tools 的两个入口)。 */
 const CASES = [
   { name: 'cron-schedule', cmd: 'pnpm', args: ['--filter', '@oribos/example-cron-schedule', 'start'] },
   { name: 'otlp-collector', cmd: 'pnpm', args: ['--filter', '@oribos/example-otlp-collector', 'start'] },
@@ -91,6 +91,16 @@ const CASES = [
     name: 'distributed-signals',
     cmd: 'pnpm',
     args: ['--filter', '@oribos/example-distributed-signals', 'start'],
+  },
+  {
+    name: 'inngest',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-inngest', 'start'],
+  },
+  {
+    name: 'observational-memory',
+    cmd: 'pnpm',
+    args: ['--filter', '@oribos/example-observational-memory', 'start'],
   },
 ];
 
