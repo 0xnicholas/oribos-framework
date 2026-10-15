@@ -4,7 +4,8 @@
     "paths": {
       "@oribos/core": ["../../packages/core/src/index.ts"],
       "@oribos/core/*": ["../../packages/core/src/*/index.ts"],
-      "@oribos/otlp": ["./src/index.ts"]
+      "@oribos/otlp": ["./src/index.ts"],
+      "@oribos/semconv": ["../../packages/semconv/src/index.ts"]
     }
   },
   "include": ["src", "test"]
