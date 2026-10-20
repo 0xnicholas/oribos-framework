@@ -31,11 +31,15 @@ for (const result of results) {
   step count, the held calls, the trace) to the store. The run clears its checkpoint as it settles
   (success, failure or suspension — any settled run is not a crash); a checkpoint that remains is
   the residue of a run whose process died mid-flight.
-- **`recover(runId, options?)`** replays that residue: the recorded prompt already ends with the
-  step's own assistant message and the held calls ride the `AgentRunResume` seed, so the replayed
-  step makes no model call — its output came from the checkpoint — its tool calls execute, and the
-  run continues exactly where it stopped. The run's shape (`maxSteps`, `memory`, …) is not
-  persisted with the checkpoint: pass it again, like the durable wrapper's `resume`.
+- **`recover(runId, options?)`** replays that residue through the core's shared continuation seam
+  (`@oribos/core/agent-run`): the checkpoint maps onto a `RunContinuation` record, `continueRun`
+  builds the resumed input, the `AgentRunResume` seed and the trace continuation, then drains the
+  segment. The recorded prompt already ends with the step's own assistant message and the held
+  calls ride the seed, so the replayed step makes no model call — its output came from the
+  checkpoint — its tool calls execute, and the run continues exactly where it stopped. Recovery
+  dedup uses the same seam's `createResumeLock` (one registry for this package). The run's shape
+  (`maxSteps`, `memory`, …) is not persisted with the checkpoint: pass it again, like the durable
+  wrapper's `resume`.
 - **`recoverAll(options?)`** is the boot sweep: every checkpoint the store holds, replayed in list
   order, one entry per run (a failed replay is that entry's `ok: false` — the sweep goes on). Boot
   recovery is a function call, not a daemon.

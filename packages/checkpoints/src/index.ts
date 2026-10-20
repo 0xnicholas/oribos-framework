@@ -12,12 +12,13 @@
  * only witness.
  *
  * `recover(runId)` replays that residue: boot recovery is this function call — no resident loop,
- * no daemon. The checkpoint re-enters the core's existing resume path. The recorded prompt
- * already ends with the step's assistant message and the recorded calls ride the
- * `AgentRunResume` seed, so the replayed step makes no model call at all — its output came from
- * the checkpoint — and the run continues from where it stopped. `recoverAll()` is the boot sweep:
- * every checkpoint the store holds, replayed in list order, one result per run; a replay that
- * throws is that result's failure and the sweep goes on.
+ * no daemon. The checkpoint maps onto the shared continuation seam
+ * (`@oribos/core/agent-run`): `continueRun` builds the resumed input, the `AgentRunResume` seed
+ * (the recorded prompt already ends with the step's assistant message, so the replayed step makes
+ * no model call at all — its output came from the checkpoint) and the trace continuation, then
+ * drains the continued segment. The run continues from where it stopped. `recoverAll()` is the
+ * boot sweep: every checkpoint the store holds, replayed in list order, one result per run; a
+ * replay that throws is that result's failure and the sweep goes on.
  *
  * The costs are the spec's own and explicit (CUT-H1). A run stops only at step boundaries, so
  * recovery re-sends at most the one model call that was in flight when the process died — every
@@ -42,6 +43,7 @@
  * [`AgentRunCheckpoint`], [`AgentRunCheckpointStore`], [`createInMemoryAgentRunCheckpointStore`].
  */
 import type { Agent } from '@oribos/core/agent';
+import { continueRun, createResumeLock } from '@oribos/core/agent-run';
 import type {
   AgentGenerateResult,
   AgentRunOptions,
@@ -174,11 +176,12 @@ export interface CheckpointedAgent {
   ): CheckpointedStreamResult<StandardSchemaV1.InferOutput<TSchema>>;
   stream(input: string | ModelMessage[], options?: AgentRunOptions): CheckpointedStreamResult;
   /**
-   * Replays a crashed run from its last checkpoint: loads the residue, re-enters the core's
-   * resume path (the recorded prompt already ends with the step's assistant message; the
-   * recorded calls ride the `AgentRunResume` seed), and drives the run to its next stop. The
-   * replayed step makes no model call — its output came from the checkpoint — its tool calls
-   * execute (idempotency is the application's contract), and the run continues normally: the
+   * Replays a crashed run from its last checkpoint: loads the residue, maps it onto the shared
+   * `RunContinuation` record and continues through `@oribos/core/agent-run`'s `continueRun` (the
+   * recorded prompt already ends with the step's assistant message; the recorded calls ride the
+   * `AgentRunResume` seed), then drives the run to its next stop. The replayed step makes no
+   * model call — its output came from the checkpoint — its tool calls execute (idempotency is the
+   * application's contract), and the run continues normally: the
    * only model call a recovery re-sends is the one that was in flight when the process died.
    *
    * `runId` already carries the run's message history, so the options here are the run's shape,
@@ -206,11 +209,12 @@ export interface CheckpointedAgent {
  * checkpoint identity — the `(store, runId)` pair a residue lives under — at a time. A `recover`
  * that finds its identity already in flight joins that promise instead of loading the same
  * residue twice (two replays of one residue would double its side effects); the entry clears
- * when the recovery settles. Keyed by the store object (WeakMap), not the run id alone, so two
- * stores that happen to hold the same run id stay independent — the same mechanism the core's
- * resume lock runs for suspend/resume. Cross-process safety stays the deployment's.
+ * when the recovery settles. The mechanism is the core's published `createResumeLock` (the same
+ * one the durable wrapper runs, `@oribos/core/agent-run`); the registry is per package, so
+ * recoveries here never merge with another subsystem's resumes. Cross-process safety stays the
+ * deployment's.
  */
-const recoveryLock = createRecoveryLock();
+const recoveryLock = createResumeLock();
 
 /**
  * Creates the checkpointed agent. See `CheckpointedAgent` for the run surface.
@@ -290,9 +294,9 @@ export function createCheckpointedAgent(config: CheckpointedAgentConfig): Checkp
     return inner;
   }
 
-  /** `recover`: load, replay, continue — deduplicated by checkpoint identity (the lock above). */
+  /** `recover`: load, map, continue — deduplicated by checkpoint identity (the lock above). */
   function recover(runId: string, options?: AgentRunOptions): Promise<CheckpointedRunOutcome> {
-    return recoveryLock.run(storage, runId, () => continueRun(runId, options));
+    return recoveryLock.run(storage, runId, () => recoverCheckpoint(runId, options));
   }
 
   return {
@@ -319,8 +323,13 @@ export function createCheckpointedAgent(config: CheckpointedAgentConfig): Checkp
     },
   };
 
-  /** One run's recovery: the load → replay path. */
-  async function continueRun(
+  /**
+   * One run's recovery: the load → map → continue path. The shared continuation seam
+   * (`@oribos/core/agent-run`) builds the input, the resume seed and the trace continuation from
+   * the pure record, drains the continued segment and materializes its outcome; the wrapper
+   * supplies only the run wiring (`startRun`).
+   */
+  async function recoverCheckpoint(
     runId: string,
     options: AgentRunOptions | undefined,
   ): Promise<CheckpointedRunOutcome> {
@@ -332,23 +341,16 @@ export function createCheckpointedAgent(config: CheckpointedAgentConfig): Checkp
           'wrapper that made them, this process only).',
       );
     }
-    // The replayed segment continues the trace the dead run was exported under (the
-    // observability anchor): the traceId travels through the existing run option, the only
-    // thing a recovery takes from the checkpoint besides the messages and the seed.
-    const traced =
-      checkpoint.traceId === undefined ? options : { ...options, traceId: checkpoint.traceId };
-    const inner = startRun(runId, [...checkpoint.messages], traced, {
-      stepCount: checkpoint.stepCount,
-      toolCalls: [...checkpoint.toolCalls],
-    });
-    // The recovered segment's chunks have no consumer — `recover` resolves with the outcome — so
-    // they are drained rather than left to buffer behind a reader that never comes (the durable
-    // wrapper's resume does the same).
-    const iterator = inner[Symbol.asyncIterator]();
-    for (;;) {
-      if ((await iterator.next()).done) break;
-    }
-    const result = await materializeTerminals<AgentGenerateResult>(inner);
+    const { result } = await continueRun(
+      (input, resumedOptions, seed) => startRun(runId, input, resumedOptions, seed),
+      {
+        messages: checkpoint.messages,
+        stepCount: checkpoint.stepCount,
+        toolCalls: checkpoint.toolCalls,
+        traceId: checkpoint.traceId,
+      },
+      options,
+    );
     return { ...result, runId };
   }
 }
@@ -362,50 +364,4 @@ function toCheckpoint(runId: string, event: AgentToolCallsBoundaryEvent): AgentR
     toolCalls: [...event.pendingCalls],
     ...(event.traceId === '' ? {} : { traceId: event.traceId }),
   };
-}
-
-/** The recovery lock's registry shape (see `recoveryLock`). */
-interface RecoveryLock {
-  /**
-   * Runs `task` under the lock for `(store, runId)`: the first caller's task executes, concurrent
-   * callers join its promise, and the entry is deleted on settle. `T` flows from the task —
-   * joining only ever happens between recoveries of one checkpoint identity, so the joined
-   * promise is the caller's own type.
-   */
-  run<T>(store: object, runId: string, task: () => Promise<T>): Promise<T>;
-}
-
-/** Creates one registry. One per package (see `recoveryLock`). */
-function createRecoveryLock(): RecoveryLock {
-  const inFlight = new WeakMap<object, Map<string, Promise<unknown>>>();
-  return {
-    run<T>(store: object, runId: string, task: () => Promise<T>): Promise<T> {
-      let byRunId = inFlight.get(store);
-      if (byRunId === undefined) {
-        byRunId = new Map();
-        inFlight.set(store, byRunId);
-      }
-      const running = byRunId.get(runId);
-      if (running !== undefined) return running as Promise<T>;
-      let locked: Promise<T> | undefined;
-      locked = task().finally(() => {
-        if (locked !== undefined && byRunId.get(runId) === locked) byRunId.delete(runId);
-      });
-      byRunId.set(runId, locked);
-      return locked;
-    },
-  };
-}
-
-/**
- * A run's terminal record, awaited — a local mirror of the core's internal `materialize` (the one
- * place repo-wide that enumerates the terminal keys, not exported from any entry): a recovery
- * drains its run and reads the same record back. Reading the enumerable getters hands out the
- * agent's own lazy terminals; a terminal field added on the inside flows through untouched.
- */
-async function materializeTerminals<TTerminals>(output: object): Promise<TTerminals> {
-  const entries = await Promise.all(
-    Object.entries(output).map(async ([key, terminal]) => [key, await terminal] as const),
-  );
-  return Object.fromEntries(entries) as TTerminals;
 }

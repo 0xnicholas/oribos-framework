@@ -144,6 +144,29 @@ export function hangingModel(
 }
 
 /**
+ * 手工植入的崩溃残留:step 0 边界刚写完、工具尚未执行的现场(stepCount = 0,持有的调用 =
+ * step 0 的 call-a;进程死在模型回答之后、工具执行之前)。消息表以 step 0 的 assistant 消息
+ * 收尾 —— 恢复要读回的那份现场。
+ */
+export function seededStepZeroResidue(runId: string): AgentRunCheckpoint {
+  return {
+    runId,
+    stepCount: 0,
+    messages: [
+      { role: 'user', content: [{ type: 'text', text: 'start' }] },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'step zero' },
+          { type: 'tool-call', toolCallId: 'call-a', toolName: 'note', input: { value: 'a' } },
+        ],
+      },
+    ],
+    toolCalls: [{ type: 'tool-call', toolCallId: 'call-a', toolName: 'note', input: { value: 'a' } }],
+  };
+}
+
+/**
  * 手工植入的崩溃残留:step 1 已完成的现场(stepCount = 1,持有的调用 = step 1 的 call-b;
  * step 2 的模型调用 in-flight 时进程死了)。消息表逐条为规范形状,以 step 1 的 assistant 消息
  * 收尾 —— 恢复要读回的那份现场。
