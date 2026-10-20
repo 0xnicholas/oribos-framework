@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Agent } from '@oribos/core/agent';
 import { Memory, createInMemoryStore, supportsWorkingMemory } from '@oribos/core/memory';
-import type { MemoryStore, SaveMessage, StoredMessage } from '@oribos/core/memory';
+import type {
+  MemoryStore,
+  SaveMessage,
+  StoredMessage,
+  WorkingMemoryStore,
+} from '@oribos/core/memory';
 import { z } from 'zod';
 import {
   createInMemoryVectorIndex,
@@ -9,7 +14,7 @@ import {
 } from '@oribos/rag';
 import type { Embedder, VectorEntry, VectorIndex } from '@oribos/rag';
 import { fakeModel } from '@oribos/testing';
-import { captureRejection } from './helpers/assertions.js';
+import { captureRejection, expectAssignable } from './helpers/assertions.js';
 
 /**
  * `@oribos/rag` — RAG / 语义召回能力包(追赶面中层,CUT-MEM1;#182)。
@@ -77,6 +82,19 @@ function fakeIndex(): VectorIndex & {
 
 function userMessage(text: string): SaveMessage {
   return { role: 'user', content: [{ type: 'text', text }] };
+}
+
+/** 无工作记忆能力的 store:只实现 6 个必备方法(条件对缺席)。 */
+function createPlainStore(): MemoryStore {
+  const base = createInMemoryStore();
+  return {
+    getThreadById: (id) => base.getThreadById(id),
+    saveThread: (thread) => base.saveThread(thread),
+    deleteThread: (id) => base.deleteThread(id),
+    listThreads: (query) => base.listThreads(query),
+    listMessages: (query) => base.listMessages(query),
+    saveMessages: (messages) => base.saveMessages(messages),
+  };
 }
 
 /** 消息正文(测试断言用):system 直取字符串,其余拼 text 部分。 */
@@ -320,6 +338,110 @@ describe('端口语义与能力透传', () => {
     const thread = await store.getThreadById('thread-1');
 
     expect(thread).toMatchObject({ id: 'thread-1', resourceId: 'user-1' });
+  });
+});
+
+// ── 包装表面:基础窗口契约与能力透传(ADR-0021)──────────────────────────────────────────
+
+describe('包装表面:基础窗口契约与能力透传', () => {
+  it('语义召回并回旧消息时,内层基础窗口的每条消息恰好一次且相对顺序不变(asc / desc)', async () => {
+    const rawStore = createInMemoryStore();
+    const store = createSemanticMemoryStore({ storage: rawStore, embedder: fakeEmbedder() });
+    const memory = new Memory({ storage: store, lastMessages: 3 });
+    const { catFact } = await seedConversation(memory);
+    await memory.save({
+      thread: 'thread-1',
+      resource: 'user-1',
+      messages: [userMessage('Where does the cat sleep?')],
+    });
+
+    for (const order of [undefined, 'asc', 'desc'] as const) {
+      const query =
+        order === undefined
+          ? { threadId: 'thread-1', limit: 3 }
+          : { threadId: 'thread-1', limit: 3, order };
+      const baseWindow = await rawStore.listMessages(query);
+      const recalled = await store.listMessages(query);
+
+      const baseIds = baseWindow.map((message) => message.id);
+      const recalledIds = recalled.map((message) => message.id);
+
+      // 基础窗口成员逐一保留、相对顺序不变;合并只增不删。
+      expect(recalledIds.filter((id) => baseIds.includes(id))).toEqual(baseIds);
+      expect(new Set(recalledIds).size).toBe(recalledIds.length);
+      expect(recalled.length).toBeGreaterThan(baseWindow.length);
+      expect(recalledIds).toContain(catFact.id);
+      // order 缺省 = port 默认 desc:最旧的并回项在末尾;asc 才在开头。
+      expect(recalledIds[order === 'asc' ? 0 : recalledIds.length - 1]).toBe(catFact.id);
+    }
+  });
+
+  it('before 精确透传内层结果:零 embedding、零索引查询 / 写入 / 删除', async () => {
+    const rawStore = createInMemoryStore();
+    const embedder = fakeEmbedder();
+    const index = fakeIndex();
+    const store = createSemanticMemoryStore({ storage: rawStore, embedder, index });
+    const memory = new Memory({ storage: store, lastMessages: 3 });
+    await seedConversation(memory);
+    const [question] = await memory.save({
+      thread: 'thread-1',
+      resource: 'user-1',
+      messages: [userMessage('Where does the cat sleep?')],
+    });
+    const embedCalls = embedder.calls.length;
+    const upserts = index.upserts.length;
+    const queries = index.queriedThreadIds.length;
+    const deletions = index.deletedThreads.length;
+
+    const query = { threadId: 'thread-1', limit: 3, before: question!.id };
+    const expected = await rawStore.listMessages(query);
+    const paged = await store.listMessages(query);
+
+    expect(paged).toEqual(expected);
+    expect(embedder.calls.length).toBe(embedCalls);
+    expect(index.upserts.length).toBe(upserts);
+    expect(index.queriedThreadIds.length).toBe(queries);
+    expect(index.deletedThreads.length).toBe(deletions);
+  });
+
+  it('supportsWorkingMemory 条件对:有能力 → true 且两方法都在;无能力 / 半实现 → false 且两方法都缺席', () => {
+    const capable = createSemanticMemoryStore({
+      storage: createInMemoryStore(),
+      embedder: fakeEmbedder(),
+    });
+    expect(supportsWorkingMemory(capable)).toBe(true);
+    expect(typeof capable.getResource).toBe('function');
+    expect(typeof capable.saveResource).toBe('function');
+
+    const wrappedPlain = createSemanticMemoryStore({
+      storage: createPlainStore(),
+      embedder: fakeEmbedder(),
+    });
+    expect(supportsWorkingMemory(wrappedPlain)).toBe(false);
+    expect(wrappedPlain.getResource).toBeUndefined();
+    expect(wrappedPlain.saveResource).toBeUndefined();
+
+    // 半实现按缺席处理:包装后条件对成对不暴露。
+    const half: MemoryStore = { ...createPlainStore(), getResource: async () => null };
+    const wrappedHalf = createSemanticMemoryStore({ storage: half, embedder: fakeEmbedder() });
+    expect(supportsWorkingMemory(wrappedHalf)).toBe(false);
+    expect(wrappedHalf.getResource).toBeUndefined();
+    expect(wrappedHalf.saveResource).toBeUndefined();
+  });
+
+  it('公开重载:WorkingMemoryStore 入参返回 WorkingMemoryStore,MemoryStore 入参返回 MemoryStore', () => {
+    const working = createSemanticMemoryStore({
+      storage: createInMemoryStore(),
+      embedder: fakeEmbedder(),
+    });
+    const plain = createSemanticMemoryStore({
+      storage: createPlainStore(),
+      embedder: fakeEmbedder(),
+    });
+
+    expectAssignable<WorkingMemoryStore>(working);
+    expectAssignable<MemoryStore>(working);
+    expectAssignable<MemoryStore>(plain);
   });
 });
 

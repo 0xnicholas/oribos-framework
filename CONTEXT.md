@@ -153,12 +153,16 @@ _Avoid_: OTel Tracer、全局单例
 _Avoid_: plugin、integration(那是能力包的词)
 
 **存储 port (Storage port)**:
-子系统持久化需求的最小接口,由核心定义类型并自带内存默认实现;v1 两个:`MemoryStore`(消息历史/工作记忆,6 必备 + 2 条件)与 `WorkflowSnapshotStore`(workflow 快照,2 方法 + JSON-only)。演化纪律 = additive-only:1.0 起必需方法签名永不改,新能力只以可选方法 + 能力标志增加,breaking 只在 major。
+子系统持久化需求的最小接口,由核心定义类型并自带内存默认实现;v1 四个:`MemoryStore`(消息历史/工作记忆,6 必备 + 2 条件)、`WorkflowSnapshotStore`(workflow 快照,2 方法 + JSON-only)、`AgentRunSnapshotStore`(durable agent loop 快照)与 `ScheduleStore`(调度记录)。演化纪律 = additive-only:1.0 起必需方法签名永不改,新能力只以可选方法 + 能力标志增加,breaking 只在 major。
 _Avoid_: composite store、分域路由(mastra 式域路由为强制中央实例服务;本框架子系统各自接收 store 实例,分后端是用户侧自由)
 
 **存储 adapter (Storage adapter)**:
 实现一个或多个存储 port 的能力包(统一 adapter 家族);连接生命周期自拥(可选 `init?()` / `close?()`),核心永不隐式调用。第一方清单 = 核心内存实现 + 恰好一个 SQLite 系参考 adapter,其余后端归社区。
 _Avoid_: 把存储层当子系统(它只是 port 集合 + adapter 家族)、核心托管连接生命周期(进程 hook 与无运行时负担冲突)
+
+**存储包装 (Store wrapper)**:
+保持 `MemoryStore` 接口、只在少数方法上叠加策略的包装器;`listMessages` 可返回基础窗口(内层 store 对同一查询返回的窗口)的超集,其余方法透传或按策略覆写(如 `deleteThread` 的级联删除)。它是能力包的组合形态,不是后端 adapter,也不是 port 的扩展。
+_Avoid_: decorator(暗示完全透明)、adapter(后端实现)、middleware
 
 **能力标志 (Capability flag)**:
 port 可选能力的声明与降级机制:可选方法的存在性即声明,核心调用前检测,缺席时按既定语义降级或显式报错(如 MemoryStore 条件 2 仅 working memory 启用时要求;快照 CAS 缺席即退回单进程语义)。additive-only 演化纪律的载体。

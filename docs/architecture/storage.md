@@ -30,6 +30,17 @@
 
 签名已在 M5 SQLite 参考 adapter 设计冻结中钉死(见下文该节;`listSnapshots` / `listSuspended` 各守其名——port 独立定义,不承诺跨 port 齐名),语义边界钉死:CAS = 期望匹配才写;JSON-only 约束不变,不引入版本计数字段。
 
+## 存储包装(Store wrapper):基础窗口的超集
+
+`MemoryStore` 的 **adapter** 与 **存储包装** 是两种不同的东西:adapter 是后端实现;存储包装保持 `MemoryStore` 接口,只在少数方法上叠加策略(能力包的组合形态,见 `CONTEXT.md`「存储包装」与 ADR-0021)。
+
+`listMessages` 的 `limit` 契约分两层:
+
+- **base adapter**:`limit` 是精确上界——结果至多 `limit` 条,锚最新端;`order` 只翻转呈现;`before` 是严格更旧游标。
+- **存储包装**:结果是内层 store 对**同一查询**返回的**基础窗口**的超集。包装可按策略并入、前置或后置声明式增量(`@oribos/rag` 的语义召回、`@oribos/observational-memory` 的观察注入),但**不得删除基础窗口中的消息,也不得改变基础窗口成员的相对顺序**;每条基础窗口消息恰好出现一次。包装的 `before` 精确透传内层结果、不产生策略副作用,`order` 仍只翻转呈现。
+
+包装表面演化有编译期守卫:每个 wrapper 在构造处从实际转发的对象字面量(加条件对)推导处理键集合并断言 `Exclude<keyof MemoryStore, 处理键集合>` 为 `never`;port 新增可选方法时两个 wrapper 的 `tsc` 同时失败并点名未处理的键,静默丢失变成编译错误。
+
 ## 连接生命周期
 
 adapter 自拥连接生命周期:可选暴露 `init?()` / `close?()`;**核心永不隐式调用、不 hook 进程退出**(无运行时负担)。应用或组合根负责打开与关闭;内存实现无生命周期。
@@ -127,7 +138,7 @@ CREATE INDEX schedules_by_next_fire ON schedules (next_fire_at, id);
 
 内存参照的总序即规范,SQL 只是它的翻译:
 
-- `listThreads` / `listMessages`:游标行须存在且归属相符(`resource_id` / `thread_id`),否则抛错(同参照);谓词 = 行值比较 `(updated_at, id) < (?, ?)` / `(created_at, id) < (?, ?)`;`ORDER BY … DESC LIMIT ?`。`listMessages` 的 `limit` 永远锚最新端,`order: 'asc'` 只在 JS 里 `reverse()` 呈现。
+- `listThreads` / `listMessages`:游标行须存在且归属相符(`resource_id` / `thread_id`),否则抛错(同参照);谓词 = 行值比较 `(updated_at, id) < (?, ?)` / `(created_at, id) < (?, ?)`;`ORDER BY … DESC LIMIT ?`。`listMessages` 的 `limit` 永远锚最新端(adapter 的精确上界;wrapper 的超集口径见「存储包装」节),`order: 'asc'` 只在 JS 里 `reverse()` 呈现。
 - `schedules.list`:总序 = `nextFireAt ASC`、NULL 最后、`id ASC`——排序 `ORDER BY (next_fire_at IS NULL) ASC, next_fire_at ASC, id ASC`;游标谓词用哨兵 `COALESCE(next_fire_at, 9223372036854775807)` 做行值比较(内存参照 `?? Infinity` 的直译)。`listDue` = `WHERE enabled = 1 AND next_fire_at IS NOT NULL AND next_fire_at <= ? ORDER BY next_fire_at ASC, id ASC`。
 - 快照两表 list:`ORDER BY updated_at DESC, run_id DESC`(最新挂起在前);游标 = run id,`(updated_at, run_id) < (?, ?)` 续页。
 - `limit` 非正整数、游标悬空,一律抛错——port 层判据,adapter 不放宽。

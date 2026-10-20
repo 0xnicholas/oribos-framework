@@ -203,10 +203,19 @@ export function createSemanticMemoryStore(config: SemanticMemoryConfig): MemoryS
       .map((hit) => hit.entry.message);
     if (retrieved.length === 0) return window;
     const merged = [...window, ...retrieved].sort(compareMessagesAsc);
-    return query.order === 'desc' ? merged.reverse() : merged;
+    // `order` flips presentation only; absent means the port's default (`'desc'`).
+    return query.order === 'asc' ? merged : merged.reverse();
   }
 
-  const store: MemoryStore = {
+  /**
+   * Compile-time surface guard (ADR-0021): `MemoryStore` evolves additive-only, so a fixed object
+   * literal would silently drop a future optional port method. The handled key set is derived from
+   * the literal below plus the conditional resource pair — a key cannot be claimed without being
+   * implemented. When the port gains a method, `Exclude` is no longer `never` and the package
+   * fails to typecheck, naming the unhandled key; the author must forward or override it here.
+   * Type-level only: no Proxy, no spread of the inner store.
+   */
+  const store = {
     getThreadById: (id) => storage.getThreadById(id),
     saveThread: (thread) => storage.saveThread(thread),
     deleteThread: async (id) => {
@@ -216,17 +225,32 @@ export function createSemanticMemoryStore(config: SemanticMemoryConfig): MemoryS
     listThreads: (query) => storage.listThreads(query),
     listMessages: (query) => listMessagesWithSemanticRecall(query),
     saveMessages: (messages) => saveMessagesWithIndexing(messages),
-  };
+  } satisfies MemoryStore;
+
+  /** The keys this wrapper handles: everything the literal implements plus the conditional pair. */
+  type HandledMemoryStoreKey = keyof typeof store | 'getResource' | 'saveResource';
+
+  /** Constraint carrier: an unhandled port key is a compile error here, named in the message. */
+  type AssertNever<T extends never> = T;
+
+  type MemoryStoreSurfaceComplete = AssertNever<
+    Exclude<keyof MemoryStore, HandledMemoryStoreKey>
+  >;
+
+  /** `Record<never, never>` adds nothing; a new port key becomes a required `never` property. */
+  type StoreWithCompleteSurface = typeof store & Record<MemoryStoreSurfaceComplete, never>;
+
+  const guardedStore: StoreWithCompleteSurface = store;
 
   // Capability passthrough: the conditional resource pair is forwarded when the wrapped store
   // declares it, so working memory works unchanged through the wrapper.
   return supportsWorkingMemory(storage)
     ? {
-        ...store,
+        ...guardedStore,
         getResource: (id) => storage.getResource(id),
         saveResource: (resource) => storage.saveResource(resource),
       }
-    : store;
+    : guardedStore;
 }
 
 /**

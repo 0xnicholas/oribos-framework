@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Memory, createInMemoryStore, supportsWorkingMemory } from '@oribos/core/memory';
-import type { MemoryStore, SaveMessage, StoredMessage } from '@oribos/core/memory';
+import type {
+  MemoryStore,
+  SaveMessage,
+  StoredMessage,
+  WorkingMemoryStore,
+} from '@oribos/core/memory';
 import type { Model, ModelCallOptions, ModelPrompt } from '@oribos/core/model';
 import {
   createInMemoryObservationStore,
@@ -13,7 +18,7 @@ import type {
 } from '@oribos/observational-memory';
 import { fakeModel } from '@oribos/testing';
 import { z } from 'zod';
-import { captureRejection } from './helpers/assertions.js';
+import { captureRejection, expectAssignable } from './helpers/assertions.js';
 
 /**
  * `@oribos/observational-memory` — OM 类压缩能力包(追赶面远层,CUT-MEM2;#196)。
@@ -45,6 +50,19 @@ function recordingCounter(
 
 function userMessage(text: string): SaveMessage {
   return { role: 'user', content: [{ type: 'text', text }] };
+}
+
+/** 无工作记忆能力的 store:只实现 6 个必备方法(条件对缺席)。 */
+function createPlainStore(): MemoryStore {
+  const base = createInMemoryStore();
+  return {
+    getThreadById: (id) => base.getThreadById(id),
+    saveThread: (thread) => base.saveThread(thread),
+    deleteThread: (id) => base.deleteThread(id),
+    listThreads: (query) => base.listThreads(query),
+    listMessages: (query) => base.listMessages(query),
+    saveMessages: (messages) => base.saveMessages(messages),
+  };
 }
 
 /** 消息正文(断言用):system 直取字符串,其余拼 text 部分。 */
@@ -580,6 +598,123 @@ describe('端口语义与能力透传', () => {
     const thread = await store.getThreadById('thread-1');
 
     expect(thread).toMatchObject({ id: 'thread-1', resourceId: 'user-1' });
+  });
+});
+
+// ── 包装表面:基础窗口契约与能力透传(ADR-0021)──────────────────────────────────────────
+
+describe('包装表面:基础窗口契约与能力透传', () => {
+  it('观察注入时,内层基础窗口的每条消息恰好一次且相对顺序不变(asc / desc)', async () => {
+    const rawStore = createInMemoryStore();
+    const observer = fakeModel([{ text: 'Observed: turns 1-2.' }]);
+    const store = createObservationalMemoryStore({
+      storage: rawStore,
+      observer,
+      thresholds: { observation: 20 },
+      countTokens: countEach(10),
+    });
+    const memory = new Memory({ storage: store, lastMessages: 2 });
+    await seed(memory, TURNS.slice(0, 6));
+
+    for (const order of [undefined, 'asc', 'desc'] as const) {
+      const query =
+        order === undefined
+          ? { threadId: 'thread-1', limit: 2 }
+          : { threadId: 'thread-1', limit: 2, order };
+      const baseWindow = await rawStore.listMessages(query);
+      const recalled = await store.listMessages(query);
+
+      const baseIds = baseWindow.map((message) => message.id);
+      const recalledIds = recalled.map((message) => message.id);
+      const extras = recalled.filter((message) => !baseIds.includes(message.id));
+
+      // 基础窗口成员逐一保留、相对顺序不变;注入只增不删。
+      expect(recalledIds.filter((id) => baseIds.includes(id))).toEqual(baseIds);
+      expect(new Set(recalledIds).size).toBe(recalledIds.length);
+      expect(extras).toHaveLength(1);
+      expect(extras[0]?.role).toBe('system');
+      expect(textOf(extras[0]!)).toContain('Observed: turns 1-2.');
+      // order 缺省 = port 默认 desc:派生块锚在时间序首位(数组末尾);asc 才在前。
+      expect(recalled[order === 'asc' ? 0 : recalled.length - 1]).toBe(extras[0]);
+    }
+  });
+
+  it('before 精确透传内层结果:零模型调用、零观察存储写入', async () => {
+    const rawStore = createInMemoryStore();
+    const baseObservations = createInMemoryObservationStore();
+    let writes = 0;
+    const observations: ObservationStore = {
+      list: (threadId) => baseObservations.list(threadId),
+      save: async (record) => {
+        writes += 1;
+        await baseObservations.save(record);
+      },
+      deleteByThread: (threadId) => baseObservations.deleteByThread(threadId),
+    };
+    const observer = fakeModel([]);
+    const store = createObservationalMemoryStore({
+      storage: rawStore,
+      observer,
+      observations,
+      thresholds: { observation: 20 },
+      countTokens: countEach(10),
+    });
+    const memory = new Memory({ storage: store, lastMessages: 3 });
+    const saved = await seed(memory, TURNS);
+
+    const query = {
+      threadId: 'thread-1',
+      limit: 3,
+      order: 'asc' as const,
+      before: saved[7]!.id,
+    };
+    const expected = await rawStore.listMessages(query);
+    const paged = await store.listMessages(query);
+
+    expect(paged).toEqual(expected);
+    expect(observer.generateCalls).toHaveLength(0);
+    expect(writes).toBe(0);
+    expect(await observations.list('thread-1')).toEqual([]);
+  });
+
+  it('supportsWorkingMemory 条件对:有能力 → true 且两方法都在;无能力 / 半实现 → false 且两方法都缺席', () => {
+    const capable = createObservationalMemoryStore({ observer: fakeModel([]) });
+    expect(supportsWorkingMemory(capable)).toBe(true);
+    expect(typeof capable.getResource).toBe('function');
+    expect(typeof capable.saveResource).toBe('function');
+
+    const wrappedPlain = createObservationalMemoryStore({
+      storage: createPlainStore(),
+      observer: fakeModel([]),
+    });
+    expect(supportsWorkingMemory(wrappedPlain)).toBe(false);
+    expect(wrappedPlain.getResource).toBeUndefined();
+    expect(wrappedPlain.saveResource).toBeUndefined();
+
+    // 半实现按缺席处理:包装后条件对成对不暴露。
+    const half: MemoryStore = { ...createPlainStore(), getResource: async () => null };
+    const wrappedHalf = createObservationalMemoryStore({
+      storage: half,
+      observer: fakeModel([]),
+    });
+    expect(supportsWorkingMemory(wrappedHalf)).toBe(false);
+    expect(wrappedHalf.getResource).toBeUndefined();
+    expect(wrappedHalf.saveResource).toBeUndefined();
+  });
+
+  it('公开重载:WorkingMemoryStore 入参返回 WorkingMemoryStore,MemoryStore 入参返回 MemoryStore', () => {
+    const working = createObservationalMemoryStore({
+      storage: createInMemoryStore(),
+      observer: fakeModel([]),
+    });
+    const plain = createObservationalMemoryStore({
+      storage: createPlainStore(),
+      observer: fakeModel([]),
+    });
+
+    expectAssignable<WorkingMemoryStore>(working);
+    expectAssignable<MemoryStore>(working);
+    expectAssignable<MemoryStore>(plain);
   });
 });
 
