@@ -36,7 +36,10 @@ distributed.sendMessage({ thread, resource }, 'hi');         // active here = in
 - **Lease = thread active-run ownership.** Claimed when a wrapper run starts, released when it
   settles. It is the wake-race arbiter, not a global mutex: broadcast redundancy converges on
   it (only the holder injects; only a race winner wakes), and the documented expiry window can
-  let two instances wake one thread.
+  let two instances wake one thread. The mechanism — port, in-memory default, Redis adapter —
+  lives in the shared leaf package [`@oribos/lease`](https://www.npmjs.com/package/@oribos/lease)
+  (ADR-0020); `SignalLease` is its alias, and `createInMemoryLeaseStore` / `createRedisLease`
+  are re-exported here unchanged.
 - **Delivery is at-most-once**, widened one domain from the core's "process death = loss": an
   envelope in flight when a process dies is dropped. Cross-instance ordering is best-effort FIFO
   (one channel per thread is naturally ordered; no sequence numbers).

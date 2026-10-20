@@ -73,7 +73,7 @@ distributed.subscribeToThread   // 仅本实例 run(跨实例 chunk 实时跟随
 ```
 
 - **PubSub port**(at-most-once,回调式):`publish(topic, payload: string)` / `subscribe(topics, handler): Promise<Unsubscribe>`;`createInMemoryPubSub()` 零依赖默认,`createRedisPubSub(client)` 走 `subscribe` / `publish` 结构子集(客户端随调用方)。每 thread 一个频道 `<prefix>oribos:signals:<threadId>`,信封 JSON-only:`{ kind: 'message' | 'signal' | 'queue', thread, resource, payload, traceparent? }`;广播冗余由租约收敛。
-- **租约 port**:`acquire(key, ttlMs): Promise<LeaseHandle | null>`,`LeaseHandle = { token, renew(ttlMs): Promise<boolean>, release(): Promise<void> }`;`createInMemoryLeaseStore()` 默认,`createRedisLease(client)` 走 `set(NX/PX)` / `eval` 结构子集。**租约 = thread 活跃 run 所有权**(本地 run 开始即持、settle 即释放),即 `storage.md` CUT-ST3 裁出的那个「lease」概念——不进核心 port 清单(port v1 四个冻结);配置必填(唤醒竞态的裁定者);BT 二期 manager/lease(#190)结构性复用形状、零依赖边(ADR-0002 M5)。
+- **租约 port**:`acquire(key, ttlMs): Promise<LeaseHandle | null>`,`LeaseHandle = { token, renew(ttlMs): Promise<boolean>, release(): Promise<void> }`;`createInMemoryLeaseStore()` 默认,`createRedisLease(client)` 走 `set(NX/PX)` / `eval` 结构子集。**租约 = thread 活跃 run 所有权**(本地 run 开始即持、settle 即释放),即 `storage.md` CUT-ST3 裁出的那个「lease」概念——不进核心 port 清单(port v1 四个冻结);配置必填(唤醒竞态的裁定者);BT 二期 manager/lease(#190)与 signals 复用同一 Lease 机制——已抽为 `@oribos/lease` 共享叶子包(ADR-0020;2026-10-20 #206 实施),两个消费者以 `dependencies` 依赖,各自保留丢失语义与续约节奏,本包公共面不变。
 - **投递语义**:at-most-once——进程死在途即丢,与核心「进程死 = 丢」同构(丢失域从单进程扩到消息在途);at-least-once 不做,沿能力标志留 ack 后门。跨实例保序 = best-effort FIFO(同 thread 单频道天然有序,无序列号)。
 - **心跳**:租约持有期间包内 interval 续约(`heartbeatMs` 可配;关闭则退回 step 边界续约 + 注入前 token 自检,过期窗口文档化);未配置包 = 零定时器(ADR-0017 轴级判词:opt-in 后台工作 ≠ 运行时负担)。
 - **trace 延续**:信封携 traceparent,接收实例把注入事件挂自己 run 的 span 下、以 remote parent 链发送方;解析失败降级独立 span,不新增失败面。
@@ -95,7 +95,7 @@ tasks.untilIdle()                // 全部任务 settle 即 resolve(包级 API,�
 
 - **任务行与状态机**:`TaskRecord = { id, status: 'accepted' | 'running' | 'done' | 'failed', payload, result?, error?, attempt, createdAt, settledAt? }`(JSON-only);孤儿 = 租约过期仍 `running`;重跑 = at-least-once、handler 幂等归应用(沿 checkpoints `recover` 口径);`attempt` 计数是重跑的可见面。
 - **TaskStore port**(包自有,JSON-only):`save / get / list / delete` 四方法家族(checkpoints store 先例);`createInMemoryTaskStore()` 默认,持久实现归部署方。
-- **租约 port**:与 `@oribos/distributed-signals`(#187)冻结形状**结构性同形**——`acquire(key, ttlMs) → LeaseHandle | null`,`LeaseHandle = { token, renew(ttlMs), release() }`;租约概念两域合一(CUT-ST3 裁出的那一个)、本包声明同形接口、零依赖边(ADR-0002 M5)。**可选**、缺省装配包内 `createInMemoryLeaseStore()`(内存默认零负担;多实例显式换 `createRedisLease(client)` 结构子集,客户端随调用方);租约 key = 任务行,领到才执行、竞争失败方不作为。
+- **租约 port**:与 `@oribos/distributed-signals`(#187)冻结形状**结构性同形**——`acquire(key, ttlMs) → LeaseHandle | null`,`LeaseHandle = { token, renew(ttlMs), release() }`;租约概念两域合一(CUT-ST3 裁出的那一个);机制层已抽为 `@oribos/lease` 共享叶子包(ADR-0020;2026-10-20 #206 实施),本包以 `dependencies` 依赖并 re-export 冻结名 `TaskLease` / `LeaseHandle` / 工厂(公共面不变,仍无 `@oribos/core` 边)。**可选**、缺省装配包内 `createInMemoryLeaseStore()`(内存默认零负担;多实例显式换 `createRedisLease(client)` 结构子集,客户端随调用方);租约 key = 任务行,领到才执行、竞争失败方不作为。
 - **心跳**:`heartbeatMs` 可配——handler 执行期间 interval 续约,租约过期窗口文档化;不配置 = 零定时器(ADR-0017 轴级判词)。
 - **与 signals 解耦**:包不 import core;settle 经 `onSettle(record)` 回调交应用,一期 `sendSignal`(`report-completed` / `report-failed`)配方原样作为组合面。对 core 无 peer(类型自含,croner 先例;`@oribos/core` 仅 devDep)。
 - **v1 显式拒绝**:重试 / backoff 策略(部署方)、优先级与并发度控制、常驻 worker / 跨进程执行 handler、结果结构化存储超出 JSON payload、与 cron / schedules 的任何重叠(归 `ScheduleStore` + `@oribos/croner`)。

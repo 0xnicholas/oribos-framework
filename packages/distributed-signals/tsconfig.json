@@ -5,6 +5,7 @@
       "@oribos/core": ["../../packages/core/src/index.ts"],
       "@oribos/core/*": ["../../packages/core/src/*/index.ts"],
       "@oribos/distributed-signals": ["./src/index.ts"],
+      "@oribos/lease": ["../../packages/lease/src/index.ts"],
       "@oribos/testing": ["../../packages/testing/src/index.ts"]
     }
   },

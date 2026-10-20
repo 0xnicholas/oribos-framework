@@ -45,7 +45,7 @@ _Avoid_: 内核、平台包
 _Avoid_: plugin、integration
 
 **叶子包 (Leaf package)**:
-被能力包复用的无状态纯件包:运行时 `@oribos/*` 依赖仅 peer 核心包,无身份语义、用户永不直接安装;能力包以 `dependencies` 依赖它(能力包间依赖边的唯一例外,ADR-0002)。首个实例 = `@oribos/semconv`(GenAI semconv 映射纯件,OTLP 能力包与 OTel bridge 共用,2026-10-14 #193)。
+被能力包复用的共享件包:无模块级状态、无核心身份语义,用户永不直接安装;运行时 `@oribos/*` 依赖为零,或仅 peer 核心包(ADR-0020 放宽);能力包以 `dependencies` 依赖它(能力包间依赖边的唯一例外,ADR-0002)。实例 = `@oribos/semconv`(#193,无状态纯件)与 `@oribos/lease`(ADR-0020,Lease 机制共享包;实施 #206)。
 _Avoid_: 共享库、utils 包(叶子包是判词定死的结构位,不是杂物抽屉)
 
 **组合根 (Composition root)**:
@@ -193,7 +193,7 @@ _Avoid_: 常驻恢复守护 / 轮询扫描(无常驻管线)、核心内建 recov
 _Avoid_: 核心注入缝 / transport 配置(核心单进程语义不变)、跨实例 chunk 实时跟随(v1 显式拒绝)、notification inbox(已裁出)
 
 **租约 (Lease)**:
-排他所有权凭证:TTL + 持有期心跳续约,acquire 竞争失败方不作为;形状一份(#187 冻结)、两域复用——thread 活跃 run 所有权(本地 run 开始即持、settle 即释放,唤醒竞态的裁定者)与后台任务执行权(领到才执行),各能力包声明同形 port、零依赖边,不进核心 port 清单。标准化承载 = `@oribos/distributed-signals` 与 `@oribos/background-tasks`。
+对命名工作单元的、带 TTL 和 token 的排他所有权:acquire 竞争失败方不作为,持有期心跳或边界续约,丢失后持有方停止声明。机制层一份(ADR-0020);丢失语义归消费者——thread 活跃 run 所有权(本地 run 开始即持、settle 即释放,唤醒竞态的裁定者)与后台任务执行权(领到才执行,过期即 `adopt()` 孤儿候选)。标准化承载 = `@oribos/lease`(共享机制,能力包以 `dependencies` 依赖,ADR-0020;实施 #206);消费者 = `@oribos/distributed-signals` / `@oribos/background-tasks`。
 _Avoid_: leader election(归部署方)、核心存储域 port(v1 四个冻结)、与 CUT-ST3 裁出的 lease 分域(概念只有一个)
 
 **外部 runner (External runner)**:

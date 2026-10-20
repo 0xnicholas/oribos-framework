@@ -9,8 +9,9 @@
 // 退出码契约(ADR-0015):0 = 在预算内;1 = 需处理(黄灯);2 = 配置/测量硬错误
 // (口径不符、npm/registry 解析失败、非豁免的 workspace: 范围)——CI 照常变红。
 // workspace: 豁免 = peer `@oribos/core` + ADR-0002 叶子包判词(能力包 dependencies
-// 依赖叶子包,#193;叶子未发布、workspace 范围不可 npm 解析,叶子边按叶子外部闭包 + 本体
-// 计 1 包测量,本体字节 0 下界,#183);其余依赖边须先改 ADR 再改这里。
+// 依赖叶子包,#193;叶子 = 公共包、零 @oribos 运行时边或仅 peer core,ADR-0020;叶子未发布、
+// workspace 范围不可 npm 解析,叶子边按叶子外部闭包 + 本体计 1 包测量,本体字节 0 下界,#183);
+// 其余依赖边须先改 ADR 再改这里。
 // 慢链路逃生口(本地专用,不动口径):`ORIBOS_DEPS_BUDGET_REGISTRY` 把 npm 解析与体积取数
 // 一并指向同一镜像(两面同源才同闭包;镜像滞后于 pin 的版本会以 npm notarget 落成硬错误,
 // 换个镜像或走缺省)、`ORIBOS_DEPS_BUDGET_NPM_TIMEOUT_MS` 放宽 npm 解析超时
@@ -222,9 +223,12 @@ async function fetchUnpackedSize(manifest, name, version) {
 }
 
 /**
- * ADR-0002 叶子包判词:目标包运行时 `@oribos/*` 依赖仅 peer `@oribos/core`——无状态
- * 纯件、用户永不直接安装,能力包可 `dependencies` 依赖(ADR-0002 叶子包修订,#193)。
- * 包目录与声明方同层平铺(ADR-0002 M5):`packages/<短名>`。
+ * ADR-0002 叶子包判词(ADR-0020 放宽):目标是公共包(`private !== true`),且运行时
+ * `@oribos/*` 边为零,或仅 peer `@oribos/core`——共享件、无模块级状态、无核心身份语义,
+ * 用户永不直接安装;能力包可 `dependencies` 依赖(ADR-0002 叶子包修订,#193/#206)。
+ * 机器判据只是必要条件:peer-core 能力包与 peer-core 叶子同形,本闸门不据此区分——能力包
+ * 之间的边仍由 review 按语义拒绝(ADR-0020)。包目录与声明方同层平铺(ADR-0002 M5):
+ * `packages/<短名>`。
  */
 function isLeafPackage(packageDir, name) {
   const manifestPath = join(packageDir, '..', name.slice('@oribos/'.length), 'package.json');
@@ -232,6 +236,11 @@ function isLeafPackage(packageDir, name) {
     hardError(`${name} 的清单不存在(${manifestPath})——先建包再声明依赖边`);
   }
   const target = readJsonOrHardError(manifestPath);
+  if (target.private === true) {
+    hardError(
+      `${name} 是 private: true 的未发布包——不能作 ADR-0002 叶子;未发布的包不得成为运行时依赖`,
+    );
+  }
   const oribosRuntimeEdges = Object.entries({
     dependencies: target.dependencies,
     optionalDependencies: target.optionalDependencies,
@@ -241,7 +250,10 @@ function isLeafPackage(packageDir, name) {
       .filter((dep) => dep.startsWith('@oribos/'))
       .map((dep) => `${field}:${dep}`),
   );
-  return oribosRuntimeEdges.length === 1 && oribosRuntimeEdges[0] === 'peerDependencies:@oribos/core';
+  return (
+    oribosRuntimeEdges.length === 0 ||
+    (oribosRuntimeEdges.length === 1 && oribosRuntimeEdges[0] === 'peerDependencies:@oribos/core')
+  );
 }
 
 const statusOf = (row) =>

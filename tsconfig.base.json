@@ -29,6 +29,7 @@
       "@oribos/distributed-signals": ["./packages/distributed-signals/src/index.ts"],
       "@oribos/evals": ["./packages/evals/src/index.ts"],
       "@oribos/inngest": ["./packages/inngest/src/index.ts"],
+      "@oribos/lease": ["./packages/lease/src/index.ts"],
       "@oribos/mcp-client": ["./packages/mcp-client/src/index.ts"],
       "@oribos/mcp-server": ["./packages/mcp-server/src/index.ts"],
       "@oribos/model-router": ["./packages/model-router/src/index.ts"],

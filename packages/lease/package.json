@@ -1,0 +1,49 @@
+{
+  "name": "@oribos/lease",
+  "version": "0.9.0",
+  "description": "Oribos lease leaf package — TTL + token exclusive ownership of a named unit of work, shared by capability packages: an in-memory default and a Redis structural-subset adapter. Zero external dependencies, no @oribos/core peer.",
+  "keywords": [
+    "ai-agents",
+    "llm",
+    "typescript",
+    "agent-framework",
+    "leases",
+    "distributed",
+    "concurrency"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:dist": "node ../../scripts/check-dist.mjs",
+    "check:export-surface": "node ../../scripts/check-export-surface.mjs",
+    "check:runtime-deps": "node ../../scripts/check-runtime-deps.mjs",
+    "check:byte-budget": "node ../../scripts/check-byte-budget.mjs",
+    "byte-budget:update": "node ../../scripts/check-byte-budget.mjs --update",
+    "check:deps-budget": "node ../../scripts/check-deps-budget.mjs",
+    "deps-budget:update": "node ../../scripts/check-deps-budget.mjs --update",
+    "prepublishOnly": "pnpm -w verify"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xnicholas/oribos-framework.git",
+    "directory": "packages/lease"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "@oribos/distributed-signals",
   "version": "0.9.0",
-  "description": "Oribos distributed-signals capability package — cross-instance signals routing: the send primitives route over a shared PubSub, leases arbitrate idle wakes, in-memory defaults ship zero-dependency and any Redis-compatible client rides the structural subset. No dependency beyond the @oribos/core peer.",
+  "description": "Oribos distributed-signals capability package — cross-instance signals routing: the send primitives route over a shared PubSub, leases arbitrate idle wakes, in-memory defaults ship zero-dependency and any Redis-compatible client rides the structural subset. Zero external dependencies: no runtime edges beyond the @oribos/core peer and the @oribos/lease leaf package.",
   "keywords": [
     "ai-agents",
     "llm",
@@ -48,6 +48,9 @@
   },
   "peerDependencies": {
     "@oribos/core": "workspace:^"
+  },
+  "dependencies": {
+    "@oribos/lease": "workspace:^"
   },
   "devDependencies": {
     "@oribos/core": "workspace:*",

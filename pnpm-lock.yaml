@@ -307,6 +307,10 @@ importers:
         version: 7.0.123(zod@4.6.5)
 
   packages/background-tasks:
+    dependencies:
+      '@oribos/lease':
+        specifier: workspace:^
+        version: link:../lease
     devDependencies:
       '@oribos/core':
         specifier: workspace:*
@@ -344,6 +348,10 @@ importers:
         version: link:../testing
 
   packages/distributed-signals:
+    dependencies:
+      '@oribos/lease':
+        specifier: workspace:^
+        version: link:../lease
     devDependencies:
       '@oribos/core':
         specifier: workspace:*
@@ -373,6 +381,8 @@ importers:
       '@oribos/testing':
         specifier: workspace:*
         version: link:../testing
+
+  packages/lease: {}
 
   packages/mcp-client:
     dependencies:

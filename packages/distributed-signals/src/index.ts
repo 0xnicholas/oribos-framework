@@ -49,133 +49,27 @@ import type {
 import type { Chunk, ModelMessage } from '@oribos/core/model';
 import type { SignalPayload, Signals } from '@oribos/core/signals';
 import type { StandardSchema, StandardSchemaV1 } from '@oribos/core/tools';
+import { createInMemoryLeaseStore, createRedisLease } from '@oribos/lease';
+import type { Lease, LeaseHandle } from '@oribos/lease';
 
 // ── The Lease port ──────────────────────────────────────────────────────────────────────────────
 
-/** A held lease's handle: the token proves ownership; `renew` refreshes; `release` gives it up. */
-export interface LeaseHandle {
-  /** The ownership token this holder acquired with (opaque; minted per acquisition). */
-  readonly token: string;
-  /**
-   * Refreshes the lease's TTL, still owned: `true`. Lost (expired and re-acquired elsewhere, or
-   * released): `false` — the holder stops claiming the thread after a `false`.
-   */
-  renew(ttlMs: number): Promise<boolean>;
-  /** Gives the lease up. Harmless when already lost: a foreign lease is never deleted. */
-  release(): Promise<void>;
-}
+export type { LeaseHandle };
+export type {
+  InMemoryLeaseStoreConfig,
+  RedisLeaseClient,
+  RedisLeaseConfig,
+} from '@oribos/lease';
+export { createInMemoryLeaseStore, createRedisLease };
 
 /**
- * The package's lease port: the thread's active-run ownership, the idle-wake race's arbiter.
- * The in-memory default ([`createInMemoryLeaseStore`]) carries no dependency; [`createRedisLease`]
- * adapts any Redis-compatible client. Expiry is the loss domain: a holder that stops renewing
- * (a dead process, a stalled run past the expiry window) loses the thread to the next racer.
+ * The package's lease role: the thread's active-run ownership, the idle-wake race's arbiter.
+ * The mechanism — port, in-memory default, Redis adapter, token and TTL — lives in
+ * `@oribos/lease` (ADR-0020); this alias keeps the frozen `SignalLease` name. Expiry is the
+ * loss domain: a holder that stops renewing (a dead process, a stalled run past the expiry
+ * window) loses the thread to the next racer.
  */
-export interface SignalLease {
-  /** Acquires the key's lease for `ttlMs`, or `null` when someone else holds it. */
-  acquire(key: string, ttlMs: number): Promise<LeaseHandle | null>;
-}
-
-/** The in-memory `SignalLease` default: one map, lazy expiry, zero timers. */
-export function createInMemoryLeaseStore(
-  config: InMemoryLeaseStoreConfig = {},
-): SignalLease {
-  const now = config.now ?? (() => Date.now());
-  const held = new Map<string, { token: string; expiresAt: number }>();
-  const alive = (key: string): { token: string; expiresAt: number } | undefined => {
-    const entry = held.get(key);
-    if (entry === undefined) return undefined;
-    if (entry.expiresAt <= now()) {
-      held.delete(key);
-      return undefined;
-    }
-    return entry;
-  };
-  return {
-    acquire: async (key, ttlMs) => {
-      if (alive(key) !== undefined) return null;
-      const token = mintToken();
-      held.set(key, { token, expiresAt: now() + ttlMs });
-      return {
-        token,
-        renew: async (renewTtl) => {
-          const entry = alive(key);
-          if (entry === undefined || entry.token !== token) return false;
-          entry.expiresAt = now() + renewTtl;
-          return true;
-        },
-        release: async () => {
-          if (alive(key)?.token === token) held.delete(key);
-        },
-      };
-    },
-  };
-}
-
-/** `createInMemoryLeaseStore` config; every field optional. */
-export interface InMemoryLeaseStoreConfig {
-  /** The clock, injectable for tests. Defaults to `Date.now`. */
-  readonly now?: () => number;
-}
-
-/**
- * The structural subset of a Redis-compatible client the lease adapter calls: `set(key, value,
- * 'PX', ttlMs, 'NX')` for acquisition and `eval(script, 1, key, …args)` for the token-guarded
- * renew/release. `ioredis` satisfies both shapes as-is; other clients adapt the argument packing.
- */
-export interface RedisLeaseClient {
-  /** SET with PX + NX — resolves `'OK'` when acquired, `null`/falsy when the key is held. */
-  set(
-    key: string,
-    value: string,
-    mode: 'PX',
-    ttlMs: number,
-    flag: 'NX',
-  ): Promise<unknown>;
-  /** EVAL the adapter's token-guarded script against one key. */
-  eval(script: string, numKeys: number, key: string, ...args: string[]): Promise<unknown>;
-}
-
-/** `createRedisLease` config: your client. */
-export interface RedisLeaseConfig {
-  /** Any Redis-compatible client (the [`RedisLeaseClient`] structural subset). */
-  readonly client: RedisLeaseClient;
-}
-
-/** Renew: still our token → PEXPIRE the new TTL; otherwise 0. */
-const RENEW_SCRIPT =
-  'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end';
-
-/** Release: still our token → DEL; otherwise 0 — a foreign lease is never deleted. */
-const RELEASE_SCRIPT =
-  'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
-
-/** The Redis-backed `SignalLease`: SET(NX/PX) acquisition, token-guarded Lua renew and release. */
-export function createRedisLease(config: RedisLeaseConfig): SignalLease {
-  const { client } = config;
-  return {
-    acquire: async (key, ttlMs) => {
-      const token = mintToken();
-      const result = await client.set(key, token, 'PX', ttlMs, 'NX');
-      if (result !== 'OK') return null;
-      return {
-        token,
-        renew: async (renewTtl) => {
-          const renewed = await client.eval(RENEW_SCRIPT, 1, key, token, String(renewTtl));
-          return renewed === 1;
-        },
-        release: async () => {
-          await client.eval(RELEASE_SCRIPT, 1, key, token);
-        },
-      };
-    },
-  };
-}
-
-/** The token minter for both defaults (uniqueness inside one process is all the token needs). */
-function mintToken(): string {
-  return crypto.randomUUID();
-}
+export type SignalLease = Lease;
 
 // ── The PubSub port ─────────────────────────────────────────────────────────────────────────────
 

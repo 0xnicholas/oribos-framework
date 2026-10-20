@@ -1,0 +1,9 @@
+{
+  "metric": "npm-install-closure-packages-and-unpacked-bytes",
+  "dependencies": {
+    "@oribos/lease": {
+      "packages": 1,
+      "bytes": 0
+    }
+  }
+}

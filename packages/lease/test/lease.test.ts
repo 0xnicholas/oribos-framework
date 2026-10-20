@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createInMemoryLeaseStore, createRedisLease } from '@oribos/background-tasks';
-import type { RedisLeaseClient } from '@oribos/background-tasks';
+import { createInMemoryLeaseStore, createRedisLease } from '@oribos/lease';
+import type { RedisLeaseClient } from '@oribos/lease';
 
 /**
- * 租约 port(#190 冻结表面,与 #187 冻结形状结构性同形):`acquire(key, ttlMs) → LeaseHandle | null`,
+ * Lease 契约(ADR-0020 机制单源):`acquire(key, ttlMs) → LeaseHandle | null`,
  * `LeaseHandle = { token, renew(ttlMs): Promise<boolean>, release(): Promise<void> }`。
- * 租约 = 任务行执行所有权——领到才执行;内存默认;`createRedisLease(client)` 走 `set(NX/PX)` /
- * `eval` 结构子集(客户端随调用方)。
+ * 竞争失败方拿 `null`;过期由注入 clock 惰性判定;`renew` 延长 TTL、丢失后返回 `false`;
+ * `release` 只删自己的租约。Redis 结构假件按命令语义验证 `set(NX/PX)` 与 token 守卫的 Lua。
  */
 
 /** 一个真的按命令语义执行的迷你 Redis 假件:set(NX/PX) / pexpire / del / eval(token 比对)。 */
@@ -61,38 +61,55 @@ function fakeRedisLease() {
 describe('createInMemoryLeaseStore', () => {
   it('acquire 空闲 key 拿到 handle,竞争者拿 null', async () => {
     const leases = createInMemoryLeaseStore();
-    const first = await leases.acquire('t1', 1_000);
+    const first = await leases.acquire('k1', 1_000);
     expect(first).not.toBeNull();
     expect(first!.token).not.toBe('');
-    const second = await leases.acquire('t1', 1_000);
+    const second = await leases.acquire('k1', 1_000);
     expect(second).toBeNull();
   });
 
   it('release 释放后 key 可再被领', async () => {
     const leases = createInMemoryLeaseStore();
-    const handle = await leases.acquire('t1', 1_000);
+    const handle = await leases.acquire('k1', 1_000);
     await handle!.release();
-    expect(await leases.acquire('t1', 1_000)).not.toBeNull();
+    expect(await leases.acquire('k1', 1_000)).not.toBeNull();
   });
 
   it('TTL 过期后自动腾出(惰性检查),旧 handle 的 renew 变 false', async () => {
     let now = 0;
     const leases = createInMemoryLeaseStore({ now: () => now });
-    const handle = await leases.acquire('t1', 1_000);
+    const handle = await leases.acquire('k1', 1_000);
     now = 2_000;
-    expect(await leases.acquire('t1', 1_000)).not.toBeNull();
+    expect(await leases.acquire('k1', 1_000)).not.toBeNull();
     await expect(handle!.renew(1_000)).resolves.toBe(false);
   });
 
-  it('renew 由持有者调用刷新租期并返回 true', async () => {
-    const leases = createInMemoryLeaseStore();
-    const handle = await leases.acquire('t1', 1_000);
+  it('renew 延长 TTL:原到期点之后仍持有,延长点之后才腾出', async () => {
+    let now = 0;
+    const leases = createInMemoryLeaseStore({ now: () => now });
+    const handle = await leases.acquire('k1', 1_000);
+    now = 900;
     await expect(handle!.renew(1_000)).resolves.toBe(true);
+    now = 1_500;
+    expect(await leases.acquire('k1', 1_000)).toBeNull();
+    now = 2_000;
+    expect(await leases.acquire('k1', 1_000)).not.toBeNull();
+  });
+
+  it('过期后被别人领走:旧 handle 的 renew 返回 false,且不延长新租约', async () => {
+    let now = 0;
+    const leases = createInMemoryLeaseStore({ now: () => now });
+    const stale = await leases.acquire('k1', 1_000);
+    now = 1_500;
+    expect(await leases.acquire('k1', 1_000)).not.toBeNull();
+    await expect(stale!.renew(5_000)).resolves.toBe(false);
+    now = 2_600;
+    expect(await leases.acquire('k1', 1_000)).not.toBeNull();
   });
 
   it('release 之后的旧 handle:renew false、release 无害', async () => {
     const leases = createInMemoryLeaseStore();
-    const handle = await leases.acquire('t1', 1_000);
+    const handle = await leases.acquire('k1', 1_000);
     await handle!.release();
     await expect(handle!.renew(1_000)).resolves.toBe(false);
     await expect(handle!.release()).resolves.toBeUndefined();
@@ -109,41 +126,45 @@ describe('createRedisLease', () => {
   it('acquire 走 set(NX/PX):空闲得 handle,被占返回 null', async () => {
     const fake = fakeRedisLease();
     const leases = createRedisLease({ client: fake.client });
-    const first = await leases.acquire('t1', 5_000);
+    const first = await leases.acquire('k1', 5_000);
     expect(first).not.toBeNull();
-    expect(fake.held('t1')).toBe(first!.token);
-    expect(await leases.acquire('t1', 5_000)).toBeNull();
+    expect(fake.held('k1')).toBe(first!.token);
+    expect(await leases.acquire('k1', 5_000)).toBeNull();
   });
 
   it('TTL 到期后 key 腾出(NX 语义)', async () => {
     const fake = fakeRedisLease();
     const leases = createRedisLease({ client: fake.client });
-    await leases.acquire('t1', 5_000);
+    await leases.acquire('k1', 5_000);
     fake.advance(6_000);
-    expect(await leases.acquire('t1', 5_000)).not.toBeNull();
+    expect(await leases.acquire('k1', 5_000)).not.toBeNull();
   });
 
-  it('renew 由持有者调用刷新并返回 true;过期/被占后返回 false', async () => {
+  it('renew 由持有者调用延长 TTL;过期后返回 false', async () => {
     const fake = fakeRedisLease();
     const leases = createRedisLease({ client: fake.client });
-    const handle = await leases.acquire('t1', 5_000);
+    const handle = await leases.acquire('k1', 5_000);
+    fake.advance(4_000);
     await expect(handle!.renew(5_000)).resolves.toBe(true);
-    fake.advance(6_000);
+    fake.advance(4_000);
+    // 原到期点已过、延长点未到:仍持有
+    expect(await leases.acquire('k1', 5_000)).toBeNull();
+    fake.advance(2_000);
     await expect(handle!.renew(5_000)).resolves.toBe(false);
     // 过期后的旧 handle release 不复活别人的租约
     await handle!.release();
-    expect(fake.held('t1')).toBeUndefined();
+    expect(fake.held('k1')).toBeUndefined();
   });
 
   it('release 只删自己的租约:token 不符不删', async () => {
     const fake = fakeRedisLease();
     const leases = createRedisLease({ client: fake.client });
-    const handle = await leases.acquire('t1', 5_000);
+    const handle = await leases.acquire('k1', 5_000);
     fake.advance(6_000);
-    const second = await leases.acquire('t1', 5_000);
+    const second = await leases.acquire('k1', 5_000);
     await handle!.release();
-    expect(fake.held('t1')).toBe(second!.token);
+    expect(fake.held('k1')).toBe(second!.token);
     await second!.release();
-    expect(fake.held('t1')).toBeUndefined();
+    expect(fake.held('k1')).toBeUndefined();
   });
 });

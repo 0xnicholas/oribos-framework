@@ -76,6 +76,78 @@ describe('check-deps-budget:依赖数字比对', () => {
     expect(result.stdout).toContain('未建基线');
   });
 
+  it('零 @oribos/* 运行时边的公共包可作叶子(ADR-0020 放宽),测 1 包 / 0 B 下界', () => {
+    const dir = fixturePackage({
+      'app/package.json': packageManifest({
+        dependencies: { '@oribos/plain-leaf': 'workspace:^' },
+      }),
+      // 零 @oribos 边、零外部依赖、公共包:新判词下的合法叶子。
+      'plain-leaf/package.json': packageManifest({ private: false }),
+    });
+
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
+
+    // 放行测量(外部闭包 0 + 本体 1 包 / 0 B),无基线 = 黄灯退出 1,不是硬错误 2。
+    expect(result.status).toBe(1);
+    expect(result.stderr).not.toContain('显式单议');
+    expect(result.stdout).toContain('@oribos/plain-leaf');
+    expect(result.stdout).toContain('1 包');
+    expect(result.stdout).toContain('0 B');
+  });
+
+  it('private: true 的目标不得作叶子(硬错误,退出 2)', () => {
+    const dir = fixturePackage({
+      'app/package.json': packageManifest({
+        dependencies: { '@oribos/hidden': 'workspace:^' },
+      }),
+      // 未发布的包不得变成运行时依赖,即便零 @oribos 边。
+      'hidden/package.json': packageManifest({ private: true }),
+    });
+
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('@oribos/hidden');
+    expect(result.stderr).toContain('private: true');
+  });
+
+  it('非 core 的 peer workspace 边拒绝作叶子(硬错误,退出 2)', () => {
+    const dir = fixturePackage({
+      'app/package.json': packageManifest({
+        dependencies: { '@oribos/peer-leaf': 'workspace:^' },
+      }),
+      // peer 豁免只认 @oribos/core;其余 peer workspace 边不是叶子。
+      'peer-leaf/package.json': packageManifest({
+        peerDependencies: { '@oribos/semconv': 'workspace:^' },
+      }),
+    });
+
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('@oribos/peer-leaf');
+    expect(result.stderr).toContain('workspace');
+  });
+
+  it('目标自身依赖另一个 @oribos 包(能力包之间的边)拒绝作叶子(硬错误,退出 2)', () => {
+    const dir = fixturePackage({
+      'app/package.json': packageManifest({
+        dependencies: { '@oribos/another-capability': 'workspace:^' },
+      }),
+      // peer core 不掩盖另一条 @oribos 依赖边:它不是叶子。
+      'another-capability/package.json': packageManifest({
+        peerDependencies: { '@oribos/core': 'workspace:^' },
+        dependencies: { '@oribos/inngest': 'workspace:^' },
+      }),
+    });
+
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('@oribos/another-capability');
+    expect(result.stderr).toContain('workspace');
+  });
+
   it('npm 解析超时是硬错误(退出 2),报错带镜像 / 超时两个出口的实名', () => {
     const dir = fixturePackage({
       'package.json': packageManifest({ dependencies: { zod: '^4.0.0' } }),
