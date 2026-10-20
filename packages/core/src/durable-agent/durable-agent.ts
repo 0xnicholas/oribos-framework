@@ -27,8 +27,9 @@ import type { AgentRunSnapshot, AgentRunSnapshotStore, AgentRunSuspendPayload } 
  * snapshot goes to the `AgentRunSnapshotStore`, and `finishReason` settles `'suspended'`. `resume`
  * loads the snapshot and continues the run: `approved: true` executes the held calls, `approved:
  * false` answers them with a user-rejected error result and lets the model replan — the run is not
- * terminated by a rejection. Suspension exists in this wrapper alone: a bare agent run never
- * produces `'suspended'` (`agent/loop.ts` keeps no snapshot and holds no approval state).
+ * terminated by a rejection. The wrapper owns snapshotting and approval; a bare agent run produces
+ * `'suspended'` only when it is explicitly handed the public `stepBoundary` seam (the loop itself
+ * keeps no snapshot and holds no approval state).
  *
  * Single-process semantics where it matters: the store's in-memory default keeps snapshots for this
  * process, and concurrent resumes of one snapshot — the same store and run id — are deduplicated

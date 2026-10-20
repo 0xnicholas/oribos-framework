@@ -25,8 +25,8 @@ import { TRACE_ID, eventsOfType, kinds } from './helpers/spans.js';
  * 审批闸挂起(命中清单的调用不执行、run 以 `'suspended'` 正常落定、loop 快照写 port)+ resume 两路
  * (true 执行该调用续跑 / false 以「用户拒绝」结果回喂模型续跑,不终止 run)+ span 锚点(挂起 =
  * status 属性 + 正常 end;resume = 同 traceId 新 span)。断言只走公开面(`@oribos/core/durable-agent`
- * / `@oribos/core/agent`)与脚本化假模型接缝;挂起语义只存在于包装内(裸 agent 永不产生
- * `'suspended'`)。
+ * / `@oribos/core/agent`)与脚本化假模型接缝;挂起语义的默认载体是包装(裸 agent 不传
+ * `stepBoundary` 时永不产生 `'suspended'`,显式传入即得同一语义)。
  */
 
 /** 参考工具:zod 双接口 schema,输入 city 输出 celsius。 */

@@ -22,9 +22,10 @@ export function missingFinishError(): ModelContractError {
  * authoritative record the loop builds from its post-processor step records — so the chunk stream
  * is never re-accumulated here: a processor's `processOutputStep` rewrite is what `steps` /
  * `text` / `usage` report, while the live chunks stay the model's own output. The structured
- * output of a `structuredOutput` run (`object`) comes from that same return value: the loop
- * validated the terminal text before it returned. A failed run rejects with the error
- * `processError` settled on, when processors replaced it.
+ * output of a `structuredOutput` run (`object`) comes from that same return value: the completion
+ * module validated the terminal text of a completed run, and a suspended run settles it as
+ * `undefined` (ADR-0019). A failed run rejects with the error `processError` settled on, when
+ * processors replaced it.
  */
 export function createAgentStream<TObject = unknown>(
   run: () => AsyncGenerator<Chunk, AgentGenerateResult<TObject>, void>,

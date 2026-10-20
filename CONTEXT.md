@@ -80,6 +80,10 @@ _Avoid_: mastra 式 Map 类、泛型上下文参数
 一次执行的完整生命周期。agent 域:一次 generate()/stream() 调用,从输入到 finishReason,包含零到多个 step;workflow 域:一次 workflow 执行,从 start/resume/restart 到终态(success | failed | suspended)。
 _Avoid_: session、conversation(那是 Memory 域的词)
 
+**Run completion**:
+一次 Run 如何以其终态记录收尾的判定与构造:完成(`finishReason` 非 `'suspended'`)构造 text / object / toolCalls / toolResults / usage / steps / finishReason,并严格校验结构化输出;挂起(`finishReason` 为 `'suspended'`)保留已完成 Step 的值、`object` 为 `undefined`、跳过结构化校验;失败不是终态值,仍以 rejection 表达。终态构造只有一个 core 内部模块,Agent loop 只交 steps、finishReason 与 structuredOutput 配置(ADR-0019)。
+_Avoid_: 把挂起当失败、把失败建模为终态值、在包装器重建终态记录
+
 **Step**:
 两层含义,靠语境限定。agent 域:run 内的一轮"模型调用 + 工具执行"(fallback 链的多次模型尝试同属这一轮,不另成 step;mastra 的第三层 model step 不收);workflow 域:图中的一个节点(id + input/output schema + execute)。
 _Avoid_: iteration、loop iteration(规范统一用 step)
@@ -165,7 +169,7 @@ _Avoid_: 基础 port 为覆盖场景而膨胀(基础形状冻结,扩展一律走
 _Avoid_: Harness 类、中央运行时(那是 mastra 已废弃的形状)
 
 **Durable agent**:
-经 `createDurableAgent` 包装的 agent:run 可在工具调用边界挂起(审批闸),loop 快照走 storage port,`resume` 携带审批结论恢复;挂起语义只存在于包装内,裸 agent 无挂起。
+经 `createDurableAgent` 包装的 agent:run 可在工具调用边界挂起(审批闸),loop 快照走 storage port,`resume` 携带审批结论恢复;挂起语义的默认载体是包装——裸 agent 不传公开 `stepBoundary` 时无挂起,显式传入即得同一语义。
 _Avoid_: 崩溃自动恢复、resumable stream(两者均另立能力包:`@oribos/checkpoints` / `@oribos/resumable-stream`;本词的恢复 = `resume` 原语)
 
 **信号 (Signal)**:

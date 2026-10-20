@@ -101,8 +101,10 @@ export class Agent {
    * per-call behavior is controlled through `AgentRunOptions`.
    *
    * `structuredOutput` asks for a structured answer: the model calls carry the schema as JSON
-   * Schema and the run's terminal text must validate against it, strictly — the validated value is
-   * the result's `object` (execution semantics).
+   * Schema and a completed run's terminal text must validate against it, strictly — the validated
+   * value is the result's `object` (execution semantics). A run suspended at a step boundary has
+   * no final answer yet: it settles `object` as `undefined` and validates only after a resume
+   * completes it (ADR-0019).
    */
   stream<TSchema extends StandardSchema>(
     input: string | ModelMessage[],

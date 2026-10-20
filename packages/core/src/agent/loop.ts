@@ -1,4 +1,4 @@
-import type { Chunk, DeltaEmission, FinishChunk, FinishReason, ToolCallChunk, ToolResultChunk, Usage } from '../model/chunks.js';
+import type { Chunk, DeltaEmission, FinishChunk, FinishReason, ToolCallChunk, ToolResultChunk } from '../model/chunks.js';
 import type {
   JsonValue,
   Model,
@@ -22,7 +22,7 @@ import type { Tool, ToolContext } from '../tools/index.js';
 import { missingFinishError } from './stream.js';
 import { runProcessError, runProcessOutputStep } from './processors.js';
 import type { Processor } from './processors.js';
-import { toStructuredObject } from './structured-output.js';
+import { UNKNOWN_USAGE, completeRun, isSuspended } from './run-completion.js';
 import type { AgentGenerateResult, AgentRunResume, AgentStep, AgentStepBoundary, AgentStepBoundaryEvent, RequestContext, StructuredOutputConfig, ToolExecution } from './types.js';
 
 /** How many model calls one run may make when the caller pins no `maxSteps` (execution semantics). */
@@ -565,10 +565,13 @@ export async function* runAgentLoop(
     throw new Error('The agent loop ended without settling its run.');
   }
 
-  const outcome = await runOutcome(steps, settled, structuredOutput);
+  const outcome = await completeRun(steps, settled, structuredOutput);
   // A structured run's span reports the structured result — it is what the caller consumes
   // (automatic instrumentation: agent-run output is the terminal text or the structured result).
-  if (structuredOutput !== undefined) runSpan?.update({ output: outcome.object });
+  // A suspended run has no structured result yet; the span keeps the completed step's text.
+  if (structuredOutput !== undefined && !isSuspended(settled)) {
+    runSpan?.update({ output: outcome.object });
+  }
   return outcome;
 }
 
@@ -962,44 +965,6 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 /**
- * The run's terminal values, built from its authoritative step records (processors' rewrites
- * included): the last step's text settles `text`, the records flatten into run-wide tool calls /
- * results, and usage accumulates across steps.
- *
- * A structured run (`structuredOutput`) also settles `object` here: the very text `text` reports is
- * parsed as JSON and validated against the schema — strictly, so a terminal text that does not
- * become the schema's value fails the run with `StructuredOutputError`
- * (execution semantics). Validating the processed record keeps one truth: what a
- * `processOutputStep` rewrote is both the run's text and the text the structured output is read from.
- */
-async function runOutcome(
-  steps: readonly AgentStep[],
-  finishReason: FinishReason,
-  structuredOutput: StructuredOutputConfig | undefined,
-): Promise<AgentGenerateResult> {
-  const text = steps.at(-1)?.text ?? '';
-  return {
-    text,
-    object:
-      structuredOutput === undefined
-        ? undefined
-        : await toStructuredObject(structuredOutput, text),
-    toolCalls: steps.flatMap((step) => step.toolCalls),
-    toolResults: steps.flatMap((step) => step.toolResults),
-    usage: steps.reduce<Usage>((total, step) => addUsage(total, step.usage), UNKNOWN_USAGE),
-    finishReason,
-    steps,
-  };
-}
-
-/** Usage before any step reported one: every field unknown. */
-const UNKNOWN_USAGE: Usage = {
-  inputTokens: undefined,
-  outputTokens: undefined,
-  totalTokens: undefined,
-};
-
-/**
  * The synthesized finish of a resumed step (`AgentRunResume`): its model output — and with it its
  * real finish chunk — already streamed in the suspended run, so what remains to report is the step's
  * own reason (`'tool-calls'`: the calls it contributes) with usage the resumed segment never saw.
@@ -1009,29 +974,3 @@ const RESUMED_STEP_FINISH: FinishChunk = {
   finishReason: 'tool-calls',
   usage: UNKNOWN_USAGE,
 };
-
-/**
- * Adds one step's usage onto the run total.
- *
- * Unknown stays unknown: a field no step reported stays `undefined` rather than collapsing to 0.
- * `totalTokens` is derived exactly like the normalization layer derives it per model part
- * (`normalize.ts` `toUsage`): input + output when both are known, unknown otherwise.
- */
-function addUsage(total: Usage, stepUsage: Usage): Usage {
-  const inputTokens = addTokens(total.inputTokens, stepUsage.inputTokens);
-  const outputTokens = addTokens(total.outputTokens, stepUsage.outputTokens);
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens:
-      inputTokens === undefined || outputTokens === undefined
-        ? undefined
-        : inputTokens + outputTokens,
-  };
-}
-
-function addTokens(a: number | undefined, b: number | undefined): number | undefined {
-  if (a === undefined) return b;
-  if (b === undefined) return a;
-  return a + b;
-}

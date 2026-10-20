@@ -368,13 +368,17 @@ describe('structuredOutput:类型从 schema 推出(断言在编译期,tsc 阶段
   /** 类型断言用的 agent:只搭对象,不消费结果(不发起任何 run)。 */
   const agent = new Agent({ name: 'assistant', instructions: INSTRUCTIONS, model: fakeModel([]) });
 
-  it('object 类型 = schema 的输出类型(zod@4 InferOutput)', async () => {
+  it('object 类型 = schema 的输出类型 ∪ undefined(挂起时没有结构化结果)', async () => {
     const model = fakeModel([{ text: '{"city":"Paris","temperatureCelsius":18}' }]);
     const typed = new Agent({ name: 'assistant', instructions: INSTRUCTIONS, model });
 
     const result = typed.stream('Weather?', { structuredOutput: { schema: weatherSchema } });
 
-    expectAssignable<Promise<{ city: string; temperatureCelsius: number }>>(result.object);
+    expectAssignable<Promise<{ city: string; temperatureCelsius: number } | undefined>>(
+      result.object,
+    );
+    // 类型层钉住 undefined 在联合里:若 object 退化为非 undefined 类型,本行 tsc 报错
+    expectAssignable<undefined extends Awaited<typeof result.object> ? true : false>(true);
     // @ts-expect-error 结构化值的类型由 schema 决定,不是另一个形状
     expectAssignable<Promise<string>>(result.object);
 
@@ -382,7 +386,7 @@ describe('structuredOutput:类型从 schema 推出(断言在编译期,tsc 阶段
     await result.object;
   });
 
-  it('generate() 同样推出 object 类型,结果类型随 schema 参数化', async () => {
+  it('generate() 同样推出 object 类型(含 undefined),结果类型随 schema 参数化', async () => {
     const model = fakeModel([{ text: '{"city":"Paris","temperatureCelsius":18}' }]);
     const typed = new Agent({ name: 'assistant', instructions: INSTRUCTIONS, model });
 
@@ -391,6 +395,7 @@ describe('structuredOutput:类型从 schema 推出(断言在编译期,tsc 阶段
     expectAssignable<Promise<AgentGenerateResult<{ city: string; temperatureCelsius: number }>>>(
       result,
     );
+    expectAssignable<undefined extends Awaited<typeof result>['object'] ? true : false>(true);
     // @ts-expect-error 结果类型随 schema 参数化,不是别的形状
     expectAssignable<Promise<AgentGenerateResult<string>>>(result);
 

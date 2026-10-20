@@ -12,6 +12,8 @@ import type { StructuredOutputConfig } from './types.js';
  *   `responseFormat`, so the provider is told the shape to answer in.
  * - **Up**: the run's terminal text — the last step's authoritative record, processors' rewrites
  *   included — is parsed as JSON and validated, and the schema's value settles the run's `object`.
+ *   Validation belongs to a completed run: a run suspended at a step boundary has no final answer
+ *   yet, so it settles with `object: undefined` and skips validation (ADR-0019).
  *
  * Strict is the only strategy: an answer that is not JSON, or does not match the schema, fails the
  * run with `StructuredOutputError`. There is no `errorStrategy`, no repair round trip, no silent

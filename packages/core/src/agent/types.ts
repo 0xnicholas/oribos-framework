@@ -178,7 +178,8 @@ export interface AgentRunOptionFields {
    * against it — strictly: an answer that is not JSON, or does not match the schema, fails the run
    * with `StructuredOutputError` (execution semantics). The validated value
    * settles the output object's `object`; absent = the run's answer is plain text, `object` is
-   * `undefined`.
+   * `undefined`. A run that suspends at a step boundary settles `object` as `undefined` and skips
+   * validation — the answer arrives only when a resume completes it (ADR-0019).
    */
   readonly structuredOutput?: StructuredOutputConfig | undefined;
   /**
@@ -478,11 +479,13 @@ export interface AgentStreamResult<TObject = unknown> extends AsyncIterable<Chun
   readonly text: Promise<string>;
   /**
    * The run's structured output: the final step's text parsed as JSON and validated against
-   * `structuredOutput.schema` (execution semantics). Resolves `undefined` when
-   * the run was not asked for one; rejects with `StructuredOutputError` when the answer is not JSON
-   * or does not match the schema (strict), and with the run's own error when the run failed.
+   * `structuredOutput.schema` (execution semantics). Resolves `undefined` when the run was not
+   * asked for one, and when the run suspended before completing (`finishReason: 'suspended'`) —
+   * a suspended run's `object` exists only after a resume completes it. Rejects with
+   * `StructuredOutputError` when a completed answer is not JSON or does not match the schema
+   * (strict), and with the run's own error when the run failed.
    */
-  readonly object: Promise<TObject>;
+  readonly object: Promise<TObject | undefined>;
   /** Tool calls the model requested over the whole run — `steps` flattened, in step order. */
   readonly toolCalls: Promise<readonly ToolCallChunk[]>;
   /** Tool results recorded over the whole run (framework- and provider-executed) — `steps` flattened. */
@@ -501,10 +504,11 @@ export interface AgentGenerateResult<TObject = unknown> {
   readonly text: string;
   /**
    * The run's structured output — the schema's validated value (`structuredOutput.schema`), or
-   * `undefined` when the run was not asked for one. A non-conforming answer never reaches here: it
-   * fails the run with `StructuredOutputError` (strict).
+   * `undefined` when the run was not asked for one or suspended before completing
+   * (`finishReason: 'suspended'`). A non-conforming answer of a completed run never reaches here:
+   * it fails the run with `StructuredOutputError` (strict).
    */
-  readonly object: TObject;
+  readonly object: TObject | undefined;
   /** Tool calls the model requested over the whole run — `steps` flattened, in step order. */
   readonly toolCalls: readonly ToolCallChunk[];
   /** Tool results recorded over the whole run (framework- and provider-executed) — `steps` flattened. */
@@ -512,7 +516,8 @@ export interface AgentGenerateResult<TObject = unknown> {
   /** Usage accumulated over the whole run. */
   readonly usage: Usage;
   /** Why the model stopped: `'stop'` / `'length'` / `'tool-calls'` / `'error'`; `'suspended'` only
-   *  when a `stepBoundary` gate suspended the run (the durable approval gate — bare runs never). */
+   *  when a `stepBoundary` gate suspended the run (the durable approval gate, or an explicit
+   *  `stepBoundary` on a bare run — without that seam a bare run never ends `'suspended'`). */
   readonly finishReason: FinishReason;
   /** Per-step records: text, tool calls, tool results and usage of each model call. */
   readonly steps: readonly AgentStep[];

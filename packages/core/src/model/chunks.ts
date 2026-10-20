@@ -16,8 +16,8 @@
  *
  * `'tool-calls'` is also the terminal reason when the agent loop hits its step cap while the model
  * still asks for tools; `'suspended'` is produced only by the step-boundary seam's suspend
- * decision (`AgentRunOptions.stepBoundary` — the durable approval gate's mechanism) — a bare
- * agent run never ends with it.
+ * decision (`AgentRunOptions.stepBoundary` — the durable approval gate's mechanism, or an explicit
+ * gate on a bare run). Without that seam a bare agent run never ends with it.
  */
 export type FinishReason = 'stop' | 'length' | 'tool-calls' | 'error' | 'suspended';
 

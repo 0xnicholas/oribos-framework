@@ -35,7 +35,7 @@ interface AgentConfig {
 - **finishReason**:`'stop' | 'length' | 'tool-calls' | 'error' | 'suspended'`(`tool-calls` 表示 maxSteps 耗尽时模型仍要求工具调用;`'suspended'` 只在 `createDurableAgent` 包装内由审批闸产生,裸 agent **不传 `stepBoundary` seam 时**不出现(该 seam 是公开 run option,显式传入即产生)——见 `docs/architecture/harness.md`)。
 - **steps[]**:每步的 text / toolCalls / toolResults / usage 轻量记录,调试、Observability、Workflow 快照共用;`usage` 另有全 run 累计值。
 - **执行选项**:`maxSteps`(默认 5)/ `modelSettings`(temperature 等透传袋)/ `providerOptions`(透传)/ `signal`(AbortSignal,沿工具调用与动态参数解析传播)/ `traceId?` + `parentSpanId?`(trace 续接,见 `docs/architecture/observability.md`;as-tool 组合经工具 ctx 六件套取值)/ `hideInput?` + `hideOutput?`(本次 run 的擦除覆盖,透传为 root span 的创建选项,见 `docs/architecture/observability.md`)。
-- **structuredOutput**:一等支持 run option `structuredOutput: { schema }`,schema 走 Standard Schema 契约(ADR-0003):经 `~standard.jsonSchema` 出 JSON Schema(draft-07,与工具 schema 同一转换)随每次模型调用下发为 `responseFormat`,run 终值文本(processors 改写后的权威记录)按 JSON 解析并校验,结果落 `object`;校验策略固定 strict(失败即报错,抛携带原文与 issues 的 `StructuredOutputError`,不做 errorStrategy 多选一)。不传即纯文本路径:不发 `responseFormat`,`object` 为 `undefined`。
+- **structuredOutput**:一等支持 run option `structuredOutput: { schema }`,schema 走 Standard Schema 契约(ADR-0003):经 `~standard.jsonSchema` 出 JSON Schema(draft-07,与工具 schema 同一转换)随每次模型调用下发为 `responseFormat`,run 终值文本(processors 改写后的权威记录)按 JSON 解析并校验,结果落 `object`;校验策略固定 strict(失败即报错,抛携带原文与 issues 的 `StructuredOutputError`,不做 errorStrategy 多选一)。不传即纯文本路径:不发 `responseFormat`,`object` 为 `undefined`。经 `stepBoundary` 挂起的 Run 不校验、`object` 为 `undefined`(挂起不是输出契约失败);公开类型为 `TObject | undefined`(ADR-0019)。
 
 ## Agent loop
 
@@ -44,6 +44,7 @@ interface AgentConfig {
 - **工具执行顺序**:同一步的多个 tool-call 默认按调用顺序**串行**执行,结果按调用顺序并入该步;run option `toolExecution: 'eager'`(opt-in,A2 追赶项,#172)改为参数流完即启动、与模型流交叠执行,结果仍按调用序发射、按调用序并入。eager 与 `stepBoundary.beforeToolCalls` 审批闸互斥(闸要按得住调用),组合在 run 边界报错。provider 已执行的工具调用(该步内同 toolCallId 已有结果)不重复执行——eager 下先启动的那次作废,provider 结果为准。
 - **错误回喂**:execute 抛错捕获为 error 工具结果**回喂模型**,由模型自行恢复或放弃,run 不中止;需要硬停的场景经 Processor 实现。
 - **审批 / 挂起**:不在核心,由「决策:Harness 语义集」(#18,已定)承接——`createDurableAgent` 包装的工具调用边界审批闸 + loop 快照,见 `docs/architecture/harness.md`;核心 loop 保持无快照。
+- **Run completion(终态记录)**:终态构造只有一个 core 内部模块(ADR-0019),loop 只交权威 `steps`、`finishReason` 与 `structuredOutput` 配置。完成的 Run(`finishReason` 非 `'suspended'`)构造 text / object / toolCalls / toolResults / usage / steps / finishReason,结构化 Run 严格校验;挂起的 Run 保留已完成 Step 的值(第 0 步挂起即空值)、`object` 为 `undefined`、跳过结构化校验——挂起是正常终态,不是 `StructuredOutputError`。失败的 Run 不进入终态值,仍以 `processError` 的结果 reject。`generate()` 与 `stream()` 共享同一构造,终值一致。
 
 ## 扩展点:Processor
 

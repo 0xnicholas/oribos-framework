@@ -7,7 +7,8 @@
  * JSON-only; the in-memory default ships with the core), `finishReason` settles `'suspended'`, the
  * run's `suspendPayload` reports what was held, and `resume(runId, { approved })` continues it:
  * execute the held calls and go on, or answer them with a user-rejected result and let the model
- * replan. A bare agent run never suspends — the semantics live in the wrapper only.
+ * replan. Suspension is the wrapper's own behavior; a bare agent run suspends only when it is
+ * explicitly handed a `stepBoundary` gate (the wrapper attaches one).
  */
 export { createDurableAgent } from './durable-agent.js';
 export type {
