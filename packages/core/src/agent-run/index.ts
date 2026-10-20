@@ -6,7 +6,7 @@ import type {
 } from '../agent/types.js';
 import type { ToolCallChunk, ToolResultChunk } from '../model/chunks.js';
 import type { ModelMessage } from '../model/contract.js';
-import { materialize } from '../output-object.js';
+import { materialize } from '../output-object/index.js';
 
 /**
  * The continuation seam for capability packages (ADR-0018): one suspended run's state as a pure

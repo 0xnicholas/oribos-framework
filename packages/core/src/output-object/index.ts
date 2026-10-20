@@ -7,9 +7,10 @@
  * the `start` callback parameterizes away; the harness wrappers observe one through
  * `teeOutputObject`, and `materialize` awaits the terminal record.
  *
- * Internal seam — not exported from any entry (the `standard-schema-runtime.ts` pattern). The
- * interface is shaped so it could be promoted to a public subpath as-is; that promotion needs its
- * own issue (explicit ratification) — this module changes no export surface.
+ * Public subpath `@oribos/core/output-object` (ADR-0018, #204): the stable small surface capability
+ * packages build wrappers on. The exported names are exactly the pump (`createOutputObject`), the
+ * observation tee (`teeOutputObject`), the collector (`materialize`) and their types; no hook is
+ * added beyond the `TeeHooks` documented below. Consumers import this path, never the module file.
  *
  * The pinned semantics (asserted through the public surface by the behavior contract,
  * `test/helpers/output-object-contract.ts`, running against both the agent and the workflows

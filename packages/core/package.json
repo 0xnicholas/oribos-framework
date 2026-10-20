@@ -46,6 +46,10 @@
       "types": "./dist/agent-run/index.d.ts",
       "default": "./dist/agent-run/index.js"
     },
+    "./output-object": {
+      "types": "./dist/output-object/index.d.ts",
+      "default": "./dist/output-object/index.js"
+    },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "default": "./dist/tools/index.js"

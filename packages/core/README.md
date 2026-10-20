@@ -65,6 +65,7 @@ yours to pick — the core has no runtime dependencies of its own.
 | `@oribos/core/signals` | `createSignals` — inject / wake / queue on a thread |
 | `@oribos/core/durable-agent` | `createDurableAgent`, the approval gate, `AgentRunSnapshotStore` |
 | `@oribos/core/agent-run` | `continueRun` / `RunContinuation` / `createResumeLock` — the continuation seam for capability packages |
+| `@oribos/core/output-object` | `createOutputObject` / `teeOutputObject` / `materialize` — the output-object pump: a stable small surface for capability packages and advanced integrations |
 | `@oribos/core/schedules` | `createSchedules`, `tick`, `ScheduleStore` |
 
 ## The composition root

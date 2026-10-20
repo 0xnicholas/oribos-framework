@@ -31,7 +31,9 @@
 - Durable agent 的 `resume` 改走 `continueRun`(load Snapshot → 映射 `RunContinuation` → continueRun);`Checkpoints` 的 `recover` 随 #203 迁移。两者的重放、trace 续接、memory 行为保持不变。
 - `createResumeLock` 成为公开机制,但每个消费者仍自持注册表(一个子系统一份),跨子系统隔离不变。
 - 能力包不再复制 continuation 骨架与恢复锁;新增终态字段或挂起语义仍只改 core 内部一处。
+- 输出对象泵成为公开机制:能力包不必复制泵与收集器,懒启动 / 缓冲 / 失败排空 / abandon 语义只有一处;消费者迁移与共享契约套件归 #205。
 - 公开面增长是逐条审过的:新增子路径需要 issue + ADR 判据 + 全套闸门,不会因实现方便而漂移。
-- 文档须在 README / SKILL 的 import 表与 `docs/architecture/harness.md` 标注:`agent-run` 是能力包 / 高级集成用稳定小表面,不是日常 Agent 入口。
+- 文档须在 README / SKILL 的 import 表与对应架构篇(`harness.md` / `agent.md` / `workflows.md`)标注:`agent-run` 与 `output-object` 是能力包 / 高级集成用稳定小表面,不是日常 Agent 入口。
+- **修订(第二实例落地,2026-10-20,#204)**:`@oribos/core/output-object` 按第 7 条追认——导出恰好 `OutputObject`、`OutputSource`、`OutputProjections`、`TeeHooks`、`createOutputObject`、`teeOutputObject`、`materialize`,语义与内部模块逐条一致,不新增钩子;内部模块移入 `src/output-object/index.ts`,两域 import 更新。消费者迁移与共享契约套件归 #205。
 
-(来源:规范 #200;首批实施 #202)
+(来源:规范 #200;首批实施 #202;第二实例 #204)

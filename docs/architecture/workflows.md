@@ -64,7 +64,7 @@ await run.resume({ step, resumeData? })   // 见「suspend/resume 与快照」
 await run.restart({ step? })              // time-travel:截断 + 重进,见「suspend/resume 与快照」
 ```
 
-- run 输出对象与 Agent 输出对象同一心智:**await 终值 / for-await 事件流,双消费单路径**。
+- run 输出对象与 Agent 输出对象同一心智:**await 终值 / for-await 事件流,双消费单路径**;共享泵 = 公开子路径 `@oribos/core/output-object`(`createOutputObject` / `teeOutputObject` / `materialize`,能力包 / 高级集成用稳定小表面,ADR-0018;不是日常工作流入口)。
 - `requestContext` 沿用 Agent 规范的开放袋约定;`signal`(AbortSignal)沿 execute 与动态时长函数传播。
 - `createRun` 另收可选的 `traceId?` / `parentSpanId?`:把本次 run 挂到别处开始的 trace 下(入站 `traceparent`、父 run),空串语义沿 Agent 的 run option(空 `traceId` 整对作废、空 `parentSpanId` 只丢 parent)。**resume 不收取接选项**:恢复段以快照里已持久化的 traceId 续同一 trace。
 

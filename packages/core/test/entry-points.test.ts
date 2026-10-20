@@ -6,6 +6,7 @@ import * as durableAgentEntry from '@oribos/core/durable-agent';
 import * as memoryEntry from '@oribos/core/memory';
 import * as modelEntry from '@oribos/core/model';
 import * as observabilityEntry from '@oribos/core/observability';
+import * as outputObjectEntry from '@oribos/core/output-object';
 import * as schedulesEntry from '@oribos/core/schedules';
 import * as signalsEntry from '@oribos/core/signals';
 import * as toolsEntry from '@oribos/core/tools';
@@ -20,6 +21,7 @@ const ENTRIES = [
   ['@oribos/core/model', modelEntry],
   ['@oribos/core/agent', agentEntry],
   ['@oribos/core/agent-run', agentRunEntry],
+  ['@oribos/core/output-object', outputObjectEntry],
   ['@oribos/core/tools', toolsEntry],
   ['@oribos/core/observability', observabilityEntry],
   ['@oribos/core/workflows', workflowsEntry],

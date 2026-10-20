@@ -13,7 +13,7 @@ import type {
 import { continueRun, createResumeLock } from '../agent-run/index.js';
 import type { Chunk, ToolCallChunk, ToolResultChunk } from '../model/chunks.js';
 import type { ModelMessage } from '../model/contract.js';
-import { teeOutputObject } from '../output-object.js';
+import { teeOutputObject } from '../output-object/index.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 import { createInMemoryAgentRunSnapshotStore } from './in-memory-snapshot-store.js';
 import type { AgentRunSnapshot, AgentRunSnapshotStore, AgentRunSuspendPayload } from './snapshot.js';

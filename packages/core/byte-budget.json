@@ -5,6 +5,7 @@
     "./model": 4282,
     "./agent": 21202,
     "./agent-run": 696,
+    "./output-object": 1840,
     "./tools": 224,
     "./observability": 5342,
     "./workflows": 19153,

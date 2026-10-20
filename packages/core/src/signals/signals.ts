@@ -16,7 +16,7 @@ import { assertMemoryTarget, resolveThreadId } from '../memory/identity.js';
 import type { Memory } from '../memory/index.js';
 import type { Tracer } from '../observability/index.js';
 import { normalizeTraceContinuation } from '../observability/span.js';
-import { materialize, teeOutputObject } from '../output-object.js';
+import { materialize, teeOutputObject } from '../output-object/index.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 
 /**

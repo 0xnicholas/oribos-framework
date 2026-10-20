@@ -1,6 +1,6 @@
 import type { Chunk } from '../model/chunks.js';
 import { ModelContractError } from '../model/resolve.js';
-import { createOutputObject } from '../output-object.js';
+import { createOutputObject } from '../output-object/index.js';
 import type { AgentGenerateResult, AgentStreamResult } from './types.js';
 
 /**
@@ -17,7 +17,7 @@ export function missingFinishError(): ModelContractError {
 }
 
 /**
- * The agent's output object (`output-object.ts` carries the pump; this is its agent source and
+ * The agent's output object (`output-object/` carries the pump; this is its agent source and
  * terminal projection). The run's terminal result is the generator's *return value* — the
  * authoritative record the loop builds from its post-processor step records — so the chunk stream
  * is never re-accumulated here: a processor's `processOutputStep` rewrite is what `steps` /

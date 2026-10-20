@@ -9,7 +9,7 @@ import { AGENT_RUN_SPAN, MEMORY_RECALL_SPAN } from '../observability/index.js';
 import type { Tracer } from '../observability/index.js';
 import { normalizeTraceContinuation } from '../observability/span.js';
 import { withSpan } from '../observability/tracer.js';
-import { materialize } from '../output-object.js';
+import { materialize } from '../output-object/index.js';
 import { NEVER_ABORTED } from '../run-context.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 import type { Tool } from '../tools/index.js';

@@ -1,5 +1,5 @@
 import type { RequestContext } from '../agent/types.js';
-import { createOutputObject } from '../output-object.js';
+import { createOutputObject } from '../output-object/index.js';
 import { createResumeLock } from '../resume-lock.js';
 import { NEVER_ABORTED } from '../run-context.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
@@ -415,7 +415,7 @@ function restartPosition(
 }
 
 /**
- * The output object of one run (`output-object.ts` carries the pump; this is its workflow source
+ * The output object of one run (`output-object/` carries the pump; this is its workflow source
  * and terminal projection). The push source: the walker emits the lifecycle events as it runs
  * (`emit`) and resolves with the run's outcome — the single pass both consumption styles read.
  */

@@ -10,6 +10,7 @@ const PUBLIC_ENTRIES = [
   'model',
   'agent',
   'agent-run',
+  'output-object',
   'tools',
   'observability',
   'workflows',
