@@ -1,9 +1,5 @@
 /**
- * 测试共享工具:把异步可迭代对象收敛为数组。多个测试文件从同一份实现取用,不各自复制
- * (规则见 `helpers/assertions.ts`)。
+ * 测试共享工具:把异步可迭代对象收敛为数组。正本居 `@oribos/testing`(契约套件共用),
+ * 本文件只做转出,保持跨包单一实现。
  */
-export async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
-  const items: T[] = [];
-  for await (const item of iterable) items.push(item);
-  return items;
-}
+export { collect } from '@oribos/testing';

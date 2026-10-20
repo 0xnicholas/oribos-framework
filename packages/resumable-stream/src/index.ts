@@ -33,8 +33,10 @@
  * [`RunEventStatus`], [`createInMemoryEventCache`], [`createRedisEventCache`],
  * [`RedisLikeClient`], [`UnknownRunError`], [`RunNotLiveError`].
  */
-import type { AgentStreamResult } from '@oribos/core/agent';
+import type { AgentGenerateResult, AgentStreamResult } from '@oribos/core/agent';
 import type { Chunk } from '@oribos/core/model';
+import { createOutputObject, materialize } from '@oribos/core/output-object';
+import type { OutputProjections } from '@oribos/core/output-object';
 
 /** Where a recorded run stands: still streaming, ended, or failed. */
 export type RunEventStatus = 'active' | 'done' | 'error';
@@ -255,17 +257,19 @@ export interface WithEventCacheConfig {
 
 /**
  * Wraps an agent (or durable agent) stream's output object with event recording: the returned
- * object has the same shape — the same chunk stream to `for await`, the same terminal
- * promises (`text` / `object` / `steps` / `finishReason` / …) — and, as a side effect of the
- * same pass, every chunk is appended to the cache and the run's entry is closed (or failed)
- * when the run ends.
+ * object has the same shape — the same chunk stream to `for await`, the same terminal values
+ * (`text` / `object` / `steps` / `finishReason` / …) — and, as a side effect of the same pass,
+ * every chunk is appended to the cache and the run's entry is closed (or failed) when the run
+ * ends.
  *
- * The recording survives the consumer: the wrapper's own pump drives the inner run to
- * completion regardless of how it is consumed, so an SSE client hanging up mid-stream leaves
- * the cache holding the whole run — that is the reconnect story's other half (`observe` is
- * the first). A cache that refuses an append fails the wrapped run (the recording is part of
- * the run, not a best-effort side channel — the rag package's fail-the-run precedent). One
- * run id may be recorded once per cache at a time; recording it again while live throws.
+ * The wrapper is the shared pump (`@oribos/core/output-object`), not a second implementation:
+ * lazy start, buffering, failure-after-buffer and abandon-local semantics are the output
+ * object's own, and the recording rides that same pass. The recording survives the consumer —
+ * an SSE client hanging up mid-stream leaves the cache holding the whole run, which is the
+ * reconnect story's other half (`observe` is the first). A cache that refuses an append fails
+ * the wrapped run (the recording is part of the run, not a best-effort side channel — the rag
+ * package's fail-the-run precedent). One run id may be recorded once per cache at a time;
+ * recording it again while live throws.
  *
  * ```ts
  * const output = withEventCache(agent.stream(input, { memory: { thread, resource } }), {
@@ -288,62 +292,64 @@ export function withEventCache<T extends AgentStreamResult>(
   const run: LiveRun = { seq: 0, ended: undefined, subscribers: [] };
   runs.set(runId, run);
 
-  let started = false;
-  let settled = false;
-  let failure: { readonly error: unknown } | undefined;
-  /** The consumer left the loop; the pump keeps going — the cache is the point. */
-  let abandoned = false;
-  const buffered: Chunk[] = [];
-  const waiting: {
-    resolve(result: IteratorResult<Chunk>): void;
-    reject(error: unknown): void;
-  }[] = [];
-  const DONE: IteratorResult<never> = { value: undefined, done: true };
+  // Terminals are the output object's enumerable accessor getters (the contract's one
+  // enumeration rule); data fields a wrapper adds afterwards — the durable stream's `runId` /
+  // `suspendPayload` — are not terminals. A custom stream exposing its terminals as data
+  // properties has no accessors at all, so every key is projected instead.
+  const surfaceKeys = Object.keys(output);
+  const terminalKeys = surfaceKeys.filter(
+    (key) => Object.getOwnPropertyDescriptor(output, key)?.get !== undefined,
+  );
+  const projectedKeys = terminalKeys.length > 0 ? terminalKeys : surfaceKeys;
 
-  function start(): void {
-    if (started) return;
-    started = true;
-    void pump();
-  }
+  const wrapped = createOutputObject<Chunk, AgentGenerateResult, AgentGenerateResult>(
+    {
+      async start(deliver) {
+        const iterator = output[Symbol.asyncIterator]();
+        try {
+          for (;;) {
+            const next = await iterator.next();
+            if (next.done) break;
+            await cache.append(runId, next.value);
+            const seq = run.seq;
+            run.seq += 1;
+            if (run.ended === undefined) {
+              broadcast(run, { kind: 'chunk', seq, chunk: next.value });
+            }
+            deliver(next.value);
+          }
+        } catch (error) {
+          await endWithFailure(error);
+          throw error;
+        }
+        await endWithSuccess();
+        return materialize<AgentGenerateResult>(output);
+      },
+    },
+    // The inner terminal keys become the wrapper's lazy terminal getters; the shared collector
+    // reads the inner values once the recorded pass has completed.
+    Object.fromEntries(
+      projectedKeys.map((key) => [
+        key,
+        (result: AgentGenerateResult) => (result as unknown as Record<string, unknown>)[key],
+      ]),
+    ) as OutputProjections<AgentGenerateResult, AgentGenerateResult>,
+  );
 
-  async function pump(): Promise<void> {
-    const iterator = output[Symbol.asyncIterator]();
-    try {
-      for (;;) {
-        const next = await iterator.next();
-        if (next.done) break;
-        await cache.append(runId, next.value);
-        const seq = run.seq;
-        run.seq += 1;
-        if (run.ended === undefined) broadcast(run, { kind: 'chunk', seq, chunk: next.value });
-        deliver(next.value);
-      }
-    } catch (error) {
-      await endWithFailure(error);
-      return;
-    }
-    await endWithSuccess();
-  }
-
-  /** The run completed: close the cache entry, tell the observers, settle the stream. */
+  /** The run completed: close the cache entry, tell the observers, let the pump settle. */
   async function endWithSuccess(): Promise<void> {
     await guard(() => cache.close(runId));
     run.ended = { kind: 'done' };
     broadcast(run, run.ended);
     runs.delete(runId);
-    settled = true;
-    for (const waiter of waiting.splice(0)) waiter.resolve(DONE);
   }
 
-  /** The run failed (or the cache did): record the failure, settle the stream with the error. */
+  /** The run failed (or the cache did): record the failure, tell the observers, fail the pump. */
   async function endWithFailure(error: unknown): Promise<void> {
     await guard(() => cache.fail(runId, error));
     run.ended = { kind: 'error', error };
     broadcast(run, run.ended);
     runs.delete(runId);
-    settled = true;
-    failure = { error };
-    for (const waiter of waiting.splice(0)) waiter.reject(error);
   }
 
   /** A cache that already failed one call may fail the closing call too — never mask the run's own outcome. */
@@ -355,52 +361,27 @@ export function withEventCache<T extends AgentStreamResult>(
     }
   }
 
-  /** Hands a chunk to the waiting iterator, or buffers it until one asks. */
-  function deliver(chunk: Chunk): void {
-    if (abandoned) return;
-    const waiter = waiting.shift();
-    if (waiter === undefined) {
-      buffered.push(chunk);
-      return;
-    }
-    waiter.resolve({ value: chunk, done: false });
+  /** The public start trigger: reading a terminal getter starts the shared pump. */
+  function startRecording(): void {
+    // The probe's failure is delivered by the caller's own terminals; swallow it here.
+    void wrapped.text.catch(() => undefined);
   }
 
-  const iterator: AsyncIterator<Chunk> = {
-    next(): Promise<IteratorResult<Chunk>> {
-      start();
-      if (abandoned) return Promise.resolve(DONE);
-      const chunk = buffered.shift();
-      if (chunk !== undefined) return Promise.resolve({ value: chunk, done: false });
-      if (failure !== undefined) return Promise.reject(failure.error);
-      if (settled) return Promise.resolve(DONE);
-      return new Promise<IteratorResult<Chunk>>((resolve, reject) => {
-        waiting.push({ resolve, reject });
-      });
-    },
-    return(): Promise<IteratorResult<Chunk>> {
-      abandoned = true;
-      buffered.length = 0;
-      return Promise.resolve(DONE);
-    },
-  };
-
-  const surface: Record<string | symbol, unknown> = {
-    [Symbol.asyncIterator]: () => iterator,
-  };
-  // The inner terminal keys, each forwarded lazily: reading one starts the recording pass and
-  // hands out the inner promise unchanged (same run, same value, same laziness).
-  for (const key of Object.keys(output)) {
-    Object.defineProperty(surface, key, {
+  // Non-terminal fields a wrapper adds to an agent stream (the durable stream's `runId` /
+  // `suspendPayload`) ride along untouched. Reading one starts the shared pump, exactly as the
+  // terminal getters do, so a caller that only awaits `suspendPayload` still drives the run.
+  for (const key of surfaceKeys) {
+    if (projectedKeys.includes(key)) continue;
+    Object.defineProperty(wrapped, key, {
       enumerable: true,
       configurable: true,
       get() {
-        start();
-        return (output as Record<string, unknown>)[key];
+        startRecording();
+        return (output as unknown as Record<string, unknown>)[key];
       },
     });
   }
-  return surface as T;
+  return wrapped as T;
 }
 
 /**

@@ -12,9 +12,8 @@
  * observation tee (`teeOutputObject`), the collector (`materialize`) and their types; no hook is
  * added beyond the `TeeHooks` documented below. Consumers import this path, never the module file.
  *
- * The pinned semantics (asserted through the public surface by the behavior contract,
- * `test/helpers/output-object-contract.ts`, running against both the agent and the workflows
- * suites):
+ * The pinned semantics (asserted through the public surface by the shared behavior contract in
+ * `@oribos/testing`, running against the agent, workflow and `resumable-stream` suites):
  * - **Lazy start**: the source's `start` runs on first consumption — the first `next()` of the
  *   chunk stream or the first terminal read. A result nobody consumes never runs.
  * - **Single pass, single iterator**: one execution feeds both consumption styles; every

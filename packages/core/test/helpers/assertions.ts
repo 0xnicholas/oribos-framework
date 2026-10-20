@@ -21,6 +21,9 @@ function asError(error: unknown): Error {
   throw error;
 }
 
+/** 拒绝捕获的正本居 `@oribos/testing`(与共享契约套件同一实现),本文件只做转出。 */
+export { captureRejection } from '@oribos/testing';
+
 /** 捕获 `run()` 抛出的 Error;未抛出、或抛出的不是 Error 时失败。 */
 export function captureError(run: () => unknown): Error {
   try {
@@ -29,16 +32,6 @@ export function captureError(run: () => unknown): Error {
     return asError(error);
   }
   throw new Error('expected the call to throw an Error');
-}
-
-/** 捕获 `run()` 拒绝的 Error;未拒绝、或拒绝的不是 Error 时失败。 */
-export async function captureRejection(run: () => Promise<unknown>): Promise<Error> {
-  try {
-    await run();
-  } catch (error) {
-    return asError(error);
-  }
-  throw new Error('expected the call to reject with an Error');
 }
 
 /**

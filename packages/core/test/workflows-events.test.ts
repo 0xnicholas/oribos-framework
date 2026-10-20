@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createStep, createWorkflow, WorkflowValidationError } from '@oribos/core/workflows';
 import type { StepContext, WorkflowEvent, WorkflowRunOutput } from '@oribos/core/workflows';
+import { describeOutputObjectContract } from '@oribos/testing';
 import { captureRejection, expectAssignable, expectSuccess } from './helpers/assertions.js';
-import { describeOutputObjectContract } from './helpers/output-object-contract.js';
 
 /**
  * lifecycle 事件流(M3 #52,`docs/architecture/workflows.md`「流式事件」):run 输出对象的第二种消费
@@ -14,7 +14,7 @@ import { describeOutputObjectContract } from './helpers/output-object-contract.j
  * 接缝 = 公开 `@oribos/core/workflows` 子路径:`run.start` 返回的输出对象,以及 step execute 收到的
  * ctx;不触内部模块。
  *
- * 共享泵的行为矩阵由 helpers/output-object-contract.ts 钉住,本文件以推源(promise+emit)一侧
+ * 共享泵的行为矩阵由 `@oribos/testing` 的共享契约套件钉住,本文件以推源(promise+emit)一侧
  * 喂它;拉源(generator)一侧在 agent-stream.test.ts。
  */
 describeOutputObjectContract<WorkflowEvent>({

@@ -30,7 +30,8 @@ const testingSource = fileURLToPath(new URL('./packages/testing/src', import.met
 
 export default defineConfig({
   // 测试走 `@oribos/core/*` 与 `@oribos/mcp-server` / `@oribos/mcp-client` 公开入口,别名指向源码:不依赖构建,接缝与用户看到的一致。
-  // `@oribos/testing`(私有的规范假模型包,#120)同例:别名指 src,包身不进发布面、不建 dist。
+  // `@oribos/testing`(私有的测试正本包:规范假模型 #120 + 共享契约套件 #205)同例:别名指 src,
+  // 包身不进发布面、不建 dist。
   resolve: {
     alias: [
       { find: /^@oribos\/core$/, replacement: `${coreSource}/index.ts` },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Agent } from '@oribos/core/agent';
+import { createDurableAgent } from '@oribos/core/durable-agent';
 import type { Chunk } from '@oribos/core/model';
 import { createInMemoryEventCache, withEventCache } from '@oribos/resumable-stream';
 import type { EventCache } from '@oribos/resumable-stream';
@@ -102,7 +103,7 @@ describe('withEventCache', () => {
     expect(textDeltas(log?.chunks ?? [])).toEqual(['a']);
   });
 
-  it('fails the run when the cache refuses an append', async () => {
+  it('fails the run and its terminal values when the cache refuses an append', async () => {
     const { agent } = agentStreaming(['a', 'b']);
     const refusals: EventCache = {
       append: async () => {
@@ -115,6 +116,9 @@ describe('withEventCache', () => {
     };
     const wrapped = withEventCache(agent.stream('hello'), { runId: 'run-1', cache: refusals });
     await expect(collect(wrapped)).rejects.toThrow('cache down');
+    // The recording fails the whole run: the shared pump rejects the terminal values too, so
+    // reading them cannot report a success that never made it into the cache.
+    await expect(wrapped.text).rejects.toThrow('cache down');
   });
 
   it('refuses to record the same run id twice on one cache while the first is live', async () => {
@@ -128,5 +132,21 @@ describe('withEventCache', () => {
     ).toThrow(/already being recorded/);
     await iterator.return?.();
     await first.text;
+  });
+
+  it('forwards the extra fields of a durable stream and still records the run', async () => {
+    const { agent } = agentStreaming(['a', 'b']);
+    const durable = createDurableAgent({ agent });
+    const inner = durable.stream('hello');
+    const cache = createInMemoryEventCache();
+    const wrapped = withEventCache(inner, { runId: 'run-1', cache });
+
+    expect(wrapped.runId).toBe(inner.runId);
+    await expect(wrapped.suspendPayload).resolves.toBeUndefined();
+    await expect(wrapped.text).resolves.toBe('ab');
+
+    const log = await cache.read('run-1');
+    expect(log?.status).toBe('done');
+    expect(textDeltas(log?.chunks ?? [])).toEqual(['a', 'b']);
   });
 });

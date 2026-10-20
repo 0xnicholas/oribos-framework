@@ -334,3 +334,14 @@ function aborted(signal: AbortSignal): Promise<void> {
     signal.addEventListener('abort', () => resolve(), { once: true });
   });
 }
+
+/** 测试共享小件:各包测试从同一份实现取用,不各自复制。 */
+export { captureRejection } from './assertions.js';
+export { collect } from './collect.js';
+
+/**
+ * 共享输出对象行为契约(#205):参数化 suite,core agent / workflow / 能力包各以公开面构造的
+ * 输出对象跑同一矩阵。消费方式与脚本工厂形状见 `output-object-contract.ts`。
+ */
+export { describeOutputObjectContract } from './output-object-contract.js';
+export type { OutputObjectScript, OutputObjectScripting } from './output-object-contract.js';

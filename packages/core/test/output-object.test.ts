@@ -15,8 +15,8 @@ import { collect } from './helpers/collect.js';
 /**
  * `@oribos/core/output-object` 的公开契约(ADR-0018):能力包作者用 `createOutputObject` 从自定义源
  * 构造输出对象、用 `teeOutputObject` 观察一次执行、用 `materialize` 一次读齐终值。泵的完整行为矩阵
- * 由 agent / workflows 套件经公开面钉住(`helpers/output-object-contract.ts`);本文件只管公开面的
- * 形状与钩子时序。
+ * 由 `@oribos/testing` 的共享契约套件经公开面钉住(agent / workflows / resumable-stream);
+ * 本文件只管公开面的形状与钩子时序。
  */
 
 function pullSource(chunks: readonly string[], result: number): {

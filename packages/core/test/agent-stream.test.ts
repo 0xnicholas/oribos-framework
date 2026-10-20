@@ -2,12 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { Agent } from '@oribos/core/agent';
 import { ModelContractError } from '@oribos/core/model';
 import type { Chunk } from '@oribos/core/model';
-import { fakeModel } from '@oribos/testing';
+import { describeOutputObjectContract, fakeModel } from '@oribos/testing';
 import type { FakeResponse } from '@oribos/testing';
 import { assistant } from './helpers/agent.js';
 import { captureRejection } from './helpers/assertions.js';
 import { collect } from './helpers/collect.js';
-import { describeOutputObjectContract } from './helpers/output-object-contract.js';
 import { UNKNOWN_USAGE } from './helpers/usage.js';
 
 /**
@@ -16,8 +15,8 @@ import { UNKNOWN_USAGE } from './helpers/usage.js';
  * `generate()` = `stream()` + await 终值,单一代码路径、行为一致(agent.md「执行语义」)。断言只走
  * 公开面(@oribos/core/agent)与脚本化假模型接缝(@see @oribos/testing),不触内部实现。
  *
- * 共享泵的行为矩阵(懒启动 / 缓冲 / 错误序 / abandon / 提前 settle / 迭代器同一性)由
- * helpers/output-object-contract.ts 钉住,本文件以拉源(generator)一侧喂它;推源
+ * 共享泵的行为矩阵(懒启动 / 迭代器同一性 / 缓冲排空 / 失败序 / abandon / 终值惰性)由
+ * `@oribos/testing` 的共享契约套件钉住,本文件以拉源(generator)一侧喂它;推源
  * (promise+emit)一侧在 workflows-events.test.ts。
  */
 describeOutputObjectContract<Chunk>({

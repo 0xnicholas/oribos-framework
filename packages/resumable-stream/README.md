@@ -25,10 +25,10 @@ for await (const chunk of observe(cache, runId)) response.write(sse(chunk));
 - **`withEventCache(output, { runId, cache })`** wraps the agent's (or durable agent's) stream
   and appends every chunk to the cache as it flows — the returned object has the same shape
   as the original (chunk stream + terminal promises), so it drops into the streaming path you
-  already have. The recording survives the consumer: the wrapper's own pump drives the run to
-  completion even after its consumer hangs up, which is exactly the reconnect story's other
-  half. A cache that refuses an append fails the run — the recording is part of the run, not a
-  best-effort side channel.
+  already have. The recording survives the consumer: the wrapper drives the run to completion
+  through core's shared output-object pump even after its consumer hangs up, which is exactly
+  the reconnect story's other half. A cache that refuses an append fails the run — the
+  recording is part of the run, not a best-effort side channel.
 - **`observe(cache, runId)`** replays a run's cached chunks in stream order, then follows the
   run live until it ends. A finished run replays from anywhere the cache can be read; a failed
   run replays what it produced and then rejects with the recorded failure. A run that is

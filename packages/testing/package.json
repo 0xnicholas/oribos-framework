@@ -2,7 +2,7 @@
   "name": "@oribos/testing",
   "version": "0.0.0",
   "private": true,
-  "description": "Oribos testing — the canonical scripted fake model shared by workspace test suites; private, never published, consumed from src.",
+  "description": "Oribos testing — the canonical scripted fake model and shared behavioral contracts for workspace test suites; private, never published, consumed from src.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -10,6 +10,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.2"
   },
   "exports": {
     ".": {
