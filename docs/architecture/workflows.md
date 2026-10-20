@@ -7,7 +7,8 @@
 > 修订(#51):suspend/resume 落地时补钉实施期裁决——v1 的 suspend 只成立在**顶层 then 条目**的 step 内,块内(parallel / branch 臂 / foreach / 循环)调用 suspend 显式报错(块内迭代现场不在快照形状内,升级为新 ticket);`position` = 重进下标(suspend 时 = 挂起条目,running 时 = 下一条目,终态 success = 条目数);resume 把前序条目**按记录回放**重建 tip(不重执行、不重估条件),`input` 用快照里已校验的值;持久化粒度 = **条目完成**(块的子 step 随块一起记录,见 #49/#50;sleep 不是 step 但条目完成也写),step 边界写只随真实 storage,无 storage 时只写 suspend 与终态。
 > 修订(#52):事件流与 span 埋点落地时补钉实施期裁决——事件词汇表与载荷(下表「流式事件」)、块内 step 的**每次执行**一对事件 / 一个 `workflow-step` span(stepResults 仍按块聚合)、run span 的 input = 校验后的触发输入(start 的 input / resume 的 resumeData)、output = 终态信封;`createRun` 收 `{ traceId?, parentSpanId? }`(外部 trace 续接,空串语义沿 agent 的 run option),`traceId` 作为**可选字段**进快照(additive),resume 以快照 traceId 开同一 trace 下的新 run span。
 > 修订(#54):块内挂起落地——四类块体内 `suspend()` 真挂起,迭代现场以可选 `iterationSite?` 字段进快照(additive,旧快照无此字段 = 顶层挂起的旧形状);resume 按 site 重进块内:parallel / branch 按**记录回放**完成臂(无 success 记录的臂重跑,挂起臂各落 suspended 记录,resume 命名谁谁收 resumeData)、foreach 记已收集前缀与挂起索引(洞重跑)、循环记已完成迭代数与挂起迭代的输入(dowhile 重进跳过首次前置检查);块是**满同步点**——挂起或失败前等在飞执行落定,挂起优先于同窗兄弟失败;事件/记录/快照同读「块内挂起 = suspended」。实施期补钉:foreach/parallel 的失败也等在飞落定(旧 Promise.all 的“失败即离场、在飞脱缰”废止)。
-> 修订(#119):resume 并发去重的键域钉为快照的持久化身份 **(store, runId)**——机制收进内部 resume-lock 模块(`WeakMap<store, Map<runId, Promise>>`,join-in-flight、settle 即删),workflows 与 durable-agent 各持一个模块级注册表实例(结构性跨子系统隔离);两个 store 上的同 runId 各自独立,durable 侧跨 wrapper 实例也去重。
+> 修订(#119):resume 并发去重的键域钉为快照的持久化身份 **(store, runId)**——机制收进 resume-lock 模块(`WeakMap<store, Map<runId, Promise>>`,join-in-flight、settle 即删),workflows 与 durable-agent 各持一个模块级注册表实例(结构性跨子系统隔离);两个 store 上的同 runId 各自独立,durable 侧跨 wrapper 实例也去重。
+> 修订(#202):resume-lock 机制经 `@oribos/core/agent-run` 的 `createResumeLock` 公开给能力包(ADR-0018);注册表仍由每个消费者自持,`(store, runId)` join-in-flight、settle 即删的语义不变。
 
 ## 定位
 

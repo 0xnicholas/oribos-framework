@@ -281,6 +281,7 @@ parsing never enters the core. A trigger is either threadless (`agent.generate`)
 | `@oribos/core/observability` | `createTracer`, console / memory exporters, span types |
 | `@oribos/core/signals` | `createSignals` — inject / wake / queue on a thread |
 | `@oribos/core/durable-agent` | `createDurableAgent`, the approval gate, `AgentRunSnapshotStore` |
+| `@oribos/core/agent-run` | `continueRun` / `RunContinuation` / `createResumeLock` — the continuation seam for capability packages |
 | `@oribos/core/schedules` | `createSchedules`, `tick`, `ScheduleStore` |
 
 ### Capability packages (M5)

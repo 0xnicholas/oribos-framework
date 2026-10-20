@@ -42,6 +42,10 @@
       "types": "./dist/agent/index.d.ts",
       "default": "./dist/agent/index.js"
     },
+    "./agent-run": {
+      "types": "./dist/agent-run/index.d.ts",
+      "default": "./dist/agent-run/index.js"
+    },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "default": "./dist/tools/index.js"

@@ -10,10 +10,10 @@ import type {
   AgentToolCallsBoundaryEvent,
   StructuredOutputConfig,
 } from '../agent/types.js';
+import { continueRun, createResumeLock } from '../agent-run/index.js';
 import type { Chunk, ToolCallChunk, ToolResultChunk } from '../model/chunks.js';
 import type { ModelMessage } from '../model/contract.js';
-import { materialize, teeOutputObject } from '../output-object.js';
-import { createResumeLock } from '../resume-lock.js';
+import { teeOutputObject } from '../output-object.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
 import { createInMemoryAgentRunSnapshotStore } from './in-memory-snapshot-store.js';
 import type { AgentRunSnapshot, AgentRunSnapshotStore, AgentRunSuspendPayload } from './snapshot.js';
@@ -247,11 +247,16 @@ export function createDurableAgent(config: DurableAgentConfig): DurableAgent {
           'to execute the held calls, or { approved: false } to answer them with a rejection.',
       );
     }
-    return resumeLock.run(storage, runId, () => continueRun(runId, options));
+    return resumeLock.run(storage, runId, () => resumeSnapshot(runId, options));
   }
 
-  /** One run's resume: the load → decide → re-enter path. */
-  async function continueRun(
+  /**
+   * One run's resume: the load → decide → continue path. The shared continuation seam
+   * (`agent-run`) builds the input, the resume seed and the trace continuation from the pure
+   * record, drains the continued segment and materializes its outcome; the wrapper supplies only
+   * the run wiring (`startRun`) and reads its own `suspendPayload` off the settled output.
+   */
+  async function resumeSnapshot(
     runId: string,
     options: DurableResumeOptions,
   ): Promise<DurableRunOutcome> {
@@ -272,27 +277,18 @@ export function createDurableAgent(config: DurableAgentConfig): DurableAgent {
       : payload.toolCalls
           .filter((call) => payload.awaitingApproval.includes(call.toolCallId))
           .map(toRejection);
-    const outcome = startRun(
-      runId,
-      // The resumed segment continues the trace the suspended run was exported under
-      // (the observability anchor): the traceId travels through the existing run option,
-      // the only thing a resume takes from the snapshot besides the messages and the seed.
-      [...snapshot.messages],
-      snapshot.traceId === undefined ? runOptions : { ...runOptions, traceId: snapshot.traceId },
+    const { output, result } = await continueRun(
+      (input, resumedOptions, seed) => startRun(runId, input, resumedOptions, seed),
       {
+        messages: snapshot.messages,
         stepCount: snapshot.stepCount,
-        toolCalls: [...payload.toolCalls],
-        ...(answers === undefined ? {} : { answers }),
+        toolCalls: payload.toolCalls,
+        answers,
+        traceId: snapshot.traceId,
       },
+      runOptions,
     );
-    // The resumed segment's chunks have no consumer — `resume` resolves with the outcome — so they
-    // are drained rather than left to buffer behind a reader that never comes.
-    const iterator = outcome[Symbol.asyncIterator]();
-    for (;;) {
-      if ((await iterator.next()).done) break;
-    }
-    const result = await materialize<AgentGenerateResult>(outcome);
-    return { ...result, runId, suspendPayload: await outcome.suspendPayload };
+    return { ...result, runId, suspendPayload: await output.suspendPayload };
   }
 
   return {

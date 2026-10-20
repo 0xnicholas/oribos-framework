@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as rootEntry from '@oribos/core';
 import * as agentEntry from '@oribos/core/agent';
+import * as agentRunEntry from '@oribos/core/agent-run';
 import * as durableAgentEntry from '@oribos/core/durable-agent';
 import * as memoryEntry from '@oribos/core/memory';
 import * as modelEntry from '@oribos/core/model';
@@ -18,6 +19,7 @@ const ENTRIES = [
   ['@oribos/core', rootEntry],
   ['@oribos/core/model', modelEntry],
   ['@oribos/core/agent', agentEntry],
+  ['@oribos/core/agent-run', agentRunEntry],
   ['@oribos/core/tools', toolsEntry],
   ['@oribos/core/observability', observabilityEntry],
   ['@oribos/core/workflows', workflowsEntry],

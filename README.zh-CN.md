@@ -255,6 +255,7 @@ await schedules.tick(); // 列出到期的 → 触发 → 推进 nextFireAt
 | `@oribos/core/observability` | `createTracer`、console / memory exporter、span 类型 |
 | `@oribos/core/signals` | `createSignals`——在 thread 上注入 / 唤醒 / 排队 |
 | `@oribos/core/durable-agent` | `createDurableAgent`、审批闸门、`AgentRunSnapshotStore` |
+| `@oribos/core/agent-run` | `continueRun` / `RunContinuation` / `createResumeLock`——能力包用的 continuation 缝 |
 | `@oribos/core/schedules` | `createSchedules`、`tick`、`ScheduleStore` |
 
 ### 能力包(M5)
