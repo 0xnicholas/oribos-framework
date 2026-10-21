@@ -107,6 +107,19 @@ describe('createInMemoryLeaseStore', () => {
     expect(await leases.acquire('k1', 1_000)).not.toBeNull();
   });
 
+  it('过期后被别人领走:旧 handle 的 release 不删新租约', async () => {
+    let now = 0;
+    const leases = createInMemoryLeaseStore({ now: () => now });
+    const stale = await leases.acquire('k1', 1_000);
+    now = 1_500;
+    const current = await leases.acquire('k1', 1_000);
+    expect(current).not.toBeNull();
+    await stale!.release();
+    // 外来 release 无副作用:新持有者仍在,且 token 仍然有效。
+    expect(await leases.acquire('k1', 1_000)).toBeNull();
+    await expect(current!.renew(1_000)).resolves.toBe(true);
+  });
+
   it('release 之后的旧 handle:renew false、release 无害', async () => {
     const leases = createInMemoryLeaseStore();
     const handle = await leases.acquire('k1', 1_000);
