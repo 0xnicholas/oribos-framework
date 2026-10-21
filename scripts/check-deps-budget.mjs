@@ -238,7 +238,7 @@ function isLeafPackage(packageDir, name) {
   const target = readJsonOrHardError(manifestPath);
   if (target.private === true) {
     hardError(
-      `${name} 是 private: true 的未发布包——不能作 ADR-0002 叶子;未发布的包不得成为运行时依赖`,
+      `${name} 是 private: true 的未发布包——ADR-0002 叶子必须是公共包(private !== true),未发布的包不得成为运行时依赖`,
     );
   }
   const oribosRuntimeEdges = Object.entries({

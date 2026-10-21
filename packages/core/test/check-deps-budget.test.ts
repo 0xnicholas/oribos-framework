@@ -109,6 +109,27 @@ describe('check-deps-budget:依赖数字比对', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('@oribos/hidden');
     expect(result.stderr).toContain('private: true');
+    // 判词要说清正面的必要条件:叶子必须是公共包,不只是「这个包不行」。
+    expect(result.stderr).toContain('叶子必须是公共包');
+  });
+
+  it('消费者自身的 peer workspace 边是硬错误(叶子必须走 dependencies,ADR-0020)', () => {
+    const dir = fixturePackage({
+      'app/package.json': packageManifest({
+        peerDependencies: { '@oribos/leafy': 'workspace:^' },
+      }),
+      // 目标形状是合法叶子;拒绝的是消费者把叶子放进 peer 字段这条边(豁免只对 dependencies 生效)。
+      'leafy/package.json': packageManifest({
+        peerDependencies: { '@oribos/core': 'workspace:^' },
+      }),
+    });
+
+    const result = runScript('check-deps-budget', [join(dir, 'app')]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('@oribos/leafy');
+    // 断言闸门自己的判词,而不是泛指 workspace——后者在 npm 误解析时也成立。
+    expect(result.stderr).toContain('显式单议');
   });
 
   it('非 core 的 peer workspace 边拒绝作叶子(硬错误,退出 2)', () => {
