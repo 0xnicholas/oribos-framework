@@ -126,9 +126,18 @@ export interface EntryDescriptor<TEntry extends WorkflowEntry> {
    * (`then` / `foreach` / `dowhile` / `dountil` / `sleep` own no array of their own).
    */
   readonly ownedArrays: (entry: TEntry) => readonly (readonly unknown[])[];
-  /** The iteration site a suspension inside this kind carries; absent for leaf kinds. */
+  /**
+   * The iteration site a suspension inside this kind carries: `parallel` / `branch` / `foreach`
+   * each name themselves, both loop kinds map to `loop` (their site payload differs, the kind does
+   * not), and `then` / `sleep` carry none (a top-level suspension and a step-less entry have no
+   * site). `checkIterationSite` compares a resumed snapshot's site against this column alone.
+   */
   readonly iterationSiteKind: WorkflowIterationSite['kind'] | undefined;
-  /** Where this kind's loop condition is checked; absent for non-loop kinds. */
+  /**
+   * Where this kind's loop condition is checked — `dowhile` before an iteration, `dountil` after
+   * one, absent for the other five kinds. `runLoop` reads this column instead of branching on the
+   * entry type.
+   */
   readonly loopTiming: 'before' | 'after' | undefined;
 }
 

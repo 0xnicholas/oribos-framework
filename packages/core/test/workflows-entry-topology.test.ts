@@ -7,8 +7,14 @@ import {
   createWorkflowRun,
   restartTargetAt,
 } from '@oribos/core/workflows';
-import type { WorkflowEntry } from '@oribos/core/workflows';
-import { expectSuccess, expectSuspended } from './helpers/assertions.js';
+import type {
+  DountilEntry,
+  DowhileEntry,
+  WorkflowEntry,
+  WorkflowIterationSite,
+  WorkflowSnapshotStore,
+} from '@oribos/core/workflows';
+import { captureRejection, expectSuccess, expectSuspended } from './helpers/assertions.js';
 
 /**
  * 条目拓扑(#218,`CONTEXT.md`「条目拓扑」/「重入目标」):per-kind 静态事实的唯一真相源是
@@ -18,8 +24,10 @@ import { expectSuccess, expectSuspended } from './helpers/assertions.js';
  * 矩阵列与实际覆盖(测试不 import descriptor,每个事实走公共行为):
  * - step 归属 / stepIds / findStep 命中与 miss → 本文件两套表驱动测试;
  * - replayShape → 本文件的七种 kind resume 矩阵(#220:已完成条目不重跑,tip 由记录重建);
- * - iterationSiteKind → `workflows-suspend-resume.test.ts`(块内挂起、resume、site 不匹配);
- * - loopTiming → `workflows-loop-wait.test.ts`(dowhile 体前 / dountil 体后);
+ * - iterationSiteKind → 本文件的七种 kind 挂起 / 不匹配矩阵(#222;逐块叙事仍在
+ *   `workflows-suspend-resume.test.ts`);
+ * - loopTiming → 本文件的两格循环时机矩阵(#222:dowhile 体前 / dountil 体后;逐循环叙事仍在
+ *   `workflows-loop-wait.test.ts`);
  * - ownedArrays / freeze → 本文件的七种 kind 冻结面矩阵(#221)。
  */
 
@@ -32,6 +40,24 @@ function stepFor(id: string) {
     inputSchema: anySchema,
     outputSchema: anySchema,
     execute: () => undefined,
+  });
+}
+
+/**
+ * 一次挂起的观察点(多个矩阵共用):首跑 suspend,resume 收到 resumeData 后放行——公共
+ * `resume` 的既有约定。`onExecute` 让需要它的矩阵记下每次拿到的输入(replay 矩阵用)。
+ */
+function gateStep(id: string, onExecute?: (inputData: unknown) => void) {
+  return createStep({
+    id,
+    inputSchema: anySchema,
+    outputSchema: anySchema,
+    resumeSchema: z.object({ approved: z.boolean() }),
+    execute: (ctx) => {
+      onExecute?.(ctx.inputData);
+      if (ctx.resumeData === undefined) ctx.suspend({ question: `${id}?` });
+      return { approved: ctx.resumeData?.approved };
+    },
   });
 }
 
@@ -672,17 +698,7 @@ describe('replay 形状:已完成条目在 resume 时按记录重建(七种 kind
     const { preface, entry, records, tip } = make(log);
     /** 挂起 step:首跑 suspend,resume 收到 resumeData;记下每次拿到的输入。 */
     const seen: unknown[] = [];
-    const gate = createStep({
-      id: 'gate',
-      inputSchema: anySchema,
-      outputSchema: anySchema,
-      resumeSchema: z.object({ approved: z.boolean() }),
-      execute: (ctx) => {
-        seen.push(ctx.inputData);
-        if (ctx.resumeData === undefined) ctx.suspend({ question: 'ok?' });
-        return { resumed: ctx.resumeData };
-      },
-    });
+    const gate = gateStep('gate', (input) => seen.push(input));
     const run = createWorkflowRun(
       {
         id: `replay-${label}`,
@@ -711,6 +727,253 @@ describe('replay 形状:已完成条目在 resume 时按记录重建(七种 kind
     expect(seen).toEqual([tip, tip]);
     // 已完成的条目一条都不重跑:step / 迭代 / 条件 / sleep 时长解析都没有新调用。
     expect(log).toEqual(executedBeforeResume);
-    expect(outcome.output).toEqual({ resumed: { approved: true } });
+    expect(outcome.output).toEqual({ approved: true });
   });
+});
+
+/**
+ * iteration-site kind(候选 05 第四片,#222):表里「块内挂起携带哪种现场」那一列是唯一声明——
+ * `parallel` / `branch` / `foreach` 各对应自己,`dowhile` / `dountil` 都映射为 `loop`,
+ * `then` 与 `sleep` 不携带(不适用者为空)。`checkIterationSite` 只读这一列:site 与条目不匹配
+ * (kind 与表里那一列不同)时继续显式失败,不静默重进。接缝 = 公共 `start` / `resume`,以及
+ * store 里观察到的挂起快照。
+ */
+
+/**
+ * 七种 kind 的现场正本:`siteKind` 是表里该 kind 携带的 kind(空 = 不适用),`suspends` 标注该
+ * kind 能否在块内挂起(`sleep` 没有 step,挂不起来——它的空格子由不匹配矩阵逐 site 观察)。
+ */
+const SITE_CASES = {
+  then: {
+    entry: { type: 'then', step: gateStep('then-gate') },
+    input: 'value',
+    resumeStepId: 'then-gate',
+    suspends: true,
+    siteKind: undefined,
+  },
+  parallel: {
+    entry: { type: 'parallel', steps: [gateStep('parallel-gate')] },
+    input: 'value',
+    resumeStepId: 'parallel-gate',
+    suspends: true,
+    siteKind: 'parallel',
+  },
+  branch: {
+    entry: { type: 'branch', branches: [[() => true, gateStep('branch-gate')]] },
+    input: 'value',
+    resumeStepId: 'branch-gate',
+    suspends: true,
+    siteKind: 'branch',
+  },
+  foreach: {
+    entry: { type: 'foreach', step: gateStep('foreach-gate'), concurrency: 1 },
+    input: ['value'],
+    resumeStepId: 'foreach-gate',
+    suspends: true,
+    siteKind: 'foreach',
+  },
+  dowhile: {
+    entry: {
+      type: 'dowhile',
+      step: gateStep('dowhile-gate'),
+      cond: (ctx) => ctx.iterationCount < 1,
+    },
+    input: 'value',
+    resumeStepId: 'dowhile-gate',
+    suspends: true,
+    siteKind: 'loop',
+  },
+  dountil: {
+    entry: {
+      type: 'dountil',
+      step: gateStep('dountil-gate'),
+      cond: (ctx) => ctx.iterationCount >= 1,
+    },
+    input: 'value',
+    resumeStepId: 'dountil-gate',
+    suspends: true,
+    siteKind: 'loop',
+  },
+  sleep: {
+    entry: { type: 'sleep', duration: 0 },
+    input: 'value',
+    // sleep 没有 step:伪造快照只能指名一个不存在的 id——不匹配的现场先于成员关系报错。
+    resumeStepId: 'sleep-ghost',
+    suspends: false,
+    siteKind: undefined,
+  },
+} satisfies {
+  readonly [TKind in WorkflowEntry['type']]: {
+    readonly entry: Extract<WorkflowEntry, { readonly type: TKind }>;
+    readonly input: unknown;
+    readonly resumeStepId: string;
+    readonly suspends: boolean;
+    readonly siteKind: WorkflowIterationSite['kind'] | undefined;
+  };
+};
+
+/** 表正本 → `it.each` 的行;`satisfies` 已保证七种 kind 一格不缺。 */
+const SITE_MATRIX = Object.entries(SITE_CASES);
+
+/** 四种 site 现场的正本:不匹配格对每个 kind 试遍「不是表里那一列」的每一种。 */
+const ALL_SITES: readonly WorkflowIterationSite[] = [
+  { kind: 'parallel' },
+  { kind: 'branch' },
+  { kind: 'foreach', suspendedIndex: 0, collected: {} },
+  { kind: 'loop', iterationCount: 0, value: 'value' },
+];
+
+/**
+ * 不匹配格 = 每个 kind × 每一种不是表里那一列的 site kind:五种块 kind 三种错法,`then` / `sleep`
+ * 四种全错——表里给 leaf kind 填任何值、或给块 kind 填错值,都至少有一格变红。
+ */
+const SITE_MISMATCH_MATRIX = SITE_MATRIX.flatMap(([kind, testCase]) =>
+  ALL_SITES.filter((site) => site.kind !== testCase.siteKind).map(
+    (site) => [`${kind} + ${site.kind}`, { kind, testCase, site }] as const,
+  ),
+);
+
+describe('iteration-site kind:挂起携带表里的 site kind(顶层 then 无 site),匹配的 resume 重进(#222)', () => {
+  it.each(SITE_MATRIX.filter(([, testCase]) => testCase.suspends))(
+    '%s:挂起快照的 site kind = 表里那一列;匹配 site 的 resume 成功',
+    async (kind, testCase) => {
+      const runId = `site-${kind}`;
+      const store = createInMemorySnapshotStore();
+      const run = createWorkflowRun(
+        { id: runId, inputSchema: anySchema, storage: store, entries: [testCase.entry] },
+        { runId },
+      );
+
+      const suspended = expectSuspended(await run.start({ inputData: testCase.input }).result);
+      expect(suspended.stepId).toBe(testCase.resumeStepId);
+
+      const snapshot = await store.load(runId);
+      if (snapshot === null) throw new Error(`expected a suspended snapshot for "${runId}"`);
+      // 块内挂起:site 的 kind 与表里声明一致(dowhile / dountil 都读 loop);
+      // 顶层 then 不携带 site —— 不适用者为空。
+      expect(snapshot.iterationSite?.kind).toBe(testCase.siteKind);
+      if (testCase.siteKind === undefined) {
+        expect('iterationSite' in snapshot).toBe(false);
+      }
+
+      const resumed = expectSuccess(
+        await run.resume({ step: testCase.resumeStepId, resumeData: { approved: true } }),
+      );
+      expect(resumed.stepResults[testCase.resumeStepId]).toMatchObject({ status: 'success' });
+    },
+  );
+});
+
+describe('iteration-site kind:site 与条目不匹配 → 显式失败(七种 kind × 每一种错 site)', () => {
+  it.each(SITE_MISMATCH_MATRIX)(
+    '%s:报错点名 site kind 与条目 kind,不重进',
+    async (label, { kind, testCase, site }) => {
+      const runId = `site-mismatch-${label}`;
+      const store: WorkflowSnapshotStore = {
+        load: async () => ({
+          runId,
+          status: 'suspended',
+          input: testCase.input,
+          stepResults: {
+            [testCase.resumeStepId]: { status: 'suspended', suspendPayload: { question: 'ok?' } },
+          },
+          position: 0,
+          iterationSite: site,
+        }),
+        save: async () => {},
+      };
+      const run = createWorkflowRun(
+        { id: runId, inputSchema: anySchema, storage: store, entries: [testCase.entry] },
+        { runId },
+      );
+
+      const error = await captureRejection(() => run.resume({ step: testCase.resumeStepId }));
+
+      expect(error.message).toMatch(new RegExp(`iteration site \\(kind "${site.kind}"\\)`));
+      expect(error.message).toMatch(new RegExp(`the ${kind} block at position 0`));
+      expect(error.message).toMatch(/do not match/);
+    },
+  );
+});
+
+/**
+ * loop timing(候选 05 第四片,#222):表里「条件在体前还是体后」只声明一次,`runLoop` 只读它——
+ * `dowhile` 体前(条件在 iterationCount 0 就假,体一次不跑),`dountil` 体后(至少跑一次)。
+ * 两格用**同一个条件**(已完成 1 次迭代即停)与同一份输入,差异只来自求值点;日志 = 求值点
+ * 相对体的位置,由公共 `start()` 观察。
+ */
+
+/** 体内一步:输入 + 1,并把「体在哪个输入上跑过」记进日志。 */
+function timingBody(log: string[]) {
+  return createStep({
+    id: 'body',
+    inputSchema: z.number(),
+    outputSchema: z.number(),
+    execute: ({ inputData }) => {
+      log.push(`body@${inputData}`);
+      return inputData + 1;
+    },
+  });
+}
+
+/** 两格共用的条件:求值点由 kind 决定,条件本身一模一样。 */
+function timingCond(log: string[]) {
+  return (ctx: { readonly iterationCount: number }): boolean => {
+    log.push(`cond@${ctx.iterationCount}`);
+    return ctx.iterationCount >= 1;
+  };
+}
+
+/** 表正本:`expectedLog` 就是条件求值点相对体的位置(体前 = 先 cond;体后 = 先 body)。 */
+const LOOP_TIMING_CASES = {
+  dowhile: {
+    entry: (log: string[]): DowhileEntry => ({
+      type: 'dowhile',
+      step: timingBody(log),
+      cond: timingCond(log),
+    }),
+    expectedLog: ['cond@0'],
+    expectedOutput: 0,
+  },
+  dountil: {
+    entry: (log: string[]): DountilEntry => ({
+      type: 'dountil',
+      step: timingBody(log),
+      cond: timingCond(log),
+    }),
+    expectedLog: ['body@0', 'cond@1'],
+    expectedOutput: 1,
+  },
+} satisfies {
+  readonly [TKind in 'dowhile' | 'dountil']: {
+    readonly entry: (log: string[]) => Extract<WorkflowEntry, { readonly type: TKind }>;
+    readonly expectedLog: readonly string[];
+    readonly expectedOutput: number;
+  };
+};
+
+/** 表正本 → `it.each` 的行;两种 loop 一格不缺。 */
+const LOOP_TIMING_MATRIX = Object.entries(LOOP_TIMING_CASES);
+
+describe('loop timing:条件求值点在体前 / 体后(公共 start,#222)', () => {
+  it.each(LOOP_TIMING_MATRIX)(
+    '%s:同一条件与输入下,日志 = 求值点相对体的位置',
+    async (kind, testCase) => {
+      const log: string[] = [];
+      const runId = `timing-${kind}`;
+      const run = createWorkflowRun(
+        { id: runId, inputSchema: z.number(), entries: [testCase.entry(log)] },
+        { runId },
+      );
+
+      const outcome = expectSuccess(await run.start({ inputData: 0 }).result);
+
+      expect(log).toEqual(testCase.expectedLog);
+      expect(outcome.output).toBe(testCase.expectedOutput);
+      expect(outcome.stepResults['body']).toMatchObject({
+        status: 'success',
+        output: testCase.expectedOutput,
+      });
+    },
+  );
 });
