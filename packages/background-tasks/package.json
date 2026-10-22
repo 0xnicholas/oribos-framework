@@ -1,7 +1,7 @@
 {
   "name": "@oribos/background-tasks",
   "version": "0.9.0",
-  "description": "Oribos background-tasks capability package — application-owned background work as task rows: submit → lease → in-process execution → heartbeat → settle, with adopt() re-running orphans and untilIdle() as a package-level wait. In-memory store and lease defaults ship zero-dependency; the lease mechanism comes from the zero-external-dependency @oribos/lease leaf package, and any Redis-compatible client rides its structural subset. No @oribos/core peer — the types are self-contained.",
+  "description": "Oribos background-tasks capability package — application-owned background work as task rows: submit → lease → in-process execution → heartbeat → settle, with adopt() re-running orphans and untilIdle() as a package-level wait. In-memory store and lease defaults carry no external dependencies; the lease mechanism comes from the zero-external-dependency @oribos/lease leaf package, and any Redis-compatible client rides its structural subset. No @oribos/core peer — the types are self-contained.",
   "keywords": [
     "ai-agents",
     "llm",

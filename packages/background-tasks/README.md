@@ -32,14 +32,15 @@ await tasks.adopt(); // the orphan sweep: rows still running whose lease is free
 
 - **Rows.** `submit` writes a `TaskRecord` — `{ id, status, payload, result?, error?, attempt,
   createdAt, settledAt? }`, JSON-only — through a `TaskStore`. `createInMemoryTaskStore()` is the
-  zero-dependency default (deep-copied at the boundary); persistence is the deployment's to write.
+  zero-external-dependency default (deep-copied at the boundary); persistence is the deployment's to write.
 - **The lease decides.** A row executes only under its lease: `submit` acquires, the row flips
-  `running`, the handler runs, the settle releases. The port is `acquire(key, ttlMs) → LeaseHandle | null`
-  with `{ token, renew, release }` — the shared mechanism from the zero-external-dependency
-  [`@oribos/lease`](https://www.npmjs.com/package/@oribos/lease) leaf package (ADR-0020),
-  re-exported here as `TaskLease`; `@oribos/distributed-signals`' `SignalLease` is the same
-  port. `createInMemoryLeaseStore()` is the default; `createRedisLease({ client })` rides the
-  `set(NX/PX)` / `eval` structural subset.
+  `running`, the handler runs, the settle releases. There is one lease mechanism, from the
+  zero-external-dependency [`@oribos/lease`](https://www.npmjs.com/package/@oribos/lease) leaf
+  package (ADR-0020), and two roles: `TaskLease` — the alias exported here — is a task row's
+  execution right, while `@oribos/distributed-signals`' `SignalLease` is the thread's active-run
+  ownership. Both are the same port: `acquire(key, ttlMs) → LeaseHandle | null` with
+  `{ token, renew, release }`. `createInMemoryLeaseStore()` is the default;
+  `createRedisLease({ client })` rides the `set(NX/PX)` / `eval` structural subset.
 - **The settle.** `done` (`result`) or `failed` (`error` message) is written back, the lease is
   released, and `onSettle(record)` is awaited — the join to your own reactions, the phase-one
   recipe in one line: map the record to its thread and `sendSignal`.
