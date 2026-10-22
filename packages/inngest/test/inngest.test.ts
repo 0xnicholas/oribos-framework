@@ -354,6 +354,72 @@ function crashChain(storage: WorkflowSnapshotStore, id = 'crashy'): {
   return { workflow, executed, release: (index) => gates[index]?.(), pendingGates: () => gates.length };
 }
 
+/** first → second → sleep:崩溃落在尾部 sleep 上时,重入窗口里最近的 step 条目是 second。 */
+function trailingSleepChain(storage: WorkflowSnapshotStore): {
+  readonly workflow: Workflow<z.ZodType<{ topic: string }>, z.ZodType<{ done: boolean }>>;
+  readonly executed: string[];
+} {
+  const executed: string[] = [];
+  const first = createStep({
+    id: 'first',
+    inputSchema: z.object({ topic: z.string() }),
+    outputSchema: z.object({ first: z.string() }),
+    execute: (ctx: StepContext<{ topic: string }>) => {
+      executed.push('first');
+      return { first: ctx.inputData.topic };
+    },
+  });
+  const second = createStep({
+    id: 'second',
+    inputSchema: z.object({ first: z.string() }),
+    outputSchema: z.object({ done: z.boolean() }),
+    execute: (ctx: StepContext<{ first: string }>) => {
+      executed.push('second');
+      return { done: ctx.inputData.first.length > 0 };
+    },
+  });
+  const workflow = createWorkflow({
+    id: 'trailing-sleep',
+    inputSchema: z.object({ topic: z.string() }),
+    outputSchema: z.object({ done: z.boolean() }),
+    storage,
+  })
+    .then(first)
+    .then(second)
+    .sleep(0)
+    .commit();
+  return { workflow, executed };
+}
+
+/** sleep → first:窗口里一个 step 条目都没有,答案为空(调用方从头重启)。 */
+function leadingSleepChain(storage: WorkflowSnapshotStore): {
+  readonly workflow: Workflow<z.ZodType<{ topic: string }>, z.ZodType<{ done: boolean }>>;
+  readonly executed: string[];
+} {
+  const executed: string[] = [];
+  const inputSchema = z.object({ topic: z.string() });
+  const outputSchema = z.object({ done: z.boolean() });
+  const first = createStep({
+    id: 'first',
+    inputSchema,
+    outputSchema,
+    execute: () => {
+      executed.push('first');
+      return { done: true };
+    },
+  });
+  const workflow = createWorkflow({
+    id: 'leading-sleep',
+    inputSchema,
+    outputSchema,
+    storage,
+  })
+    .sleep(0)
+    .then(first)
+    .commit();
+  return { workflow, executed };
+}
+
 describe('createInngestRunner:崩溃重试', () => {
   it('引擎重试重投同一触发事件:running 快照续起,已完成条目回放一次、在途条目重执行', async () => {
     const bus = fakeBus();
@@ -438,6 +504,62 @@ describe('createInngestRunner:崩溃重试', () => {
     expect(String((report.failed[0]?.error as Error).message)).toContain(
       'workflow "forged": unknown workflow entry type "quantum"',
     );
+  });
+
+  it('崩溃窗口落在尾部 sleep:重入最近的 step 条目——second 重跑、first 回放', async () => {
+    const bus = fakeBus();
+    const recorder = recordingStore();
+    const runner = createInngestRunner({ client: bus.client, store: recorder.store });
+    const { workflow, executed } = trailingSleepChain(recorder.store);
+
+    const runId = await runner.start(workflow, { topic: 'hi' });
+    // 崩溃现场:记录里 first / second 都已完成,位置落在列表末尾的 sleep 条目(向后扫描的起点)。
+    await recorder.inner.save(runId, {
+      runId,
+      status: 'running',
+      input: { topic: 'hi' },
+      stepResults: {
+        first: { status: 'success', output: { first: 'hi' } },
+        second: { status: 'success', output: { done: true } },
+      },
+      position: 2,
+    });
+
+    const report = await runner.recover();
+
+    // sleep 没有 step:答案回退到 second——first 从记录回放(不重执行),只有 second 重跑。
+    // 答案若退化成「没有目标」,整跑重启会把 first 也重跑一遍。
+    expect(executed).toEqual(['second']);
+    expect(report.failed).toEqual([]);
+    expect(report.recovered[0]?.outcome).toMatchObject({ status: 'success' });
+    expect((await recorder.inner.load(runId))?.status).toBe('success');
+  });
+
+  it('窗口里没有拥有 step 的条目:答案为空,整跑重启而不是失败', async () => {
+    const bus = fakeBus();
+    const recorder = recordingStore();
+    const runner = createInngestRunner({ client: bus.client, store: recorder.store });
+    const { workflow, executed } = leadingSleepChain(recorder.store);
+
+    const runId = await runner.start(workflow, { topic: 'hi' });
+    // 崩溃现场:位置 0,窗口里只有没有 step 的 sleep,记录为空。
+    await recorder.inner.save(runId, {
+      runId,
+      status: 'running',
+      input: { topic: 'hi' },
+      stepResults: {},
+      position: 0,
+    });
+
+    const report = await runner.recover();
+
+    // 没有可重入条目不是失败:从头重进,run 照常收敛。
+    expect(executed).toEqual(['first']);
+    expect(report.failed).toEqual([]);
+    expect(report.recovered[0]?.outcome).toMatchObject({
+      status: 'success',
+      output: { done: true },
+    });
   });
 });
 

@@ -186,6 +186,15 @@ describe('restartTargetAt:位置读法与扫描', () => {
     expect(restartTargetAt({ entries }, 2)).toBe('then-step');
   });
 
+  it('position 0 是 sleep:向后没有条目,返回 undefined——扫描不越过钳制点向前看', () => {
+    const entries: readonly WorkflowEntry[] = [ENTRY_CASES.sleep.entry, ENTRY_CASES.then.entry];
+
+    // 崩在第一条目(sleep)上:窗口里没有拥有 step 的条目,调用方从头重启。
+    expect(restartTargetAt({ entries }, 0)).toBeUndefined();
+    // 同一列表,位置推进一步就命中:答案只看位置本身及其之前的条目。
+    expect(restartTargetAt({ entries }, 1)).toBe('then-step');
+  });
+
   it('空条目列表 / 全部条目都没有 step:返回 undefined(从头重启,不是失败)', () => {
     expect(restartTargetAt({ entries: [] }, 0)).toBeUndefined();
     expect(restartTargetAt({ entries: [] }, 7)).toBeUndefined();
