@@ -201,26 +201,38 @@ const ENTRY_DESCRIPTORS = {
 
 /**
  * The one table lookup. A hand-built definition cast past the types has no row — that is the
- * contract boundary and fails loudly, never silently as "owns no steps".
+ * contract boundary and fails loudly, never silently as "owns no steps". The workflow id is
+ * required here (the public answer function is the only caller that may not know it) so a new
+ * internal call site cannot regress to an unnamed error.
  */
-export function entryDescriptor(entry: WorkflowEntry): EntryDescriptor<WorkflowEntry> {
+export function entryDescriptor(
+  entry: WorkflowEntry,
+  workflowId: string | undefined,
+): EntryDescriptor<WorkflowEntry> {
   const descriptor = (
     ENTRY_DESCRIPTORS as Partial<Record<WorkflowEntryKind, EntryDescriptor<WorkflowEntry>>>
   )[entry.type];
   if (descriptor === undefined) {
     const { type } = entry as unknown as { readonly type: string };
-    throw new Error(`unknown workflow entry type "${type}"`);
+    throw new Error(unknownEntryKindMessage(type, workflowId));
   }
   return descriptor;
+}
+
+/** The unknown-kind message at the one boundary that knows it: the kind always, the workflow when named. */
+export function unknownEntryKindMessage(type: string, workflowId: string | undefined): string {
+  const prefix = workflowId === undefined ? '' : `workflow "${workflowId}": `;
+  return `${prefix}unknown workflow entry type "${type}"`;
 }
 
 /**
  * The steps an entry owns, in definition order — the one extraction every topology fact and every
  * record reader goes through: membership, replay, truncation, freezing and restart targeting.
- * A `sleep` owns none: it records nothing.
+ * A `sleep` owns none: it records nothing. `workflowId` only names the definition in the
+ * unknown-kind error, which is why every internal caller passes it.
  */
-export function steps(entry: WorkflowEntry): readonly Step[] {
-  return entryDescriptor(entry).steps(entry);
+export function steps(entry: WorkflowEntry, workflowId: string | undefined): readonly Step[] {
+  return entryDescriptor(entry, workflowId).steps(entry);
 }
 
 /**
@@ -229,13 +241,20 @@ export function steps(entry: WorkflowEntry): readonly Step[] {
  * a step inside a block is reached through its entry, and truncating an entry drops every record
  * the entry owns.
  */
-export function entryStepIds(entry: WorkflowEntry): readonly string[] {
-  return steps(entry).map((step) => step.id);
+export function entryStepIds(
+  entry: WorkflowEntry,
+  workflowId: string | undefined,
+): readonly string[] {
+  return steps(entry, workflowId).map((step) => step.id);
 }
 
 /** The step with this id inside the entry, or `undefined` when the entry holds no such step. */
-export function findStep(entry: WorkflowEntry, stepId: string): Step | undefined {
-  return steps(entry).find((step) => step.id === stepId);
+export function findStep(
+  entry: WorkflowEntry,
+  stepId: string,
+  workflowId: string | undefined,
+): Step | undefined {
+  return steps(entry, workflowId).find((step) => step.id === stepId);
 }
 
 /**
@@ -248,7 +267,8 @@ export function findStep(entry: WorkflowEntry, stepId: string): Step | undefined
  * trailing `sleep`, which owns no step, restarts from the nearest step-bearing entry. Step ids
  * shared across entries are not resolved here — the public `restart` names the first entry
  * holding the id, so restart re-executes more, never less. Snapshot status is not read; the
- * caller owns that reading. An unknown entry kind throws instead of answering "no target".
+ * caller owns that reading. An unknown entry kind throws instead of answering "no target" —
+ * naming the workflow (when its id is known) and the kind, never a `TypeError` and never silence.
  */
 export function restartTargetAt(
   workflow: { readonly id?: string; readonly entries: readonly WorkflowEntry[] },
@@ -258,7 +278,7 @@ export function restartTargetAt(
   if (entries.length === 0) return undefined;
   const start = Math.min(Math.max(position, 0), entries.length - 1);
   for (let index = start; index >= 0; index -= 1) {
-    const stepId = steps(entries[index]!)[0]?.id;
+    const stepId = steps(entries[index]!, workflow.id)[0]?.id;
     if (stepId !== undefined) return stepId;
   }
   return undefined;

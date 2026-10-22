@@ -167,13 +167,56 @@ describe('restartTargetAt:位置读法与扫描', () => {
     ).toBeUndefined();
   });
 
-  it('未知 kind 显式抛错,不静默降级成「没有 step」', () => {
+  it('未知 kind 显式抛错,错误点名 workflow id 与未知 kind,不静默降级成「没有 step」', () => {
     const entries = [{ type: 'quantum' } as unknown as WorkflowEntry];
 
+    expect(() => restartTargetAt({ id: 'forged-answer', entries }, 0)).toThrow(
+      /workflow "forged-answer": unknown workflow entry type "quantum"/,
+    );
+    // 手搓定义没有 id:仍点名未知 kind,不硬造一个 workflow id。
     expect(() => restartTargetAt({ entries }, 0)).toThrow(
-      /unknown workflow entry type "quantum"/,
+      /^unknown workflow entry type "quantum"$/,
     );
   });
+});
+
+describe('public restart:未知 kind 的命名错误', () => {
+  /** 手搓定义:未知条目在列表头(成员查询先撞上)或列表尾(截断先撞上)。 */
+  const FORGED_CASES = [
+    { path: '截断', workflowId: 'forged-truncate', unknownFirst: false, byStep: false },
+    { path: 'step 成员查询', workflowId: 'forged-lookup', unknownFirst: true, byStep: true },
+  ] as const;
+
+  it.each(FORGED_CASES)(
+    '$path 路径以 workflow id + 未知 kind 失败,不静默跳过未知条目',
+    async ({ workflowId, unknownFirst, byStep }) => {
+      const first = stepFor('first');
+      const base = createWorkflow({
+        id: workflowId,
+        inputSchema: anySchema,
+        outputSchema: anySchema,
+      })
+        .then(first)
+        .commit();
+      // 手搓定义(cast 过类型):一个核心不认识的第八种条目。
+      const known: WorkflowEntry = { type: 'then', step: first };
+      const unknown = { type: 'quantum' } as unknown as WorkflowEntry;
+      const entries: readonly WorkflowEntry[] = unknownFirst
+        ? [unknown, known]
+        : [known, unknown];
+      const run = createWorkflowRun({ ...base, entries }, { runId: workflowId });
+
+      // 首跑在未知条目上失败(执行分派已带 workflow id),留下 failed 快照。
+      await expect((await run.start({ inputData: undefined })).result).rejects.toThrow(
+        new RegExp(`workflow "${workflowId}": unknown workflow entry type "quantum"`),
+      );
+
+      // 公共 restart:成员查询 / 截断都必须命名失败,而不是跳过未知条目。
+      await expect(byStep ? run.restart({ step: 'first' }) : run.restart()).rejects.toThrow(
+        new RegExp(`workflow "${workflowId}": unknown workflow entry type "quantum"`),
+      );
+    },
+  );
 });
 
 describe('commit:descriptor 驱动的冻结', () => {

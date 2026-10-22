@@ -201,7 +201,7 @@ export function createWorkflow<
   function commit(): Workflow<TInputSchema, TOutputSchema> {
     const existing = committed;
     if (existing !== undefined) return existing;
-    for (const entry of entries) freezeEntry(entry);
+    for (const entry of entries) freezeEntry(entry, config.id);
     const base = {
       id: config.id,
       inputSchema: config.inputSchema,
@@ -283,7 +283,7 @@ function resolveConcurrency(workflowId: string, concurrency: number | undefined)
 }
 
 /** Freezes one entry and the arrays its descriptor owns, so a committed definition cannot be mutated. */
-function freezeEntry(entry: WorkflowEntry): void {
-  for (const owned of entryDescriptor(entry).ownedArrays(entry)) Object.freeze(owned);
+function freezeEntry(entry: WorkflowEntry, workflowId: string): void {
+  for (const owned of entryDescriptor(entry, workflowId).ownedArrays(entry)) Object.freeze(owned);
   Object.freeze(entry);
 }

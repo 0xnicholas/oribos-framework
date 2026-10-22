@@ -5,7 +5,7 @@ import type { Span, Tracer } from '../observability/index.js';
 import { normalizeTraceContinuation } from '../observability/span.js';
 import type { StandardSchema } from '../standard-schema.js';
 import { abortableSleep, throwIfAborted } from './abort.js';
-import { entryDescriptor, findStep, steps } from './entry.js';
+import { entryDescriptor, findStep, steps, unknownEntryKindMessage } from './entry.js';
 import type {
   BranchEntry,
   DountilEntry,
@@ -407,10 +407,7 @@ async function runEntry(state: WalkState, entry: WorkflowEntry, value: unknown):
       return value;
     default: {
       const { type } = entry as unknown as { readonly type: string };
-      return assertNever(
-        entry,
-        `workflow "${state.workflow.id}": unknown workflow entry type "${type}"`,
-      );
+      return assertNever(entry, unknownEntryKindMessage(type, state.workflow.id));
     }
   }
 }
@@ -488,7 +485,7 @@ async function enterResume(
       `workflow "${workflow.id}": the snapshot's position ${resume.position} is outside the entry list — the definition and the snapshot do not match`,
     );
   }
-  const step = findStep(entry, resume.stepId);
+  const step = findStep(entry, resume.stepId, workflow.id);
   if (resume.iterationSite === undefined) {
     // The earlier shape: no site means the top-level `then` suspension, and the entry must hold it.
     if (entry.type !== 'then' || entry.step.id !== resume.stepId) {
@@ -548,13 +545,13 @@ function checkIterationSite(
   stepId: string,
   position: number,
 ): void {
-  const expected = entryDescriptor(entry).iterationSiteKind;
+  const expected = entryDescriptor(entry, workflowId).iterationSiteKind;
   if (site.kind !== expected) {
     throw new Error(
       `workflow "${workflowId}": the snapshot's iteration site (kind "${site.kind}") does not match the ${entry.type} block at position ${position} — the definition and the snapshot do not match`,
     );
   }
-  if (findStep(entry, stepId) === undefined) {
+  if (findStep(entry, stepId, workflowId) === undefined) {
     throw new Error(
       `workflow "${workflowId}": step "${stepId}" is not a step of the ${entry.type} block at position ${position} — the definition and the snapshot do not match`,
     );
@@ -576,21 +573,25 @@ function replayEntries(state: WalkState, until: number): unknown {
 
 /** One completed entry's output, reconstructed from its step records — pure bookkeeping, no execution. */
 function replayEntry(state: WalkState, entry: WorkflowEntry, value: unknown): unknown {
-  const shape = entryDescriptor(entry).replayShape;
+  const shape = entryDescriptor(entry, state.workflow.id).replayShape;
   switch (shape) {
     case 'single': {
       // then / foreach / dowhile / dountil: the block records its one step's output under its id.
-      return recordedOutput(state, steps(entry)[0]!.id);
+      return recordedOutput(state, steps(entry, state.workflow.id)[0]!.id);
     }
     case 'parallel':
       return Object.fromEntries(
-        steps(entry).map((step) => [step.id, recordedOutput(state, step.id)] as const),
+        steps(entry, state.workflow.id).map(
+          (step) => [step.id, recordedOutput(state, step.id)] as const,
+        ),
       );
     case 'branch': {
       // The executed arm is the first one with a record, in definition order; no record at all
       // means no condition was truthy and the block produced `{}`. Records are keyed by step id, so
       // an id reused across entries is inherently ambiguous — the same reading as `getStepResult`.
-      const executed = steps(entry).find((step) => state.stepResults[step.id] !== undefined);
+      const executed = steps(entry, state.workflow.id).find(
+        (step) => state.stepResults[step.id] !== undefined,
+      );
       return executed === undefined ? {} : { [executed.id]: recordedOutput(state, executed.id) };
     }
     case 'pass':
@@ -1001,7 +1002,7 @@ async function runLoop(
   entry: DowhileEntry | DountilEntry,
   inputData: unknown,
 ): Promise<unknown> {
-  const timing = entryDescriptor(entry).loopTiming;
+  const timing = entryDescriptor(entry, state.workflow.id).loopTiming;
   if (timing === undefined) {
     throw new Error(
       `workflow "${state.workflow.id}": the ${entry.type} entry has no declared loop timing`,

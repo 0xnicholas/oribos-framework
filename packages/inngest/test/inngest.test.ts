@@ -436,7 +436,7 @@ describe('createInngestRunner:崩溃重试', () => {
     expect(report.recovered).toEqual([]);
     expect(report.failed).toHaveLength(1);
     expect(String((report.failed[0]?.error as Error).message)).toContain(
-      'unknown workflow entry type "quantum"',
+      'workflow "forged": unknown workflow entry type "quantum"',
     );
   });
 });

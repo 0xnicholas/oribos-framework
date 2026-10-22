@@ -34,7 +34,7 @@
    - `position` 钳到 `[0, entries.length - 1]`;空条目列表返回 `undefined`。
    - 从钳制点向后扫描,返回第一个拥有 step 的条目的**首个** step id;`sleep` 拥有零 step,崩在 sleep 附近回到最近的有 step 条目。
    - `undefined` 表示没有可重入条目,调用方从头重启——不是失败。
-   - 未知 kind 抛错,不再静默降级。
+   - 未知 kind 抛错,不再静默降级;错误点名 workflow id(调用方提供时)与未知 kind。
    - 不读 `snapshot.status`;status 语义留在调用方与 `docs/architecture/workflows.md` 的 position 读法。
    - 重复 step id:第一个包含它的条目获胜(public `restart` 的既有解析),重入宁可多执行,不会少执行。
    - 接受 commit 后的 workflow 与手搓定义;不新增类型导出,不导出 descriptor 代数。
@@ -63,5 +63,7 @@
 ## 实施状态
 
 **已实施**(2026-10-22,#218)。`EntryDescriptor` 表居 `packages/core/src/workflows/entry.ts`;`entryStepIds` / `findStep` 由 `steps` 派生,`resumeTargetStep` 删除;`replayEntry` / `freezeEntry` / `checkIterationSite` / `runLoop` 改读 descriptor 事实;`runEntry` 以 `assertNever` 收口。`restartTargetAt` 从 `@oribos/core/workflows` 导出,`@oribos/inngest` 删除本地 `entryStepIds` 并改调它。测试面:七种 kind 的矩阵(`packages/core/test/workflows-entry-topology.test.ts`,`satisfies` 表钉住漏格)、位置钳制 / 向后扫描 / 空目标 / 未知 kind、inngest 崩溃恢复不得静默重跑已完成条目(`packages/inngest/test/inngest.test.ts`)。快照与公开 `restart` 签名未变;`pnpm verify` 全绿。
+
+**#219 复核**(2026-10-22):未知 kind 在公共 `restart` 与 `restartTargetAt` 边界以命名错误失败,错误点名 workflow id 与未知 kind;一次性编译期 probe(临时加第八变体)确认表缺行即 typecheck 失败,随后移除。
 
 (来源:架构 review 2026-10-22 候选 05;关联 ADR-0006 / 0010 / 0018;实施 #218)

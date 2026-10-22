@@ -125,7 +125,7 @@ _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
 _Avoid_: 把 position 当 step id 或条目 id、把不同 status 的读法混用
 
 **重入目标 (Restart target)**:
-外部 runner 从 running 快照恢复时,由重入位置反查出的应重启 step id:没有可重入条目时为空,调用方从头重启;重复 step id 时第一个包含它的条目获胜——重入宁可多执行,不会少执行。公共出口 = `restartTargetAt`(2026-10-22 #218);未知 kind 抛错,不静默降级。
+外部 runner 从 running 快照恢复时,由重入位置反查出的应重启 step id:没有可重入条目时为空,调用方从头重启;重复 step id 时第一个包含它的条目获胜——重入宁可多执行,不会少执行。公共出口 = `restartTargetAt`(2026-10-22 #218);未知 kind 抛错,错误点名 workflow id 与未知 kind,不静默降级。
 _Avoid_: 把重入目标当条目下标或条目 id、把"无目标"当失败(它是合法的从头重启)
 
 **迭代现场 (Iteration site)**:

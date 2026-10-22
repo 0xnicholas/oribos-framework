@@ -362,7 +362,7 @@ async function restartSnapshot<TOutput>(
   // the replay below says loudly which record it missed.
   const stepResults: Record<string, WorkflowStepResultSnapshot> = { ...snapshot.stepResults };
   for (let index = position; index < workflow.entries.length; index += 1) {
-    for (const stepId of entryStepIds(workflow.entries[index]!)) {
+    for (const stepId of entryStepIds(workflow.entries[index]!, workflow.id)) {
       delete stepResults[stepId];
     }
   }
@@ -405,7 +405,9 @@ function restartPosition(
 ): number {
   if (step === undefined) return 0;
   const stepId = typeof step === 'string' ? step : step.id;
-  const position = workflow.entries.findIndex((entry) => findStep(entry, stepId) !== undefined);
+  const position = workflow.entries.findIndex(
+    (entry) => findStep(entry, stepId, workflow.id) !== undefined,
+  );
   if (position === -1) {
     throw new Error(
       `run "${runId}" cannot restart from step "${stepId}" — workflow "${workflow.id}" has no entry holding that step.`,
