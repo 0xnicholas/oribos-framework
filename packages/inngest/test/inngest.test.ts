@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { Inngest } from 'inngest';
-import { createInMemorySnapshotStore, createStep, createWorkflow } from '@oribos/core/workflows';
-import type { StepContext, Workflow, WorkflowSnapshotStore } from '@oribos/core/workflows';
+import {
+  createInMemorySnapshotStore,
+  createStep,
+  createWorkflow,
+  createWorkflowRun,
+} from '@oribos/core/workflows';
+import type {
+  StepContext,
+  Workflow,
+  WorkflowEntry,
+  WorkflowSnapshotStore,
+} from '@oribos/core/workflows';
 import { createInngestRunner } from '@oribos/inngest';
 
 /**
@@ -376,6 +386,58 @@ describe('createInngestRunner:崩溃重试', () => {
     // first 只执行过一次(回放),gate 也只算重试那一次(闸 0 的分支从未走到 push)。
     expect(executed).toEqual(['first', 'gate']);
     expect((await recorder.inner.load(runId))?.status).toBe('success');
+  });
+
+  it('未知条目类型:重启目标显式抛错,不从头静默重跑已完成条目', async () => {
+    const bus = fakeBus();
+    const recorder = recordingStore();
+    const runner = createInngestRunner({ client: bus.client, store: recorder.store });
+    const executed: string[] = [];
+    const inputSchema = z.object({ topic: z.string() });
+    const outputSchema = z.object({ done: z.boolean() });
+    const first = createStep({
+      id: 'first',
+      inputSchema,
+      outputSchema,
+      execute: () => {
+        executed.push('first');
+        return { done: true };
+      },
+    });
+    const base = createWorkflow({ id: 'forged', inputSchema, outputSchema, storage: recorder.store })
+      .then(first)
+      .commit();
+    // 手搓定义(cast 过类型):position 指向一个核心不认识的第八种条目。
+    const entries = [
+      { type: 'then', step: first },
+      { type: 'quantum' },
+    ] as unknown as readonly WorkflowEntry[];
+    const forged: Workflow<typeof inputSchema, typeof outputSchema> = {
+      ...base,
+      entries,
+      createRun: (options) =>
+        createWorkflowRun<typeof inputSchema, { done: boolean }>({ ...base, entries }, options),
+    };
+
+    const runId = await runner.start(forged, { topic: 'hi' });
+    // 崩溃现场:first 已完成,position 指向未知条目(running 快照)。
+    await recorder.inner.save(runId, {
+      runId,
+      status: 'running',
+      input: { topic: 'hi' },
+      stepResults: { first: { status: 'success', output: { done: true } } },
+      position: 1,
+    });
+
+    const report = await runner.recover();
+
+    // 答案在重进之前就失败:已完成条目绝不因为未知 kind 而被重跑。
+    expect(executed).toEqual([]);
+    expect(report.recovered).toEqual([]);
+    expect(report.failed).toHaveLength(1);
+    expect(String((report.failed[0]?.error as Error).message)).toContain(
+      'unknown workflow entry type "quantum"',
+    );
   });
 });
 
