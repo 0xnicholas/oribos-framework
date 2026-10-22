@@ -3,7 +3,7 @@ import { createOutputObject } from '../output-object/index.js';
 import { createResumeLock } from '../resume-lock.js';
 import { NEVER_ABORTED } from '../run-context.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
-import { entryStepIds } from './entry.js';
+import { entryStepIds, findStep } from './entry.js';
 import type { WorkflowEvent } from './events.js';
 import { createInMemorySnapshotStore } from './in-memory-snapshot-store.js';
 import type {
@@ -405,7 +405,7 @@ function restartPosition(
 ): number {
   if (step === undefined) return 0;
   const stepId = typeof step === 'string' ? step : step.id;
-  const position = workflow.entries.findIndex((entry) => entryStepIds(entry).includes(stepId));
+  const position = workflow.entries.findIndex((entry) => findStep(entry, stepId) !== undefined);
   if (position === -1) {
     throw new Error(
       `run "${runId}" cannot restart from step "${stepId}" — workflow "${workflow.id}" has no entry holding that step.`,

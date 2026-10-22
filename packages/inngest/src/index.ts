@@ -26,6 +26,7 @@
  */
 import { isInngest } from 'inngest';
 import type { Inngest, InngestFunction } from 'inngest';
+import { restartTargetAt } from '@oribos/core/workflows';
 import type {
   StandardSchema,
   StandardSchemaV1,
@@ -181,46 +182,19 @@ async function settleRun(
 }
 
 /**
- * The step ids of one entry — the local copy of the walker's entry→step mapping (the core does not
- * export it; importing it would be a core change). A sleep entry holds none.
- */
-function entryStepIds(entry: Workflow['entries'][number]): readonly string[] {
-  switch (entry.type) {
-    case 'then':
-      return [entry.step.id];
-    case 'parallel':
-      return entry.steps.map((step) => step.id);
-    case 'branch':
-      return entry.branches.map(([, step]) => step.id);
-    case 'foreach':
-    case 'dowhile':
-    case 'dountil':
-      return [entry.step.id];
-    case 'sleep':
-      return [];
-    default:
-      return [];
-  }
-}
-
-/**
- * The restart options that re-enter a crashed run from its snapshot: the entry the snapshot's
- * `position` points at (the next un-run entry) is the restart target — everything before replays
+ * The restart options that re-enter a crashed run from its snapshot: the answer function resolves
+ * the snapshot's `position` to the entry the runner should restart at — everything before replays
  * from records, the target re-executes fresh. The public restart primitive is addressed by step
- * name, so the target is named through its first step id; a trailing window whose entry holds no
- * step (a crash right before a sleep) steps back to the nearest earlier entry, and an empty
- * definition restarts whole. Step ids shared across entries stay the ambiguity they already are
- * in the record table: the restart primitive resolves the first entry holding the name, which
- * re-executes more, never less.
+ * name, so the answer is that entry's first step id; a trailing window whose entries own no step
+ * (a crash right before a sleep) steps back to the nearest earlier entry, and no answer at all
+ * restarts whole. Unknown entry kinds throw inside the answer function — a forged or future
+ * definition fails loudly before any record is touched. Step ids shared across entries stay the
+ * ambiguity they already are in the record table: the restart primitive resolves the first entry
+ * holding the name, which re-executes more, never less.
  */
 function crashRestartOptions(run: Workflow, snapshot: WorkflowRunSnapshot): WorkflowRestartOptions {
-  const { entries } = run;
-  if (entries.length === 0) return {};
-  for (let index = Math.min(snapshot.position, entries.length - 1); index >= 0; index -= 1) {
-    const stepId = entryStepIds(entries[index]!)[0];
-    if (stepId !== undefined) return { step: stepId };
-  }
-  return {};
+  const step = restartTargetAt(run, snapshot.position);
+  return step === undefined ? {} : { step };
 }
 
 /**

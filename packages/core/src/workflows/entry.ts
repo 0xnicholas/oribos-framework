@@ -1,4 +1,5 @@
 import type { DynamicArgument } from '../agent/types.js';
+import type { WorkflowIterationSite } from './snapshot.js';
 import type { Step, StepContext } from './step.js';
 
 /**
@@ -103,24 +104,162 @@ export type WorkflowEntry =
   | SleepEntry;
 
 /**
+ * How replay rebuilds one entry's recorded output: `single` = the one step's record, `parallel` =
+ * a keyed object of every step's record, `branch` = a keyed object of the arm whose record exists,
+ * `pass` = the incoming value passes through (a sleep owns no step).
+ */
+type ReplayShape = 'single' | 'parallel' | 'branch' | 'pass';
+
+/**
+ * One row of the per-kind table: every static fact about an entry kind, declared once. Execution —
+ * which runner, which walk state, which span — deliberately stays in the walker; a row is data plus
+ * the extraction function, never a walk.
+ */
+export interface EntryDescriptor<TEntry extends WorkflowEntry> {
+  /** The steps the entry owns, in definition order — the record keys the entry can write. */
+  readonly steps: (entry: TEntry) => readonly Step[];
+  /** How `replayEntry` rebuilds the entry's output from the records. */
+  readonly replayShape: ReplayShape;
+  /** The arrays commit freezes, nested ones before the array that holds them. */
+  readonly ownedArrays: (entry: TEntry) => readonly (readonly unknown[])[];
+  /** The iteration site a suspension inside this kind carries; absent for leaf kinds. */
+  readonly iterationSiteKind: WorkflowIterationSite['kind'] | undefined;
+  /** Where this kind's loop condition is checked; absent for non-loop kinds. */
+  readonly loopTiming: 'before' | 'after' | undefined;
+}
+
+/** The closed union's discriminant. */
+type WorkflowEntryKind = WorkflowEntry['type'];
+
+/** The entry type of one kind (the table's row type is keyed by the discriminant). */
+type EntryOf<TKind extends WorkflowEntryKind> = Extract<WorkflowEntry, { readonly type: TKind }>;
+
+/** One row per kind: `satisfies` makes a missing or mistyped row a compile error. */
+type DescriptorTable = {
+  readonly [TKind in WorkflowEntryKind]: EntryDescriptor<EntryOf<TKind>>;
+};
+
+/**
+ * The per-kind facts, keyed by the closed union: the single source of truth for what a kind owns,
+ * how it replays, which arrays it freezes, which iteration site it carries and when its loop
+ * checks. `satisfies` over the mapped type makes an eighth kind without a row a compile error.
+ */
+const ENTRY_DESCRIPTORS = {
+  then: {
+    steps: (entry: ThenEntry) => [entry.step],
+    replayShape: 'single',
+    ownedArrays: () => [],
+    iterationSiteKind: undefined,
+    loopTiming: undefined,
+  },
+  parallel: {
+    steps: (entry: ParallelEntry) => entry.steps,
+    replayShape: 'parallel',
+    ownedArrays: (entry: ParallelEntry) => [entry.steps],
+    iterationSiteKind: 'parallel',
+    loopTiming: undefined,
+  },
+  branch: {
+    steps: (entry: BranchEntry) => entry.branches.map(([, step]) => step),
+    replayShape: 'branch',
+    ownedArrays: (entry: BranchEntry) => [
+      ...entry.branches.map((pair) => pair),
+      entry.branches,
+    ],
+    iterationSiteKind: 'branch',
+    loopTiming: undefined,
+  },
+  foreach: {
+    steps: (entry: ForeachEntry) => [entry.step],
+    replayShape: 'single',
+    ownedArrays: () => [],
+    iterationSiteKind: 'foreach',
+    loopTiming: undefined,
+  },
+  dowhile: {
+    steps: (entry: DowhileEntry) => [entry.step],
+    replayShape: 'single',
+    ownedArrays: () => [],
+    iterationSiteKind: 'loop',
+    loopTiming: 'before',
+  },
+  dountil: {
+    steps: (entry: DountilEntry) => [entry.step],
+    replayShape: 'single',
+    ownedArrays: () => [],
+    iterationSiteKind: 'loop',
+    loopTiming: 'after',
+  },
+  sleep: {
+    steps: () => [],
+    replayShape: 'pass',
+    ownedArrays: () => [],
+    iterationSiteKind: undefined,
+    loopTiming: undefined,
+  },
+} satisfies DescriptorTable;
+
+/**
+ * The one table lookup. A hand-built definition cast past the types has no row — that is the
+ * contract boundary and fails loudly, never silently as "owns no steps".
+ */
+export function entryDescriptor(entry: WorkflowEntry): EntryDescriptor<WorkflowEntry> {
+  const descriptor = (
+    ENTRY_DESCRIPTORS as Partial<Record<WorkflowEntryKind, EntryDescriptor<WorkflowEntry>>>
+  )[entry.type];
+  if (descriptor === undefined) {
+    const { type } = entry as unknown as { readonly type: string };
+    throw new Error(`unknown workflow entry type "${type}"`);
+  }
+  return descriptor;
+}
+
+/**
+ * The steps an entry owns, in definition order — the one extraction every topology fact and every
+ * record reader goes through: membership, replay, truncation, freezing and restart targeting.
+ * A `sleep` owns none: it records nothing.
+ */
+export function steps(entry: WorkflowEntry): readonly Step[] {
+  return entryDescriptor(entry).steps(entry);
+}
+
+/**
  * The step ids an entry owns — the record keys the entry can write. Restart targeting and
  * truncation both speak in this grain: the flat entry is the addressable unit (no path model), so
  * a step inside a block is reached through its entry, and truncating an entry drops every record
- * the entry owns. A `sleep` owns none: it records nothing.
+ * the entry owns.
  */
 export function entryStepIds(entry: WorkflowEntry): readonly string[] {
-  switch (entry.type) {
-    case 'then':
-      return [entry.step.id];
-    case 'parallel':
-      return entry.steps.map((step) => step.id);
-    case 'branch':
-      return entry.branches.map(([, step]) => step.id);
-    case 'foreach':
-    case 'dowhile':
-    case 'dountil':
-      return [entry.step.id];
-    case 'sleep':
-      return [];
+  return steps(entry).map((step) => step.id);
+}
+
+/** The step with this id inside the entry, or `undefined` when the entry holds no such step. */
+export function findStep(entry: WorkflowEntry, stepId: string): Step | undefined {
+  return steps(entry).find((step) => step.id === stepId);
+}
+
+/**
+ * The step id a runner should restart from when a snapshot's `position` points into this entry
+ * list: the first step of the nearest entry at or before the position that owns one, or
+ * `undefined` when there is none — the caller restarts from the beginning (not a failure).
+ *
+ * The position is clamped to `[0, entries.length - 1]`, so a terminal `success` snapshot
+ * (`position === entries.length`) still answers. Scanning is backward: a crash right before a
+ * trailing `sleep`, which owns no step, restarts from the nearest step-bearing entry. Step ids
+ * shared across entries are not resolved here — the public `restart` names the first entry
+ * holding the id, so restart re-executes more, never less. Snapshot status is not read; the
+ * caller owns that reading. An unknown entry kind throws instead of answering "no target".
+ */
+export function restartTargetAt(
+  workflow: { readonly id?: string; readonly entries: readonly WorkflowEntry[] },
+  position: number,
+): string | undefined {
+  const { entries } = workflow;
+  if (entries.length === 0) return undefined;
+  const start = Math.min(Math.max(position, 0), entries.length - 1);
+  for (let index = start; index >= 0; index -= 1) {
+    const stepId = steps(entries[index]!)[0]?.id;
+    if (stepId !== undefined) return stepId;
   }
+  return undefined;
 }

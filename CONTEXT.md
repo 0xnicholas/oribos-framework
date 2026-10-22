@@ -113,7 +113,7 @@ workflow 执行器迭代的单元:一个 `then` step、一个拥有若干 step �
 _Avoid_: 把条目等同于 step(step 是条目拥有或不拥有的执行节点)、把扁平条目列表当图执行器
 
 **条目拓扑 (Entry topology)**:
-条目之间的关系事实:条目拥有哪些 step、step 属于哪个条目、重入位置对应哪个条目、从某位置继续应回到哪个 step;它是扁平条目列表上的查询视图,不新增执行结构。
+条目之间的关系事实:条目拥有哪些 step、step 属于哪个条目、重入位置对应哪个条目、从某位置继续应回到哪个 step;它是扁平条目列表上的查询视图,不新增执行结构。per-kind 事实由 `entry.ts` 的 `EntryDescriptor` 表单源声明(2026-10-22 #218),公共出口只有 `restartTargetAt`。
 _Avoid_: 把拓扑当 DAG/邻接表、把「条目图」当执行结构
 
 **快照 (Snapshot)**:
@@ -125,7 +125,7 @@ _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
 _Avoid_: 把 position 当 step id 或条目 id、把不同 status 的读法混用
 
 **重入目标 (Restart target)**:
-外部 runner 从 running 快照恢复时,由重入位置反查出的应重启 step id:没有可重入条目时为空,调用方从头重启;重复 step id 时第一个包含它的条目获胜——重入宁可多执行,不会少执行。
+外部 runner 从 running 快照恢复时,由重入位置反查出的应重启 step id:没有可重入条目时为空,调用方从头重启;重复 step id 时第一个包含它的条目获胜——重入宁可多执行,不会少执行。公共出口 = `restartTargetAt`(2026-10-22 #218);未知 kind 抛错,不静默降级。
 _Avoid_: 把重入目标当条目下标或条目 id、把"无目标"当失败(它是合法的从头重启)
 
 **迭代现场 (Iteration site)**:

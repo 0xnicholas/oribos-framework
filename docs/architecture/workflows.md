@@ -9,6 +9,7 @@
 > 修订(#54):块内挂起落地——四类块体内 `suspend()` 真挂起,迭代现场以可选 `iterationSite?` 字段进快照(additive,旧快照无此字段 = 顶层挂起的旧形状);resume 按 site 重进块内:parallel / branch 按**记录回放**完成臂(无 success 记录的臂重跑,挂起臂各落 suspended 记录,resume 命名谁谁收 resumeData)、foreach 记已收集前缀与挂起索引(洞重跑)、循环记已完成迭代数与挂起迭代的输入(dowhile 重进跳过首次前置检查);块是**满同步点**——挂起或失败前等在飞执行落定,挂起优先于同窗兄弟失败;事件/记录/快照同读「块内挂起 = suspended」。实施期补钉:foreach/parallel 的失败也等在飞落定(旧 Promise.all 的“失败即离场、在飞脱缰”废止)。
 > 修订(#119):resume 并发去重的键域钉为快照的持久化身份 **(store, runId)**——机制收进 resume-lock 模块(`WeakMap<store, Map<runId, Promise>>`,join-in-flight、settle 即删),workflows 与 durable-agent 各持一个模块级注册表实例(结构性跨子系统隔离);两个 store 上的同 runId 各自独立,durable 侧跨 wrapper 实例也去重。
 > 修订(#202):resume-lock 机制经 `@oribos/core/agent-run` 的 `createResumeLock` 公开给能力包(ADR-0018);注册表仍由每个消费者自持,`(store, runId)` join-in-flight、settle 即删的语义不变。
+> 修订(#218):条目拓扑收口——per-kind 静态事实(step 归属 / replay 形状 / commit 冻结数组 / iteration-site kind / 循环检查时机)由 `entry.ts` 的 `EntryDescriptor` 表单源声明,`steps(entry)` 是唯一提取函数;公共面只开 `restartTargetAt(workflow, position)`(钳制 / 向后扫描跳 sleep / 首个 step id / `undefined` = 从头重启 / 未知 kind 抛错 / 不读 status)。快照格式与 public `restart` 的 step-id 入参不变(ADR-0022)。
 
 ## 定位
 
@@ -78,6 +79,28 @@ await run.restart({ step? })              // time-travel:截断 + 重进,见「s
 | `.foreach(step, {concurrency})` | 输入必须是数组;默认 concurrency=1(须为正整数);>1 用并发闸,保序收集;满同步点(失败或挂起后不再开新迭代,在飞迭代落定后离场);任一次迭代失败且无挂起则整块失败 | 输出数组 |
 | `.dowhile` / `.dountil(step, cond)` | 循环至条件不满足/满足;dowhile 迭代**前**求值(可 0 次迭代)、dountil 迭代**后**求值(至少 1 次);输出 = 最后一次迭代的输出 | 透传 |
 | `.sleep(ms\|fn)` | 进程内 setTimeout + AbortSignal,**非 durable**(进程死即丢);fn 动态算时长(收 `RequestContext`) | — |
+
+## 条目拓扑与重入目标(#218)
+
+条目拓扑 = 扁平条目列表上的查询视图(`CONTEXT.md`「条目拓扑」),不新增执行结构。per-kind 静态事实——**条目拥有哪些 step、replay 形状、commit 冻结哪些数组、块内挂起携带哪种 iteration-site、循环条件在体前还是体后**——只在 `packages/core/src/workflows/entry.ts` 的 `EntryDescriptor` 表里声明一次,按七种 kind 的封闭联合键控:`satisfies` 映射让新增第八种 kind 漏行成为编译错误。执行分派仍只在 walker 的 `runEntry`(descriptor 不读 walk state、不依赖 runner);`steps(entry)` 是唯一提取函数,`entryStepIds` / `findStep` / replay / 截断 / resume 目标校验 / restart 目标全部由它派生;commit 冻结读同一行的 `ownedArrays`。
+
+公共面只开一个答案函数(**不导出 descriptor 代数**):
+
+```ts
+restartTargetAt(
+  workflow: { readonly id?: string; readonly entries: readonly WorkflowEntry[] },
+  position: number,
+): string | undefined
+```
+
+- 接受 commit 后的 workflow 或手搓定义;不读 `snapshot.status`——status 的读法留在调用方(见下「position = 重进下标」)。
+- `position` 钳到 `[0, entries.length - 1]`:success 快照的 `position = 条目数` 不崩。
+- 从钳制点**向后扫描**,返回最近一个拥有 step 的条目的**首个** step id;sleep 拥有零 step,崩在 sleep 附近回到上一个有 step 的条目。
+- `undefined` = 没有可重入条目 → 调用方从头重启,是合法路径、不是失败。
+- 未知 kind 显式抛错(手搓 / cast 输入的契约边界),不静默降级成「没有 step」。
+- 重复 step id:本函数给出位置处条目的首个 id,public `restart` 再按「第一个包含该 id 的条目」解析——重入宁可多执行,不会少执行。
+
+`@oribos/inngest` 的崩溃恢复直接消费该函数,不再持有本地条目→step 副本。
 
 ## suspend/resume 与快照
 

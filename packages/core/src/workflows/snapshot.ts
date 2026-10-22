@@ -74,7 +74,12 @@ export interface WorkflowRunSnapshot {
   readonly input: unknown;
   /** Per-step results, keyed by step id. */
   readonly stepResults: Readonly<Record<string, WorkflowStepResultSnapshot>>;
-  /** Position in the flat entry list to re-enter from on resume. */
+  /**
+   * Position in the flat entry list to re-enter from. Its reading depends on `status`: a suspended
+   * snapshot points at the suspended entry, a `running` snapshot at the next un-executed entry,
+   * and a terminal `success` snapshot equals the entry count (the end of the list). A caller
+   * resolving a position to a restart target uses `restartTargetAt`.
+   */
   readonly position: number;
   /**
    * Where inside the block at `position` the run suspended (#54, additive — like `traceId`, a

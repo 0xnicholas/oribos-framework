@@ -1,5 +1,6 @@
 import type { Logger, Tracer } from '../observability/index.js';
 import type { StandardSchema, StandardSchemaV1 } from '../standard-schema.js';
+import { entryDescriptor } from './entry.js';
 import type { BranchCondition, LoopCondition, SleepDuration, WorkflowEntry } from './entry.js';
 import { createWorkflowRun } from './run.js';
 import type { WorkflowCreateRunOptions, WorkflowRun } from './run.js';
@@ -281,18 +282,8 @@ function resolveConcurrency(workflowId: string, concurrency: number | undefined)
   return concurrency;
 }
 
-/** Freezes one entry and the arrays it owns, so a committed definition cannot be mutated. */
+/** Freezes one entry and the arrays its descriptor owns, so a committed definition cannot be mutated. */
 function freezeEntry(entry: WorkflowEntry): void {
-  switch (entry.type) {
-    case 'parallel':
-      Object.freeze(entry.steps);
-      break;
-    case 'branch':
-      for (const pair of entry.branches) Object.freeze(pair);
-      Object.freeze(entry.branches);
-      break;
-    default:
-      break;
-  }
+  for (const owned of entryDescriptor(entry).ownedArrays(entry)) Object.freeze(owned);
   Object.freeze(entry);
 }

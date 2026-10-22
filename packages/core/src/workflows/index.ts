@@ -36,8 +36,10 @@
  * process. `restart({ step? })` is the same load → re-enter primitive's thin variant
  * (time-travel): it truncates the records at and after the chosen step's entry and re-enters from
  * there — the target re-executes fresh (no `resumeData`, no iteration site, a block re-runs
- * whole), and omitting the step restarts the run from the beginning. Snapshots are written at fixed
- * points — every completed entry with attached storage, plus suspend and the terminal state —
+ * whole), and omitting the step restarts the run from the beginning. An external durable runner
+ * resolves a snapshot's `position` to its restart target with `restartTargetAt` — the one public
+ * entry-topology answer; the per-kind table that backs it stays internal. Snapshots are written at
+ * fixed points — every completed entry with attached storage, plus suspend and the terminal state —
  * never through hooks; a run with a tracer writes the trace it was exported under into the
  * snapshot, so a resumed segment continues the same trace. A tracer attached to the definition
  * opens `workflow-run` / `workflow-step` spans at the same
@@ -72,6 +74,7 @@ export type {
 export type { WorkflowDefinition } from './walker.js';
 export { WorkflowValidationError } from './validate.js';
 export { createInMemorySnapshotStore } from './in-memory-snapshot-store.js';
+export { restartTargetAt } from './entry.js';
 export type {
   BranchCondition,
   BranchEntry,

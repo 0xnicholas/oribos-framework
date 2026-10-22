@@ -5,6 +5,7 @@ import type { Span, Tracer } from '../observability/index.js';
 import { normalizeTraceContinuation } from '../observability/span.js';
 import type { StandardSchema } from '../standard-schema.js';
 import { abortableSleep, throwIfAborted } from './abort.js';
+import { entryDescriptor, findStep, steps } from './entry.js';
 import type {
   BranchEntry,
   DountilEntry,
@@ -405,12 +406,23 @@ async function runEntry(state: WalkState, entry: WorkflowEntry, value: unknown):
       await runSleep(state, entry);
       return value;
     default: {
-      // Every entry type of the spec is handled above; this guards a hand-built definition whose
-      // entries were cast past the types (`createWorkflowRun` takes a definition directly).
-      const { type } = entry as { readonly type: string };
-      throw new Error(`workflow "${state.workflow.id}": unknown workflow entry type "${type}"`);
+      const { type } = entry as unknown as { readonly type: string };
+      return assertNever(
+        entry,
+        `workflow "${state.workflow.id}": unknown workflow entry type "${type}"`,
+      );
     }
   }
+}
+
+/**
+ * The exhaustiveness guard a closed-union switch ends on: a new union member turns the call into a
+ * compile error, and a hand-built definition cast past the types reaches the runtime throw instead
+ * of falling through. The message is the caller's — only it knows what the union means.
+ */
+function assertNever(value: never, message: string): never {
+  void value;
+  throw new Error(message);
 }
 
 /**
@@ -476,7 +488,7 @@ async function enterResume(
       `workflow "${workflow.id}": the snapshot's position ${resume.position} is outside the entry list — the definition and the snapshot do not match`,
     );
   }
-  const step = resumeTargetStep(entry, resume.stepId);
+  const step = findStep(entry, resume.stepId);
   if (resume.iterationSite === undefined) {
     // The earlier shape: no site means the top-level `then` suspension, and the entry must hold it.
     if (entry.type !== 'then' || entry.step.id !== resume.stepId) {
@@ -524,35 +536,10 @@ function enterRestart(
 }
 
 /**
- * The step a resume names inside the entry its snapshot points at: a then step, a block arm, or
- * the block's own step. `undefined` when the entry holds no such step (a mismatch the callers
- * report with their own words).
- */
-function resumeTargetStep(entry: WorkflowEntry, stepId: string): Step | undefined {
-  switch (entry.type) {
-    case 'then':
-      return entry.step.id === stepId ? entry.step : undefined;
-    case 'parallel':
-      return entry.steps.find((step) => step.id === stepId);
-    case 'branch': {
-      const arm = entry.branches.find(([, step]) => step.id === stepId);
-      return arm === undefined ? undefined : arm[1];
-    }
-    case 'foreach':
-    case 'dowhile':
-    case 'dountil':
-      return entry.step.id === stepId ? entry.step : undefined;
-    case 'sleep':
-      return undefined;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * A site and its entry must agree (#54): the site's kind is the entry's block type (the two loop
- * entries share the `loop` kind), and the resumed step must be a step of that block. A snapshot
- * that disagrees with the definition is explicit about it — it cannot be resumed silently wrong.
+ * A site and its entry must agree (#54): the site's kind is the entry's declared iteration-site
+ * kind (the two loop entries share the `loop` kind), and the resumed step must be a step of that
+ * block. A snapshot that disagrees with the definition is explicit about it — it cannot be resumed
+ * silently wrong.
  */
 function checkIterationSite(
   workflowId: string,
@@ -561,13 +548,13 @@ function checkIterationSite(
   stepId: string,
   position: number,
 ): void {
-  const expected = entry.type === 'dowhile' || entry.type === 'dountil' ? 'loop' : entry.type;
+  const expected = entryDescriptor(entry).iterationSiteKind;
   if (site.kind !== expected) {
     throw new Error(
       `workflow "${workflowId}": the snapshot's iteration site (kind "${site.kind}") does not match the ${entry.type} block at position ${position} — the definition and the snapshot do not match`,
     );
   }
-  if (resumeTargetStep(entry, stepId) === undefined) {
+  if (findStep(entry, stepId) === undefined) {
     throw new Error(
       `workflow "${workflowId}": step "${stepId}" is not a step of the ${entry.type} block at position ${position} — the definition and the snapshot do not match`,
     );
@@ -589,32 +576,27 @@ function replayEntries(state: WalkState, until: number): unknown {
 
 /** One completed entry's output, reconstructed from its step records — pure bookkeeping, no execution. */
 function replayEntry(state: WalkState, entry: WorkflowEntry, value: unknown): unknown {
-  switch (entry.type) {
-    case 'then':
-      return recordedOutput(state, entry.step.id);
+  const shape = entryDescriptor(entry).replayShape;
+  switch (shape) {
+    case 'single': {
+      // then / foreach / dowhile / dountil: the block records its one step's output under its id.
+      return recordedOutput(state, steps(entry)[0]!.id);
+    }
     case 'parallel':
       return Object.fromEntries(
-        entry.steps.map((step) => [step.id, recordedOutput(state, step.id)] as const),
+        steps(entry).map((step) => [step.id, recordedOutput(state, step.id)] as const),
       );
     case 'branch': {
       // The executed arm is the first one with a record, in definition order; no record at all
       // means no condition was truthy and the block produced `{}`. Records are keyed by step id, so
       // an id reused across entries is inherently ambiguous — the same reading as `getStepResult`.
-      const executed = entry.branches.find(([, step]) => state.stepResults[step.id] !== undefined);
-      return executed === undefined ? {} : { [executed[1].id]: recordedOutput(state, executed[1].id) };
+      const executed = steps(entry).find((step) => state.stepResults[step.id] !== undefined);
+      return executed === undefined ? {} : { [executed.id]: recordedOutput(state, executed.id) };
     }
-    case 'foreach':
-    case 'dowhile':
-    case 'dountil':
-      return recordedOutput(state, entry.step.id);
-    case 'sleep':
+    case 'pass':
       return value;
-    default: {
-      const { type } = entry as { readonly type: string };
-      throw new Error(
-        `workflow "${state.workflow.id}": the snapshot cannot be replayed — entry type "${type}" has no recorded output`,
-      );
-    }
+    default:
+      return assertNever(shape, `internal: unhandled workflow replay shape "${String(shape)}"`);
   }
 }
 
@@ -1019,6 +1001,12 @@ async function runLoop(
   entry: DowhileEntry | DountilEntry,
   inputData: unknown,
 ): Promise<unknown> {
+  const timing = entryDescriptor(entry).loopTiming;
+  if (timing === undefined) {
+    throw new Error(
+      `workflow "${state.workflow.id}": the ${entry.type} entry has no declared loop timing`,
+    );
+  }
   const site = state.resumeSite?.kind === 'loop' ? state.resumeSite : undefined;
   const startedAt = Date.now();
   let value = site !== undefined ? site.value : inputData;
@@ -1030,7 +1018,7 @@ async function runLoop(
     for (;;) {
       if (
         !resuming &&
-        entry.type === 'dowhile' &&
+        timing === 'before' &&
         !(await loopConditionHolds(state, entry, value, iterationCount))
       ) {
         break;
@@ -1038,10 +1026,7 @@ async function runLoop(
       value = await executeStep(state, entry.step, value, resuming);
       resuming = false;
       iterationCount += 1;
-      if (
-        entry.type === 'dountil' &&
-        (await loopConditionHolds(state, entry, value, iterationCount))
-      ) {
+      if (timing === 'after' && (await loopConditionHolds(state, entry, value, iterationCount))) {
         break;
       }
     }
