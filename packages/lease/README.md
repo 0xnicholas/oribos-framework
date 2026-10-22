@@ -24,12 +24,12 @@ if (handle !== null) {
 ## What it is
 
 A mechanism, not a policy. One port — `acquire(key, ttlMs) → LeaseHandle | null` with
-`LeaseHandle = { token, renew(ttlMs), release() }` — and two adapters:
+`LeaseHandle = { token, renew(ttlMs), release() }` — an in-memory default and a Redis adapter:
 
-- `createInMemoryLeaseStore({ now? })` — one map, lazy expiry, zero timers. `now` injects the
-  clock so tests can age a lease without sleeping.
-- `createRedisLease({ client })` — `set(key, token, 'PX', ttlMs, 'NX')` for acquisition and
-  token-guarded Lua for renew / release. The client is a structural subset
+- `createInMemoryLeaseStore({ now? })` — the default: one map, lazy expiry, zero timers. `now`
+  injects the clock so tests can age a lease without sleeping.
+- `createRedisLease({ client })` — opt-in: `set(key, token, 'PX', ttlMs, 'NX')` for acquisition
+  and token-guarded Lua for renew / release. The client is a structural subset
   (`set` + `eval`), so `ioredis` matches as-is and the Redis dependency stays yours.
 
 The semantics are small and fixed:
