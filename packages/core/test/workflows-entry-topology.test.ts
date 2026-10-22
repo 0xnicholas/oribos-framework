@@ -8,6 +8,7 @@ import {
   restartTargetAt,
 } from '@oribos/core/workflows';
 import type { WorkflowEntry } from '@oribos/core/workflows';
+import { expectSuccess, expectSuspended } from './helpers/assertions.js';
 
 /**
  * 条目拓扑(#218,`CONTEXT.md`「条目拓扑」/「重入目标」):per-kind 静态事实的唯一真相源是
@@ -16,8 +17,8 @@ import type { WorkflowEntry } from '@oribos/core/workflows';
  *
  * 矩阵列与实际覆盖(测试不 import descriptor,每个事实走公共行为):
  * - step 归属 / stepIds / findStep 命中与 miss → 本文件两套表驱动测试;
- * - replayShape / iterationSiteKind → `workflows-suspend-resume.test.ts`(块内挂起、resume、
- *   site 不匹配);
+ * - replayShape → 本文件的七种 kind resume 矩阵(#220:已完成条目不重跑,tip 由记录重建);
+ * - iterationSiteKind → `workflows-suspend-resume.test.ts`(块内挂起、resume、site 不匹配);
  * - loopTiming → `workflows-loop-wait.test.ts`(dowhile 体前 / dountil 体后);
  * - ownedArrays / freeze → 本文件 commit 冻结测试。
  */
@@ -300,5 +301,288 @@ describe('restartTargetAt:公共面兼容', () => {
       'first-entry',
       'second-entry',
     ]);
+  });
+});
+
+/**
+ * replay 形状(候选 05 第二片,#220):resume 从记录重建 tip,已完成的条目一条都不重跑。
+ *
+ * 每格是一条已完成条目放在挂起 step 之前:start 时它正常执行并写下记录;resume 时
+ * `replayEntry` 按该 kind 的 replay 形状重建 tip,挂起 step 因此拿到的输入必须与首次执行一致
+ * ——`then` / `foreach` / 两种 loop 取那一条记录,`parallel` 取 keyed 多记录,`branch` 取
+ * 已执行臂(无记录 = `{}`),`sleep` 直通且无记录。执行日志在 resume 前后必须相同:
+ * step、迭代、条件与时长解析都不得再发生。
+ *
+ * 块内挂起本身的 resume(iteration site 重进)仍由 `workflows-suspend-resume.test.ts` 钉住;
+ * 本矩阵抠的是已完成条目的记录重建(快照 `position` 之前的部分)。
+ */
+
+/** 各格共用的运行输入:`foreach` 要数组,其余 kind 原样消费。 */
+const replayInput = ['one', 'two'];
+
+interface ReplayCase {
+  /** 可选前缀条目:让 tip 区别于运行输入(否则「直通」与「错取输入」无法区分)。 */
+  readonly preface?: readonly WorkflowEntry[];
+  /** 挂在挂起 step 之前的已完成条目。 */
+  readonly entry: WorkflowEntry;
+  /** 该条目写下的记录(step id → 期望输出);`sleep` 与未命中任何臂的 `branch` 没有记录。 */
+  readonly records: Readonly<Record<string, unknown>>;
+  /** 由那些记录重建出的 tip;`sleep` 直通输入。 */
+  readonly tip: unknown;
+}
+
+/** 表正本的一格:每次测试新造条目,共享同一份执行日志。 */
+type ReplayCaseFactory = (log: string[]) => ReplayCase;
+
+/** 一个只记日志、返回固定输出的 step(单记录 / 块内的执行体)。 */
+function replayStep(id: string, log: string[], output: unknown) {
+  return createStep({
+    id,
+    inputSchema: anySchema,
+    outputSchema: anySchema,
+    execute: () => {
+      log.push(id);
+      return output;
+    },
+  });
+}
+
+/** `satisfies` 让七种 kind 漏格成为编译错误;`branch` 有两格(命中 / 无记录)。 */
+const REPLAY_CASES = {
+  then: [
+    {
+      label: '单条记录 = 那一步的输出',
+      make: (log: string[]): ReplayCase => ({
+        entry: { type: 'then', step: replayStep('then-step', log, { kind: 'then' }) },
+        records: { 'then-step': { kind: 'then' } },
+        tip: { kind: 'then' },
+      }),
+    },
+  ],
+  parallel: [
+    {
+      label: 'keyed 多记录',
+      make: (log: string[]): ReplayCase => ({
+        entry: {
+          type: 'parallel',
+          steps: [
+            replayStep('parallel-a', log, 'a-out'),
+            replayStep('parallel-b', log, 'b-out'),
+          ],
+        },
+        records: { 'parallel-a': 'a-out', 'parallel-b': 'b-out' },
+        tip: { 'parallel-a': 'a-out', 'parallel-b': 'b-out' },
+      }),
+    },
+  ],
+  branch: [
+    {
+      label: '已执行臂的记录',
+      make: (log: string[]): ReplayCase => ({
+        entry: {
+          type: 'branch',
+          branches: [
+            [
+              () => {
+                log.push('branch-cond-1');
+                return true;
+              },
+              replayStep('branch-arm', log, 'arm-out'),
+            ],
+            [
+              () => {
+                log.push('branch-cond-2');
+                return false;
+              },
+              replayStep('branch-skipped', log, 'skipped-out'),
+            ],
+          ],
+        },
+        records: { 'branch-arm': 'arm-out' },
+        tip: { 'branch-arm': 'arm-out' },
+      }),
+    },
+    {
+      label: '无记录 = 空对象',
+      make: (log: string[]): ReplayCase => ({
+        entry: {
+          type: 'branch',
+          branches: [
+            [
+              () => {
+                log.push('branch-cond-1');
+                return false;
+              },
+              replayStep('branch-never-a', log, 'never-a'),
+            ],
+            [
+              () => {
+                log.push('branch-cond-2');
+                return false;
+              },
+              replayStep('branch-never-b', log, 'never-b'),
+            ],
+          ],
+        },
+        records: {},
+        tip: {},
+      }),
+    },
+  ],
+  foreach: [
+    {
+      label: '迭代聚合 = 记录里的数组',
+      make: (log: string[]): ReplayCase => {
+        const step = createStep({
+          id: 'foreach-step',
+          inputSchema: anySchema,
+          outputSchema: anySchema,
+          execute: (ctx) => {
+            log.push(`foreach:${String(ctx.inputData)}`);
+            return String(ctx.inputData).toUpperCase();
+          },
+        });
+        return {
+          entry: { type: 'foreach', step, concurrency: 1 },
+          records: { 'foreach-step': ['ONE', 'TWO'] },
+          tip: ['ONE', 'TWO'],
+        };
+      },
+    },
+  ],
+  dowhile: [
+    {
+      label: '最后一次迭代输出',
+      make: (log: string[]): ReplayCase => {
+        const step = createStep({
+          id: 'loop-body',
+          inputSchema: anySchema,
+          outputSchema: anySchema,
+          execute: () => {
+            log.push('dowhile-body');
+            return 'while-out';
+          },
+        });
+        return {
+          entry: {
+            type: 'dowhile',
+            step,
+            cond: (ctx) => {
+              log.push(`dowhile-cond:${String(ctx.iterationCount)}`);
+              return ctx.iterationCount < 1;
+            },
+          },
+          records: { 'loop-body': 'while-out' },
+          tip: 'while-out',
+        };
+      },
+    },
+  ],
+  dountil: [
+    {
+      label: '最后一次迭代输出',
+      make: (log: string[]): ReplayCase => {
+        const step = createStep({
+          id: 'loop-body',
+          inputSchema: anySchema,
+          outputSchema: anySchema,
+          execute: () => {
+            log.push('dountil-body');
+            return 'until-out';
+          },
+        });
+        return {
+          entry: {
+            type: 'dountil',
+            step,
+            cond: (ctx) => {
+              log.push(`dountil-cond:${String(ctx.iterationCount)}`);
+              return ctx.iterationCount >= 1;
+            },
+          },
+          records: { 'loop-body': 'until-out' },
+          tip: 'until-out',
+        };
+      },
+    },
+  ],
+  sleep: [
+    {
+      label: '直通输入且无记录',
+      make: (log: string[]): ReplayCase => ({
+        // 前缀让 tip 区别于运行输入:直通若错取 `state.input` 就会失败。
+        preface: [
+          { type: 'then', step: replayStep('preface-step', log, { transformed: 'sleep-tip' }) },
+        ],
+        entry: {
+          type: 'sleep',
+          duration: () => {
+            log.push('sleep');
+            return 0;
+          },
+        },
+        records: { 'preface-step': { transformed: 'sleep-tip' } },
+        tip: { transformed: 'sleep-tip' },
+      }),
+    },
+  ],
+} satisfies {
+  readonly [TKind in WorkflowEntry['type']]: readonly {
+    readonly label: string;
+    readonly make: ReplayCaseFactory;
+  }[];
+};
+
+/** 表正本 → `it.each` 的行;`satisfies` 已保证七种 kind 一格不缺。 */
+const REPLAY_MATRIX = Object.entries(REPLAY_CASES).flatMap(([kind, cases]) =>
+  cases.map(({ label, make }): [string, ReplayCaseFactory] => [`${kind}:${label}`, make]),
+);
+
+describe('replay 形状:已完成条目在 resume 时按记录重建(七种 kind 矩阵)', () => {
+  it.each(REPLAY_MATRIX)('%s:resume 不重跑已完成条目,tip 由记录重建', async (label, make) => {
+    const log: string[] = [];
+    const { preface, entry, records, tip } = make(log);
+    /** 挂起 step:首跑 suspend,resume 收到 resumeData;记下每次拿到的输入。 */
+    const seen: unknown[] = [];
+    const gate = createStep({
+      id: 'gate',
+      inputSchema: anySchema,
+      outputSchema: anySchema,
+      resumeSchema: z.object({ approved: z.boolean() }),
+      execute: (ctx) => {
+        seen.push(ctx.inputData);
+        if (ctx.resumeData === undefined) ctx.suspend({ question: 'ok?' });
+        return { resumed: ctx.resumeData };
+      },
+    });
+    const run = createWorkflowRun(
+      {
+        id: `replay-${label}`,
+        inputSchema: anySchema,
+        entries: [...(preface ?? []), entry, { type: 'then', step: gate }],
+      },
+      { runId: `replay-${label}` },
+    );
+
+    const suspended = expectSuspended(await run.start({ inputData: replayInput }).result);
+    expect(suspended.stepId).toBe('gate');
+    // 记录正本:该 kind 写下的键与输出;无记录的 kind 只有挂起 step 自己的记录。
+    expect(Object.keys(suspended.stepResults).sort()).toEqual(
+      [...Object.keys(records), 'gate'].sort(),
+    );
+    for (const [stepId, output] of Object.entries(records)) {
+      expect(suspended.stepResults[stepId]).toMatchObject({ status: 'success', output });
+    }
+    const executedBeforeResume = [...log];
+
+    const outcome = expectSuccess(
+      await run.resume({ step: 'gate', resumeData: { approved: true } }),
+    );
+
+    // tip = 记录的重建:重进 step 拿到的输入与首跑一致。
+    expect(seen).toEqual([tip, tip]);
+    // 已完成的条目一条都不重跑:step / 迭代 / 条件 / sleep 时长解析都没有新调用。
+    expect(log).toEqual(executedBeforeResume);
+    expect(outcome.output).toEqual({ resumed: { approved: true } });
   });
 });

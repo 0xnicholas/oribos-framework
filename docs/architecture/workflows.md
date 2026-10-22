@@ -82,7 +82,7 @@ await run.restart({ step? })              // time-travel:截断 + 重进,见「s
 
 ## 条目拓扑与重入目标(#218)
 
-条目拓扑 = 扁平条目列表上的查询视图(`CONTEXT.md`「条目拓扑」),不新增执行结构。per-kind 静态事实——**条目拥有哪些 step、replay 形状、commit 冻结哪些数组、块内挂起携带哪种 iteration-site、循环条件在体前还是体后**——只在 `packages/core/src/workflows/entry.ts` 的 `EntryDescriptor` 表里声明一次,按七种 kind 的封闭联合键控:`satisfies` 映射让新增第八种 kind 漏行成为编译错误。执行分派仍只在 walker 的 `runEntry`(descriptor 不读 walk state、不依赖 runner);`steps(entry)` 是唯一提取函数,`entryStepIds` / `findStep` / replay / 截断 / resume 目标校验 / restart 目标全部由它派生;commit 冻结读同一行的 `ownedArrays`。
+条目拓扑 = 扁平条目列表上的查询视图(`CONTEXT.md`「条目拓扑」),不新增执行结构。per-kind 静态事实——**条目拥有哪些 step、replay 形状、commit 冻结哪些数组、块内挂起携带哪种 iteration-site、循环条件在体前还是体后**——只在 `packages/core/src/workflows/entry.ts` 的 `EntryDescriptor` 表里声明一次,按七种 kind 的封闭联合键控:`satisfies` 映射让新增第八种 kind 漏行成为编译错误。执行分派仍只在 walker 的 `runEntry`(descriptor 不读 walk state、不依赖 runner);`steps(entry)` 是唯一提取函数,`entryStepIds` / `findStep` / replay / 截断 / resume 目标校验 / restart 目标全部由它派生。replay 重建按行里的 `replayShape` 查 walker 的 `REPLAY_BUILDERS` 表(新 shape 漏行同样是编译错误,记录读取 `recordedOutput` 留在 walker),commit 冻结读同一行的 `ownedArrays`。
 
 公共面只开一个答案函数(**不导出 descriptor 代数**):
 

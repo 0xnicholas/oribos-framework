@@ -66,4 +66,6 @@
 
 **#219 复核**(2026-10-22):未知 kind 在公共 `restart` 与 `restartTargetAt` 边界以命名错误失败,错误点名 workflow id 与未知 kind;一次性编译期 probe(临时加第八变体)确认表缺行即 typecheck 失败,随后移除。
 
+**#220 复核**(2026-10-22):`replayShape` 覆盖七种 kind(`then` / `foreach` / 两种 loop 为 `single`,`parallel` 为 `parallel`,`branch` 为 `branch`,`sleep` 为 `pass`),`replayEntry` 不再自带 switch——按 shape 查 walker 的 `REPLAY_BUILDERS` 表,新 shape 漏行即 typecheck 失败(一次性 probe:临时加第五种 shape 报 TS2741,随后移除)。测试补七种 kind 的 resume 矩阵(`workflows-entry-topology.test.ts`):已完成条目不重跑,tip 与记录重建一致,`branch` 无记录仍为 `{}`。
+
 (来源:架构 review 2026-10-22 候选 05;关联 ADR-0006 / 0010 / 0018;实施 #218)

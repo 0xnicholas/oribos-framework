@@ -12,6 +12,7 @@ import type {
   DowhileEntry,
   ForeachEntry,
   ParallelEntry,
+  ReplayShape,
   SleepEntry,
   WorkflowEntry,
 } from './entry.js';
@@ -571,34 +572,50 @@ function replayEntries(state: WalkState, until: number): unknown {
   return value;
 }
 
+/**
+ * One replay shape's rebuild: it reads the snapshot's records for the steps the entry owns and
+ * returns the value the next entry receives. The record reader (`recordedOutput`) stays here — the
+ * descriptor table is data and extraction, never walk state.
+ */
+type ReplayBuilder = (state: WalkState, entry: WorkflowEntry, value: unknown) => unknown;
+
+/** One row per shape: `satisfies` makes a missing or mistyped rebuild a compile error. */
+type ReplayBuilderTable = { readonly [TShape in ReplayShape]: ReplayBuilder };
+
+/**
+ * The replay rebuilders, keyed by the shape each descriptor row declares — `replayEntry` is a
+ * lookup, not a switch: a new shape is a compile error here, and a new kind reusing a declared
+ * shape needs no walker change. `single` reads the entry's one step record; `parallel` keys every
+ * step's record; `branch` reads the first arm holding a record (definition order) and answers `{}`
+ * when there is none — no record means no condition was truthy; `pass` hands the tip straight
+ * through (a sleep owns no record).
+ */
+const REPLAY_BUILDERS = {
+  single: (state, entry) => recordedOutput(state, steps(entry, state.workflow.id)[0]!.id),
+  parallel: (state, entry) =>
+    Object.fromEntries(
+      steps(entry, state.workflow.id).map(
+        (step) => [step.id, recordedOutput(state, step.id)] as const,
+      ),
+    ),
+  branch: (state, entry) => {
+    // Records are keyed by step id, so an id reused across entries is inherently ambiguous — the
+    // same reading as `getStepResult`.
+    const executed = steps(entry, state.workflow.id).find(
+      (step) => state.stepResults[step.id] !== undefined,
+    );
+    return executed === undefined ? {} : { [executed.id]: recordedOutput(state, executed.id) };
+  },
+  pass: (_state, _entry, value) => value,
+} satisfies ReplayBuilderTable;
+
 /** One completed entry's output, reconstructed from its step records — pure bookkeeping, no execution. */
 function replayEntry(state: WalkState, entry: WorkflowEntry, value: unknown): unknown {
-  const shape = entryDescriptor(entry, state.workflow.id).replayShape;
-  switch (shape) {
-    case 'single': {
-      // then / foreach / dowhile / dountil: the block records its one step's output under its id.
-      return recordedOutput(state, steps(entry, state.workflow.id)[0]!.id);
-    }
-    case 'parallel':
-      return Object.fromEntries(
-        steps(entry, state.workflow.id).map(
-          (step) => [step.id, recordedOutput(state, step.id)] as const,
-        ),
-      );
-    case 'branch': {
-      // The executed arm is the first one with a record, in definition order; no record at all
-      // means no condition was truthy and the block produced `{}`. Records are keyed by step id, so
-      // an id reused across entries is inherently ambiguous — the same reading as `getStepResult`.
-      const executed = steps(entry, state.workflow.id).find(
-        (step) => state.stepResults[step.id] !== undefined,
-      );
-      return executed === undefined ? {} : { [executed.id]: recordedOutput(state, executed.id) };
-    }
-    case 'pass':
-      return value;
-    default:
-      return assertNever(shape, `internal: unhandled workflow replay shape "${String(shape)}"`);
-  }
+  return REPLAY_BUILDERS[entryDescriptor(entry, state.workflow.id).replayShape](
+    state,
+    entry,
+    value,
+  );
 }
 
 /** The recorded output of a completed step; a snapshot that misses it cannot be replayed. */

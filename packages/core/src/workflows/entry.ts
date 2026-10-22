@@ -104,11 +104,11 @@ export type WorkflowEntry =
   | SleepEntry;
 
 /**
- * How replay rebuilds one entry's recorded output: `single` = the one step's record, `parallel` =
- * a keyed object of every step's record, `branch` = a keyed object of the arm whose record exists,
- * `pass` = the incoming value passes through (a sleep owns no step).
+ * The discriminant of the walker's replay-builder table: the rebuild itself (which records a shape
+ * reads and what it returns) lives there, beside the record reader. Every shape needs a rebuilder
+ * (a new one is a compile error); every descriptor row picks one of these.
  */
-type ReplayShape = 'single' | 'parallel' | 'branch' | 'pass';
+export type ReplayShape = 'single' | 'parallel' | 'branch' | 'pass';
 
 /**
  * One row of the per-kind table: every static fact about an entry kind, declared once. Execution —
@@ -118,7 +118,7 @@ type ReplayShape = 'single' | 'parallel' | 'branch' | 'pass';
 export interface EntryDescriptor<TEntry extends WorkflowEntry> {
   /** The steps the entry owns, in definition order — the record keys the entry can write. */
   readonly steps: (entry: TEntry) => readonly Step[];
-  /** How `replayEntry` rebuilds the entry's output from the records. */
+  /** The replay shape the walker's rebuilders are keyed by — declared here, executed there. */
   readonly replayShape: ReplayShape;
   /** The arrays commit freezes, nested ones before the array that holds them. */
   readonly ownedArrays: (entry: TEntry) => readonly (readonly unknown[])[];
