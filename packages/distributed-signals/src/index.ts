@@ -49,7 +49,6 @@ import type {
 import type { Chunk, ModelMessage } from '@oribos/core/model';
 import type { SignalPayload, Signals } from '@oribos/core/signals';
 import type { StandardSchema, StandardSchemaV1 } from '@oribos/core/tools';
-import { createInMemoryLeaseStore, createRedisLease } from '@oribos/lease';
 import type { Lease, LeaseHandle } from '@oribos/lease';
 
 // ── The Lease port ──────────────────────────────────────────────────────────────────────────────
@@ -60,7 +59,7 @@ export type {
   RedisLeaseClient,
   RedisLeaseConfig,
 } from '@oribos/lease';
-export { createInMemoryLeaseStore, createRedisLease };
+export { createInMemoryLeaseStore, createRedisLease } from '@oribos/lease';
 
 /**
  * The package's lease role: the thread's active-run ownership, the idle-wake race's arbiter.
