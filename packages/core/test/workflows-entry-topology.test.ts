@@ -20,7 +20,7 @@ import { expectSuccess, expectSuspended } from './helpers/assertions.js';
  * - replayShape → 本文件的七种 kind resume 矩阵(#220:已完成条目不重跑,tip 由记录重建);
  * - iterationSiteKind → `workflows-suspend-resume.test.ts`(块内挂起、resume、site 不匹配);
  * - loopTiming → `workflows-loop-wait.test.ts`(dowhile 体前 / dountil 体后);
- * - ownedArrays / freeze → 本文件 commit 冻结测试。
+ * - ownedArrays / freeze → 本文件的七种 kind 冻结面矩阵(#221)。
  */
 
 const anySchema = z.unknown();
@@ -220,32 +220,160 @@ describe('public restart:未知 kind 的命名错误', () => {
   );
 });
 
-describe('commit:descriptor 驱动的冻结', () => {
-  it('parallel / branch 的块数组按 ownedArrays 冻结;单 step 与 sleep 只冻结条目', () => {
-    const workflow = createWorkflow({
-      id: 'frozen',
-      inputSchema: z.object({}),
-      outputSchema: z.object({}),
-    })
-      .parallel([stepFor('p1'), stepFor('p2')])
-      .branch([[() => true, stepFor('b1')]])
-      .then(stepFor('t1'))
-      .sleep(0)
-      .commit();
-    const [parallel, branch] = workflow.entries;
+/**
+ * commit 冻结面(候选 05 第三片,#221):表里「该 kind 拥有哪些数组」那一列是唯一声明——
+ * `parallel` 的 steps 数组、`branch` 的 branches 数组与每个 pair,其余五种 kind 无自有数组;
+ * `freezeEntry` 留在 commit 路径,只按这一列冻结,再冻结条目本体。接缝 = builder + `commit()`,
+ * 测试不 import descriptor:每格用条目上的路径声明自己那一格的正本,`satisfies` 让第八种 kind
+ * 漏格成为编译错误。「commit 幂等」与「commit 后仍不可 push」的既有钉子不重复落在这里,
+ * 仍由 `workflows-surface.test.ts` 钉住(再次 commit 返回同一份冻结定义 / 算子调用报 committed)。
+ */
 
-    expect(Object.isFrozen(parallel)).toBe(true);
-    expect(parallel?.type).toBe('parallel');
-    if (parallel?.type !== 'parallel') throw new Error('expected a parallel entry');
-    expect(Object.isFrozen(parallel.steps)).toBe(true);
+interface FreezeCase {
+  /** 经 builder + `commit()` 造出该 kind 的一个条目;顺带交出作者交给 builder 的数组。 */
+  readonly commit: (workflowId: string) => {
+    readonly entry: WorkflowEntry;
+    /** 作者写进 builder 的数组:条目持有的是副本,commit 不得冻结它们。 */
+    readonly authored: readonly (readonly unknown[])[];
+  };
+  /** 该 kind 拥有的数组:条目上的路径,嵌套的先于持有它的数组;无自有数组的 kind 为空。 */
+  readonly ownedPaths: readonly string[];
+}
 
-    expect(Object.isFrozen(branch)).toBe(true);
-    expect(branch?.type).toBe('branch');
-    if (branch?.type !== 'branch') throw new Error('expected a branch entry');
-    expect(Object.isFrozen(branch.branches)).toBe(true);
-    expect(Object.isFrozen(branch.branches[0])).toBe(true);
+/** 只声明 id 与 IO 形状的空 builder:每格从它起手,冻结只在 `commit()` 里发生。 */
+function emptyBuilder(workflowId: string) {
+  return createWorkflow({ id: workflowId, inputSchema: anySchema, outputSchema: anySchema });
+}
 
-    for (const entry of workflow.entries) expect(Object.isFrozen(entry)).toBe(true);
+/** 断言定义刚好一个条目并交回它——冻结面按 kind 一格一格看。 */
+function onlyEntry(
+  workflow: { readonly entries: readonly WorkflowEntry[] },
+  kind: WorkflowEntry['type'],
+): WorkflowEntry {
+  expect(workflow.entries).toHaveLength(1);
+  const [entry] = workflow.entries;
+  if (entry?.type !== kind) throw new Error(`expected a ${kind} entry, got ${String(entry?.type)}`);
+  return entry;
+}
+
+/** 按路径取条目上的数组(`steps` / `branches.0`):矩阵用同一条路径声明拥有的数组。 */
+function arrayAt(entry: WorkflowEntry, path: string): readonly unknown[] {
+  let value: unknown = entry;
+  for (const key of path.split('.')) {
+    value = (value as Record<string, unknown> | undefined)?.[key];
+  }
+  if (!Array.isArray(value)) throw new Error(`no array at "${path}"`);
+  return value;
+}
+
+/**
+ * 条目可达的数组:条目属性上的数组,加上这些数组元素里的数组(`branch` 的 pair)。
+ * 冻结面只在条目这一层可达——表里没声明的数组不在这里,也就不该被冻。
+ */
+function arraysInEntry(entry: WorkflowEntry): readonly (readonly unknown[])[] {
+  const found: (readonly unknown[])[] = [];
+  const visit = (value: unknown): void => {
+    if (!Array.isArray(value) || found.includes(value)) return;
+    found.push(value);
+    for (const item of value) visit(item);
+  };
+  for (const value of Object.values(entry)) visit(value);
+  return found;
+}
+
+/**
+ * 七种 kind 的冻结面正本:`satisfies` 让「新增第八种 kind 却漏了格子」成为编译错误。
+ * 路径是测试自己的声明(条目没写 `step` 属性的 `sleep` 也算一格空),不从 descriptor 派生。
+ * 这里不复用 `ENTRY_CASES`:那张表手搓条目,而冻结只发生在 builder + `commit()` 这条路上,
+ * 且 `authored` 要留着作者交进来的数组身份。
+ */
+const FREEZE_CASES = {
+  then: {
+    commit: (workflowId) => ({
+      entry: onlyEntry(emptyBuilder(workflowId).then(stepFor('then-step')).commit(), 'then'),
+      authored: [],
+    }),
+    ownedPaths: [],
+  },
+  parallel: {
+    commit: (workflowId) => {
+      const authoredSteps = [stepFor('parallel-a'), stepFor('parallel-b')];
+      return {
+        entry: onlyEntry(emptyBuilder(workflowId).parallel(authoredSteps).commit(), 'parallel'),
+        authored: [authoredSteps],
+      };
+    },
+    ownedPaths: ['steps'],
+  },
+  branch: {
+    commit: (workflowId) => {
+      const authoredPairs = [
+        [() => true, stepFor('branch-a')],
+        [() => false, stepFor('branch-b')],
+      ] as const;
+      return {
+        entry: onlyEntry(emptyBuilder(workflowId).branch(authoredPairs).commit(), 'branch'),
+        authored: [authoredPairs, authoredPairs[0], authoredPairs[1]],
+      };
+    },
+    ownedPaths: ['branches', 'branches.0', 'branches.1'],
+  },
+  foreach: {
+    commit: (workflowId) => ({
+      entry: onlyEntry(
+        emptyBuilder(workflowId).foreach(stepFor('foreach-step')).commit(),
+        'foreach',
+      ),
+      authored: [],
+    }),
+    ownedPaths: [],
+  },
+  dowhile: {
+    commit: (workflowId) => ({
+      entry: onlyEntry(
+        emptyBuilder(workflowId).dowhile(stepFor('dowhile-step'), () => false).commit(),
+        'dowhile',
+      ),
+      authored: [],
+    }),
+    ownedPaths: [],
+  },
+  dountil: {
+    commit: (workflowId) => ({
+      entry: onlyEntry(
+        emptyBuilder(workflowId).dountil(stepFor('dountil-step'), () => true).commit(),
+        'dountil',
+      ),
+      authored: [],
+    }),
+    ownedPaths: [],
+  },
+  sleep: {
+    commit: (workflowId) => ({
+      entry: onlyEntry(emptyBuilder(workflowId).sleep(0).commit(), 'sleep'),
+      authored: [],
+    }),
+    ownedPaths: [],
+  },
+} satisfies { readonly [TKind in WorkflowEntry['type']]: FreezeCase };
+
+/** 表正本 → `it.each` 的行;`satisfies` 已保证七种 kind 一格不缺。 */
+const FREEZE_MATRIX = Object.entries(FREEZE_CASES);
+
+describe('commit:七种 kind 的冻结面矩阵', () => {
+  it.each(FREEZE_MATRIX)('%s:条目本体与该 kind 拥有的数组冻结,不多冻一格', (kind, testCase) => {
+    const { entry, authored } = testCase.commit(`freeze-${kind}`);
+    expect(entry.type).toBe(kind);
+    expect(Object.isFrozen(entry)).toBe(true);
+
+    const owned = testCase.ownedPaths.map((path) => arrayAt(entry, path));
+    for (const array of owned) expect(Object.isFrozen(array)).toBe(true);
+
+    // 「不多冻」的第一半:条目可达的数组集合与声明的冻结面相等——多声明的路径会在这里找不到
+    // 数组,条目新增了却没声明的数组则让数量对不上。第二半是作者交来的数组(条目持有的是副本)
+    // 也必须可写:builder 的复制边界一破,这一格就红。
+    expect(arraysInEntry(entry)).toHaveLength(owned.length);
+    for (const array of authored) expect(Object.isFrozen(array)).toBe(false);
   });
 });
 

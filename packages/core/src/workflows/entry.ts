@@ -120,7 +120,11 @@ export interface EntryDescriptor<TEntry extends WorkflowEntry> {
   readonly steps: (entry: TEntry) => readonly Step[];
   /** The replay shape the walker's rebuilders are keyed by — declared here, executed there. */
   readonly replayShape: ReplayShape;
-  /** The arrays commit freezes, nested ones before the array that holds them. */
+  /**
+   * The arrays commit freezes, nested ones before the array that holds them: `parallel`'s steps
+   * array, `branch`'s branches array and each authored pair — nothing for the other five kinds
+   * (`then` / `foreach` / `dowhile` / `dountil` / `sleep` own no array of their own).
+   */
   readonly ownedArrays: (entry: TEntry) => readonly (readonly unknown[])[];
   /** The iteration site a suspension inside this kind carries; absent for leaf kinds. */
   readonly iterationSiteKind: WorkflowIterationSite['kind'] | undefined;

@@ -282,7 +282,12 @@ function resolveConcurrency(workflowId: string, concurrency: number | undefined)
   return concurrency;
 }
 
-/** Freezes one entry and the arrays its descriptor owns, so a committed definition cannot be mutated. */
+/**
+ * Freezes one entry and the arrays its descriptor row owns (`ownedArrays`: a `parallel`'s steps, a
+ * `branch`'s branches and each pair, nothing for the kinds that own no array), nested ones before
+ * the array holding them, then the entry itself — a committed definition cannot be mutated. Which
+ * arrays a kind owns is the table's fact; the freezing itself stays here on the commit path.
+ */
 function freezeEntry(entry: WorkflowEntry, workflowId: string): void {
   for (const owned of entryDescriptor(entry, workflowId).ownedArrays(entry)) Object.freeze(owned);
   Object.freeze(entry);

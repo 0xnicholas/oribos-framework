@@ -68,4 +68,6 @@
 
 **#220 复核**(2026-10-22):`replayShape` 覆盖七种 kind(`then` / `foreach` / 两种 loop 为 `single`,`parallel` 为 `parallel`,`branch` 为 `branch`,`sleep` 为 `pass`),`replayEntry` 不再自带 switch——按 shape 查 walker 的 `REPLAY_BUILDERS` 表,新 shape 漏行即 typecheck 失败(一次性 probe:临时加第五种 shape 报 TS2741,随后移除)。测试补七种 kind 的 resume 矩阵(`workflows-entry-topology.test.ts`):已完成条目不重跑,tip 与记录重建一致,`branch` 无记录仍为 `{}`。
 
+**#221 复核**(2026-10-22):`ownedArrays` 覆盖七种 kind——`parallel` → 自己的 steps 数组,`branch` → 每个 pair 再 branches 数组(嵌套的先于持有它的数组),`then` / `foreach` / `dowhile` / `dountil` / `sleep` → 无自有数组;`freezeEntry` 留在 commit 路径,只做「按这一列冻结,再冻结条目本体」。测试补七种 kind 的冻结面矩阵(`workflows-entry-topology.test.ts`,`satisfies` 表钉住漏格):每格断言条目本体冻结、声明的数组逐路径冻结、表里没声明的数组与作者交给 builder 的数组都保持可写;commit 幂等与「commit 后仍不可 push」的既有钉子留在 `workflows-surface.test.ts`。probe(逐条改坏 → 对应格变红 → 恢复):去掉 `branch` 的 pair 声明、去掉 `parallel` 的 steps 声明、拆掉 builder 的 parallel steps 复制、拆掉 branch 的 pair 复制。
+
 (来源:架构 review 2026-10-22 候选 05;关联 ADR-0006 / 0010 / 0018;实施 #218)
