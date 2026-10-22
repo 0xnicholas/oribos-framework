@@ -37,4 +37,8 @@
 - `@oribos/lease` 是叶子包,不是能力包;用户不直接安装;`packages/background-tasks/README.md` 与 `docs/architecture/README.md` 的包清单在实施时更新。
 - 复核条件:两个域的续约/过期语义分叉、第三个消费者需要 TTL/keeper、或出现第二个「有状态但无身份语义」的共享件时,重开本裁决。
 
+## 实施状态
+
+**已实施**(2026-10-20 `0fe63d7`;2026-10-22 #213 收口)。`@oribos/lease` 公共叶子包已落地,README / LICENSE / `byte-budget` / export surface 齐全,零声明运行时依赖故无 `deps-budget` 基线需求(沿脚本「零依赖免基线」语义);npm 名位 `@oribos/lease` 未占用;两个消费者以 `dependencies` 依赖并保留冻结公共名(`SignalLease` / `TaskLease` 为 `Lease` 别名);叶子判词放宽已进 `check-deps-budget` 闸门。仓库中无重复 lease 实现或契约测试——机制与契约测试只在 `packages/lease`,`distributed-signals` / `background-tasks` 只保留各自集成测试(唤醒竞态 / `adopt()` 重跑)。`pnpm verify`、`pnpm check:deps-budget`、`pnpm check:examples` 全绿(外部漂移基线吸收见 ADR-0015 2026-10-22 修订记)。
+
 (来源:架构 review 2026-10-20 候选 03;关联 #187 / #190 / #193;实施 #206)

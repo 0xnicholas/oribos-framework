@@ -2,8 +2,8 @@
   "metric": "npm-install-closure-packages-and-unpacked-bytes",
   "dependencies": {
     "inngest": {
-      "packages": 231,
-      "bytes": 70927569
+      "packages": 308,
+      "bytes": 103429873
     }
   }
 }

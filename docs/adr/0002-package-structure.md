@@ -25,5 +25,6 @@ pnpm monorepo。**核心单包**以子路径导出各子系统入口(如 `core/a
 
 - **修订(叶子包依赖边,#193,2026-10-14)**:「能力包之间默认不建依赖边」立首个例外——**叶子包**:运行时 `@oribos/*` 依赖仅 peer core、无状态纯件的包,用户永不直接安装;能力包可以 `dependencies`(`workspace:^`,发布物锁步 `^0.x`)依赖叶子包,不得走 peer。依据 = [设计:OTel bridge 映射复用的依赖边形状](https://github.com/0xnicholas/oribos-framework/issues/193):OTel bridge(CUT-OBS2)须复用 `@oribos/otlp` 的 semconv 映射,而整包依赖顶撞「不装不付」(exporter 闭包 ≈19.3 MB),故映射纯件(`mapping` / `messages` / `values`)抽叶为 `@oribos/semconv`(唯一外部依赖 `@opentelemetry/api`),otlp 与 bridge 各持一条 `dependencies` 边。`check-deps-budget.mjs` 的 workspace 禁边硬错误按本判词放行(读目标包 manifest 验谓词);「复用」按字面约束裁(单一真相源),复制 + 一致性测试方案被否。
 - **修订(叶子判词放宽,2026-10-20,ADR-0020)**:叶子包谓词由「运行时 `@oribos/*` 依赖仅 peer core」放宽为「零 `@oribos/*` 运行时依赖,或仅 peer core」;「无状态纯件」措辞改为「无模块级状态、无 core 身份语义的共享件」;`private: true` 的包不得作叶子。首个新实例 = `@oribos/lease`(Lease 机制共享包,ADR-0020;实施 #206)。
+- **修订(Lease 抽取实施完成,2026-10-22,#213)**:ADR-0020 已落地(2026-10-20 `0fe63d7`)——`@oribos/lease` 公共叶子包入列;`@oribos/distributed-signals` / `@oribos/background-tasks` 以 `dependencies` 依赖并保留冻结公共名。实施状态见 ADR-0020「实施状态」;上条 2026-10-20 修订的叶子判词不变。
 
 (来源:wayfinder ticket #8)
