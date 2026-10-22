@@ -51,9 +51,9 @@ distributed.sendMessage({ thread, resource }, 'hi');         // active here = in
   continues that trace (the sender as remote parent). A value that fails to parse degrades to a
   fresh trace — no added failure surface. v1 senders do not fill the field (the send signatures
   are frozen and the wrapper holds no tracer); the wire format carries it for receivers.
-- **Structural-subset Redis adapters.** `createRedisPubSub(client)` calls `subscribe` /
+- **Structural-subset Redis adapters.** `createRedisPubSub({ client })` calls `subscribe` /
   `unsubscribe` / `publish` (listener receives `(channel, message)` — `ioredis` matches as-is);
-  `createRedisLease(client)` calls `set(key, value, 'PX', ttlMs, 'NX')` and `eval` with the
+  `createRedisLease({ client })` calls `set(key, token, 'PX', ttlMs, 'NX')` and `eval` with the
   token-guarded renew/release scripts. Pass your client, keep the dependency yours.
 
 ## The documented windows

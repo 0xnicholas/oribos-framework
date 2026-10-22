@@ -38,7 +38,7 @@ await tasks.adopt(); // the orphan sweep: rows still running whose lease is free
   with `{ token, renew, release }` — the shared mechanism from the zero-external-dependency
   [`@oribos/lease`](https://www.npmjs.com/package/@oribos/lease) leaf package (ADR-0020),
   re-exported here as `TaskLease`; `@oribos/distributed-signals`' `SignalLease` is the same
-  port. `createInMemoryLeaseStore()` is the default; `createRedisLease(client)` rides the
+  port. `createInMemoryLeaseStore()` is the default; `createRedisLease({ client })` rides the
   `set(NX/PX)` / `eval` structural subset.
 - **The settle.** `done` (`result`) or `failed` (`error` message) is written back, the lease is
   released, and `onSettle(record)` is awaited — the join to your own reactions, the phase-one

@@ -138,7 +138,7 @@ export interface BackgroundTasksConfig {
   readonly store?: TaskStore | undefined;
   /**
    * Who owns a row's execution. Default [`createInMemoryLeaseStore`] — single-process, zero
-   * config; multi-instance deployments pass `createRedisLease(client)` (or any `TaskLease`).
+   * config; multi-instance deployments pass `createRedisLease({ client })` (or any `TaskLease`).
    */
   readonly lease?: TaskLease | undefined;
   /**

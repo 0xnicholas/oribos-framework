@@ -4,7 +4,7 @@ import type { RedisPubSubClient } from '@oribos/distributed-signals';
 
 /**
  * SignalPubSub port(#187 冻结表面):at-most-once、回调式——`publish(topic, payload: string)` /
- * `subscribe(topics, handler): Promise<Unsubscribe>`。内存默认零依赖;`createRedisPubSub(client)`
+ * `subscribe(topics, handler): Promise<Unsubscribe>`。内存默认零依赖;`createRedisPubSub({ client })`
  * 走 `subscribe` / `publish` 结构子集(客户端随调用方)。话题是裸字符串——频道命名
  * (`<prefix>oribos:signals:<threadId>`)是包装组合的事,不是 port 的事。
  */
