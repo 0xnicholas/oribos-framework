@@ -32,8 +32,12 @@
 - 转发骨架与两个 helper twin 保留;这是轻量轴下的有意接受项,不是遗漏。
 - `MemoryStore` 未来新增可选方法时,rag/OM 的构建失败,直到两个 wrapper 各自决定转发或覆写;不会再静默丢能力。
 - `listMessages` 的 wrapper 口径需要在实施时写进 `packages/core/src/memory/types.ts`、`docs/architecture/storage.md`、`docs/architecture/memory.md`;本 ADR 只记裁决。
-- 不新增包、不新增依赖边、不改 core 导出面、不改运行时行为。
+- 不新增包、不新增依赖边、不改 core 导出面。实施时唯一的呈现层修正见下方修订。
 - `CONTEXT.md` 增加「存储包装」词条;顺手修正「v1 两个存储 port」的陈旧计数(实际四个)。
 - 复核条件:第三个 wrapper/adapter 出现,或 `MemoryStore` 新增第一个可选方法,或两个 wrapper 的策略开始收敛到可共享的运行时骨架。
+
+## 修订
+
+- **修订(实施 #207,2026-10-20)**:「不改运行时行为」按 port 默认真值补记。`ListMessagesQuery.order` 的缺省是 `'desc'`;两个包装原先把缺省当作升序呈现——RAG 的合并结果按升序返回(基础窗口相对顺序与内层默认相反),OM 的派生块前置。实施时一并修正为遵循 port 默认:缺省 / `'desc'` 下 RAG 合并结果降序、OM 派生块在数组尾(`'asc'` 时在数组首)。这是一次呈现层修正,不改变消息集合、策略、公开类型或 `Memory.recall` 的行为(后者恒传 `order`);其余契约与决定不变。
 
 (来源:架构 review 2026-10-20 候选 04;规范 #214;实施 #207)
