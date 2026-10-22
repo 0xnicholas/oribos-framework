@@ -20,5 +20,6 @@
 - 发布面为纯 ESM:Node 22.12 以下不可用;0.x 期若出现真实需求再评估双构建。
 - 工具链版本由根 `package.json` + `pnpm-lock.yaml` 锁定(pnpm 由 `packageManager` 字段固定);dev 工具提升到工作区根,包内不重复声明。
 - **修订(M5 SQLite 参考 adapter 设计冻结,2026-09-30)**:engines 基线自 `>=22.12.0` 抬至 **`>=22.13.0`**(root `engines` / core 与能力包清单 / CI `node-version` 同步),依据 [决策:SQLite 参考 adapter](https://github.com/0xnicholas/balsa-framework/issues/76):`node:sqlite` 在 22.12 需 `--experimental-sqlite`、22.13 起免 flag,而 22.13 ≥ 22.12 使 `require(esm)` 下限性质不变;上文标题与正文的「Node ≥22.12 基线」以本修订为准,双构建仍不做。
+- **修订(#225 测试稳定性,2026-10-22)**:收集面不变(工作区根一份配置 + `packages/*/test/**/*.test.ts`),但根 `test` 块改用 `test.projects` 分两档超时预算:`packages/mcp-client` 每例都真起 in-process HTTP 服务 + 走完整 SDK 握手/分页,是全仓最重的一档,给 `testTimeout: 15000`;其余包显式钉住 Vitest 默认的 5000ms——慢用例照旧暴露,不靠抬高全仓预算掩盖。依据:并发峰值上约 25 个 worker 同时在跑时,I/O 饥饿会把平时 170–250ms 的用例拖过 5s(5 次整跑里 1 次 5 文件 / 13 例超时,失败例逻辑正确、只是没跑完);并发加压不复现,唯一相关变量是紧跟一次冷 `build`。包内仍不各自配 runner:分组写在根配置里,`vitest run` 仍是唯一入口,`--project mcp-client` 可单跑重的一档。
 
 (来源:M1-01 ticket #22)

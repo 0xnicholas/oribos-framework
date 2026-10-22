@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 const coreSource = fileURLToPath(new URL('./packages/core/src', import.meta.url));
 const mcpServerSource = fileURLToPath(new URL('./packages/mcp-server/src', import.meta.url));
@@ -28,6 +28,10 @@ const observationalMemorySource = fileURLToPath(
 const evalsSource = fileURLToPath(new URL('./packages/evals/src', import.meta.url));
 const supervisorSource = fileURLToPath(new URL('./packages/supervisor/src', import.meta.url));
 const testingSource = fileURLToPath(new URL('./packages/testing/src', import.meta.url));
+
+// 收集面(ADR-0014):工作区根一份配置,`packages/*/test/**/*.test.ts` 是唯一入口。
+const testFiles = 'packages/*/test/**/*.test.ts';
+const mcpClientTestFiles = 'packages/mcp-client/test/**/*.test.ts';
 
 export default defineConfig({
   // 测试走 `@oribos/core/*` 与 `@oribos/mcp-server` / `@oribos/mcp-client` 公开入口,别名指向源码:不依赖构建,接缝与用户看到的一致。
@@ -60,6 +64,28 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts'],
+    // 收集面不变(ADR-0014):分两组只为按包分档预算——mcp-client 每例都真起 in-process HTTP 服务
+    // + 走完整 SDK 握手/分页,是全仓最重的一档,单独给 15s(#225 偶发超时);其余包钉住 Vitest
+    // 默认的 5s,慢用例照旧暴露。`--project mcp-client` 可单跑重的一档。
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'default',
+          include: [testFiles],
+          // 追加而非替换 Vitest 的默认 exclude(node_modules / .git 照旧挡住)。
+          exclude: [...configDefaults.exclude, mcpClientTestFiles],
+          testTimeout: 5_000,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'mcp-client',
+          include: [mcpClientTestFiles],
+          testTimeout: 15_000,
+        },
+      },
+    ],
   },
 });
