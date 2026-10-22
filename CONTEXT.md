@@ -113,7 +113,7 @@ workflow 执行器迭代的单元:一个 `then` step、一个拥有若干 step �
 _Avoid_: 把条目等同于 step(step 是条目拥有或不拥有的执行节点)、把扁平条目列表当图执行器
 
 **条目拓扑 (Entry topology)**:
-条目之间的关系事实:条目拥有哪些 step、step 属于哪个条目、重入位置对应哪个条目、从某位置继续应回到哪个 step;它是扁平条目列表上的查询视图,不新增执行结构。per-kind 事实由 `entry.ts` 的 `EntryDescriptor` 表单源声明(2026-10-22 #218),公共出口只有 `restartTargetAt`。
+条目之间的关系事实:条目拥有哪些 step、step 属于哪个条目、重入位置对应哪个条目、从某位置继续应回到哪个 step;它是扁平条目列表上的查询视图,不新增执行结构(执行仍是 walker 的 for 循环)。per-kind 事实(拥有哪些 step、replay 形状、commit 冻结哪些数组、挂起 site kind、循环检查时机)按七种 kind 的封闭联合声明一次(2026-10-22 #218),公共出口只有 `restartTargetAt`。
 _Avoid_: 把拓扑当 DAG/邻接表、把「条目图」当执行结构
 
 **快照 (Snapshot)**:
@@ -121,11 +121,11 @@ run 的 JSON 化状态,两种:workflow 域 = step 边界的 stepResults + 位置
 _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
 
 **重入位置 (Position)**:
-快照中指向扁平条目列表的下标,resume / restart / replay 由它决定从哪一条目重入;读法随快照 status 变——挂起 = 挂起条目,running = 下一个未执行条目,success = 条目数(列表末尾)。块内挂起另携迭代现场,不建多路径模型。
+快照中指向扁平条目列表的下标,resume / restart / replay 由它决定从哪一条目重入;读法随快照 status 变——挂起 = 挂起条目本身,running = 下一个未执行条目(`position + 1`),success = 条目数(末条之后的越界一)。块内挂起另携迭代现场,不建多路径模型。
 _Avoid_: 把 position 当 step id 或条目 id、把不同 status 的读法混用
 
 **重入目标 (Restart target)**:
-外部 runner 从 running 快照恢复时,由重入位置反查出的应重启 step id:没有可重入条目时为空,调用方从头重启;重复 step id 时第一个包含它的条目获胜——重入宁可多执行,不会少执行。公共出口 = `restartTargetAt`(2026-10-22 #218);未知 kind 抛错,错误点名 workflow id 与未知 kind,不静默降级。
+外部 durable runner 由快照的重入位置反查出的应重启 step id:向列表头找最近的拥有 step 的条目,取它的首个 step(定义序);没有可重入条目时为空,调用方从头重启——是合法路径,不是失败。公共出口 = `restartTargetAt`(2026-10-22 #218):钳制越界位置、不读快照 status(读法属调用方)、不解析重复 step id(public `restart` 按第一个包含该 id 的条目重进——重入宁可多执行,不会少执行);未知 kind 抛错,错误点名未知 kind(workflow id 仅在调用方提供时点名),不静默降级。
 _Avoid_: 把重入目标当条目下标或条目 id、把"无目标"当失败(它是合法的从头重启)
 
 **迭代现场 (Iteration site)**:

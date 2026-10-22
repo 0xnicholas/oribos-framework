@@ -9,7 +9,8 @@
 > 修订(#54):块内挂起落地——四类块体内 `suspend()` 真挂起,迭代现场以可选 `iterationSite?` 字段进快照(additive,旧快照无此字段 = 顶层挂起的旧形状);resume 按 site 重进块内:parallel / branch 按**记录回放**完成臂(无 success 记录的臂重跑,挂起臂各落 suspended 记录,resume 命名谁谁收 resumeData)、foreach 记已收集前缀与挂起索引(洞重跑)、循环记已完成迭代数与挂起迭代的输入(dowhile 重进跳过首次前置检查);块是**满同步点**——挂起或失败前等在飞执行落定,挂起优先于同窗兄弟失败;事件/记录/快照同读「块内挂起 = suspended」。实施期补钉:foreach/parallel 的失败也等在飞落定(旧 Promise.all 的“失败即离场、在飞脱缰”废止)。
 > 修订(#119):resume 并发去重的键域钉为快照的持久化身份 **(store, runId)**——机制收进 resume-lock 模块(`WeakMap<store, Map<runId, Promise>>`,join-in-flight、settle 即删),workflows 与 durable-agent 各持一个模块级注册表实例(结构性跨子系统隔离);两个 store 上的同 runId 各自独立,durable 侧跨 wrapper 实例也去重。
 > 修订(#202):resume-lock 机制经 `@oribos/core/agent-run` 的 `createResumeLock` 公开给能力包(ADR-0018);注册表仍由每个消费者自持,`(store, runId)` join-in-flight、settle 即删的语义不变。
-> 修订(#218):条目拓扑收口——per-kind 静态事实(step 归属 / replay 形状 / commit 冻结数组 / iteration-site kind / 循环检查时机)由 `entry.ts` 的 `EntryDescriptor` 表单源声明,`steps(entry)` 是唯一提取函数;公共面只开 `restartTargetAt(workflow, position)`(钳制 / 向后扫描跳 sleep / 首个 step id / `undefined` = 从头重启 / 未知 kind 抛错并点名 workflow id 与未知 kind / 不读 status)。快照格式与 public `restart` 的 step-id 入参不变(ADR-0022)。
+> 修订(#218):条目拓扑收口——per-kind 静态事实(step 归属 / replay 形状 / commit 冻结数组 / iteration-site kind / 循环检查时机)由 `entry.ts` 的 `EntryDescriptor` 表单源声明,`steps(entry)` 是唯一提取函数;公共面只开 `restartTargetAt(workflow, position)`(钳制 / 向后扫描跳 sleep / 首个 step id / `undefined` = 从头重启 / 未知 kind 抛错并点名未知 kind(workflow id 仅在调用方提供时点名) / 不读 status)。快照格式与 public `restart` 的 step-id 入参不变(ADR-0022)。
+> 修订(#224):条目拓扑文档面收口——本节补三块视图:七种 kind 的 per-kind 声明表(六列)、`position` 的三种 status 读法表(suspended / running / success)、`restartTargetAt` 的 first-match 三条。文档只把已落地的实现写成可读的形状,代码零改动:无新依赖边、无快照格式变化、公共导出面不变。
 
 ## 定位
 
@@ -80,9 +81,41 @@ await run.restart({ step? })              // time-travel:截断 + 重进,见「s
 | `.dowhile` / `.dountil(step, cond)` | 循环至条件不满足/满足;dowhile 迭代**前**求值(可 0 次迭代)、dountil 迭代**后**求值(至少 1 次);输出 = 最后一次迭代的输出 | 透传 |
 | `.sleep(ms\|fn)` | 进程内 setTimeout + AbortSignal,**非 durable**(进程死即丢);fn 动态算时长(收 `RequestContext`) | — |
 
-## 条目拓扑与重入目标(#218)
+## 条目拓扑与重入目标(#218 / #224)
 
-条目拓扑 = 扁平条目列表上的查询视图(`CONTEXT.md`「条目拓扑」),不新增执行结构。per-kind 静态事实——**条目拥有哪些 step、replay 形状、commit 冻结哪些数组、块内挂起携带哪种 iteration-site、循环条件在体前还是体后**——只在 `packages/core/src/workflows/entry.ts` 的 `EntryDescriptor` 表里声明一次,按七种 kind 的封闭联合键控:`satisfies` 映射让新增第八种 kind 漏行成为编译错误。执行分派仍只在 walker 的 `runEntry`(descriptor 不读 walk state、不依赖 runner);`steps(entry)` 是唯一提取函数,`entryStepIds` / `findStep` / replay / 截断 / resume 目标校验 / restart 目标全部由它派生。replay 重建按行里的 `replayShape` 查 walker 的 `REPLAY_BUILDERS` 表(新 shape 漏行同样是编译错误,记录读取 `recordedOutput` 留在 walker),commit 冻结读同一行的 `ownedArrays`(`parallel` 的 steps 数组、`branch` 的 branches 数组与每个 pair,其余五种 kind 无自有数组)。块内挂起携带的 site kind 与循环条件的检查时机同样只读表:`checkIterationSite` 按 `iterationSiteKind` 比较(`parallel` / `branch` / `foreach` 各对应自己,两种 loop 都是 `loop`,`then` / `sleep` 为空),`runLoop` 按 `loopTiming` 决定体前 / 体后(`dowhile` / `dountil`,其余五 kind 为空)。七种 kind 的冻结面、挂起 site 与不匹配失败、两种 loop 的时机差异分别由 `workflows-entry-topology.test.ts` 的表驱动矩阵钉住。
+条目拓扑 = 扁平条目列表上的查询视图(`CONTEXT.md`「条目拓扑」),不新增执行结构:条目拥有哪些 step、step 属于哪个条目、重入位置对应哪个条目、从某位置继续回到哪个 step——全部是对同一条 `readonly WorkflowEntry[]` 的查询,执行结构仍是 walker 的 `for` 循环。七种 kind 由 ADR-0006 封闭。
+
+### per-kind 声明表(#218)
+
+per-kind 静态事实——**条目拥有哪些 step、replay 形状、commit 冻结哪些数组、块内挂起携带哪种 iteration-site、循环条件在体前还是体后**——只在 `packages/core/src/workflows/entry.ts` 的 `EntryDescriptor` 表里声明一次,按七种 kind 的封闭联合键控:`satisfies` 映射让新增第八种 kind 漏行成为编译错误。执行分派仍只在 walker 的 `runEntry`(descriptor 不读 walk state、不依赖 runner);`steps(entry)` 是唯一提取函数,`entryStepIds` / `findStep` / replay / 截断 / resume 目标校验 / restart 目标全部由它派生。replay 重建按行里的 `replayShape` 查 walker 的 `REPLAY_BUILDERS` 表(新 shape 漏行同样是编译错误,记录读取 `recordedOutput` 留在 walker),commit 冻结读同一行的 `ownedArrays`(`parallel` 的 steps 数组、`branch` 的 branches 数组与每个 pair,其余五种 kind 无自有数组)。块内挂起携带的 site kind 与循环条件的检查时机同样只读表:`checkIterationSite` 按 `iterationSiteKind` 比较(`parallel` / `branch` / `foreach` 各对应自己,两种 loop 都是 `loop`,`then` / `sleep` 为空),`runLoop` 按 `loopTiming` 决定体前 / 体后(`dowhile` / `dountil`,其余五 kind 为空)。
+
+同一张表的可读形状(七行 = 封闭联合的全部 kind;`—` = 该列对该 kind 不适用):
+
+| kind | `steps(entry)`(条目拥有的 step) | `replayShape` | `ownedArrays(entry)`(commit 冻结) | `iterationSiteKind` | `loopTiming` |
+| --- | --- | --- | --- | --- | --- |
+| `then` | 唯一步 | `single` | — | — | — |
+| `parallel` | 全部臂,定义序 | `parallel` | 自己的 steps 数组 | `parallel` | — |
+| `branch` | 各臂 step,定义序 | `branch` | branches 数组 + 每个 pair(嵌套的先于持有它的数组) | `branch` | — |
+| `foreach` | 唯一步 | `single` | — | `foreach` | — |
+| `dowhile` | 唯一步 | `single` | — | `loop` | `before`(体前) |
+| `dountil` | 唯一步 | `single` | — | `loop` | `after`(体后) |
+| `sleep` | 无 | `pass` | — | — | — |
+
+表漏行是编译错误,不是文档纪律:新增第八种 kind 的固定动作 = 表加一行(`satisfies` 强制)、`runEntry` 加一个 case(`assertNever` 强制)、类型测试与矩阵测试各一格。执行分派不因此搬出 walker:每行只是数据加提取函数,不读 walk state、不依赖 runner、不持有执行器。七种 kind 的冻结面、挂起 site 与不匹配失败、两种 loop 的时机差异分别由 `workflows-entry-topology.test.ts` 的表驱动矩阵钉住。
+
+### `position` 的三种 status 读法(#224)
+
+`position` 是扁平条目列表的下标,读法随写它的快照 `status` 变——同一个整数在三种快照里指着三个不同的条目:
+
+| 快照 `status` | `position` 指向 | 写点 |
+| --- | --- | --- |
+| `suspended` | **挂起条目**本身(块内挂起另携 `iterationSite`,由它指定块内重进点) | 挂起写点 |
+| `running` | **下一个未执行条目**(`position + 1`) | 每个条目完成后的固定边界写(仅接了真实 storage 才有) |
+| `success` | **条目数**(`entries.length`,末条之后的越界一) | 终态写 |
+
+三种读法都是调用方的事:`restartTargetAt` 只收一个位置,不读 `status`(钳制已覆盖 success 的越界一);resume 自己按挂起语义用同一个字段,restart 用的是调用方点名的 step → 条目。终态 `failed` 也写快照,但它的写点是失败那一刻的循环游标,不属上面三种读法,也不参与重入决策。
+
+### `restartTargetAt`:first-match 三条(#224)
 
 公共面只开一个答案函数(**不导出 descriptor 代数**):
 
@@ -93,12 +126,18 @@ restartTargetAt(
 ): string | undefined
 ```
 
-- 接受 commit 后的 workflow 或手搓定义;不读 `snapshot.status`——status 的读法留在调用方(见下「position = 重进下标」)。
-- `position` 钳到 `[0, entries.length - 1]`:success 快照的 `position = 条目数` 不崩。
-- 从钳制点**向后扫描**,返回最近一个拥有 step 的条目的**首个** step id;sleep 拥有零 step,崩在 sleep 附近回到上一个有 step 的条目。
+三条 first-match 定死答案,按求值顺序:
+
+1. **哪一个条目**:从钳制点**向列表头**扫描(下标递减),第一个**拥有 step** 的条目获胜;`sleep` 拥有零 step,崩在 sleep 附近回到最近的有 step 条目;钳制点及其之前的条目都不拥有 step → `undefined`。位置之后的条目不参与——`position` 前进一步才会轮到它们。
+2. **条目里的哪一个 step**:取该条目 `steps(entry)` 的**首个**(定义序)——`then` / `foreach` / 两种 loop 是唯一步,`parallel` 是第一臂,`branch` 是第一臂(重进按条目算,不看哪一臂执行过)。
+3. **重复 step id 归谁**:本函数只给位置处的首个 id,不解析重名;public `restart` 按「第一个包含该 id 的条目」定位(`findIndex`),因此重名时重入落在更早的条目——重入宁可多执行,不会少执行。
+
+其余契约:
+
+- 接受 commit 后的 workflow 或手搓定义——两种输入都只按「可选 id + 条目列表」被读取。
+- `position` 钳到 `[0, entries.length - 1]`:success 快照的 `position = 条目数` 不崩;空条目列表直接 `undefined`。非整数 / `NaN` 不在钳制契约内(首版不校验,ADR-0022)。
 - `undefined` = 没有可重入条目 → 调用方从头重启,是合法路径、不是失败。
-- 未知 kind 显式抛错(手搓 / cast 输入的契约边界),错误点名 workflow id 与未知 kind,不静默降级成「没有 step」。
-- 重复 step id:本函数给出位置处条目的首个 id,public `restart` 再按「第一个包含该 id 的条目」解析——重入宁可多执行,不会少执行。
+- 未知 kind 显式抛错(手搓 / cast 输入的契约边界),错误点名未知 kind(workflow id 仅在调用方提供时点名),不静默降级成「没有 step」。
 
 `@oribos/inngest` 的崩溃恢复直接消费该函数,不再持有本地条目→step 副本。
 
@@ -116,7 +155,7 @@ restartTargetAt(
 ### 实施钉死(#51,块内部分由 #54 修订)
 
 - **suspend 在任何条目类型内都成立(#54 修订)**:顶层 `then` 的 step、parallel / branch 臂、foreach / 循环体内调用 `suspend(payload)` 都真挂起 run;条件里调用 suspend 仍显式报错(条件是只读的)。#51 的「v1 只在顶层 then」由 #54 补上承载缝。
-- **position = 重进下标**:suspend 快照 = 挂起条目;`running` 快照 = 已完成条目的下一条;终态 `success` = 条目数。只写 `running` 快照当 `createWorkflow` 附了真实 storage;无 storage 时只写 suspend 与终态——快照只落在 run 对象的内存默认实现里(同一 run 对象可恢复;新 run 对象要接真实 storage,进程内默认 store 不跨对象)。
+- **position = 重进下标**:suspend 快照 = 挂起条目;`running` 快照 = 已完成条目的下一条;终态 `success` = 条目数(三种读法的对照表见上「`position` 的三种 status 读法」)。只写 `running` 快照当 `createWorkflow` 附了真实 storage;无 storage 时只写 suspend 与终态——快照只落在 run 对象的内存默认实现里(同一 run 对象可恢复;新 run 对象要接真实 storage,进程内默认 store 不跨对象)。
 - **resume 的回放**:从快照 `input`(start 边界已校验过的值)起,按记录重建前序条目的输出得到 tip——前序 step 不重执行、条件不重估;`getStepResult` 由快照记录种子恢复。`resumeData` 过挂起 step 的 `resumeSchema` 是第三处固定 IO 校验,校验值替换原数据;声眀无 `resumeSchema` 的 step 不接受 resumeData(显式报错)。`step`(step 对象或 id)必须与快照里挂起的 step 一致,否则显式报错。resume 选项可再传 `signal` / `requestContext`(跨进程恢复时;缺省用 start 的)。
 - **信封与去重**:挂起终态 = `{ status: 'suspended', stepId, stepResults }`(payload 在 `stepResults[stepId].suspendPayload`);resume 与 start 返回同一终态信封。进程内锁按 (store, runId) 去重(#119 钉键域 = 快照的持久化身份):同一 store 上同一 run 的并发 resume 合并为一次调用(后到者拿到同一 promise),两个 store 上的同 runId 各自独立、互不 join;锁在 settle 后释放(再次挂起可再次 resume)。
 - **写失败语义**:快照写失败随 run 失败(除 failed 终态那一写为 best-effort——run 自身的错误永远原样上抛)。挂起的 step 落 `suspended` 记录(记录与挂起信封同源):顶层 then 与 parallel / branch 臂按各自 step id 落记录(多个同时挂起的臂各落各的,谁都可以是下一个 resume 目标);foreach / 循环按块的聚合 step id 落一条(mid-block 挂起,块完成时替换为 success)。
