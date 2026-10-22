@@ -108,9 +108,25 @@ _Avoid_: supervisor 协议、sub-agent 字段、`.network()`
 框架的编排子系统:用可变 builder 把 step 组成条目图,commit 冻结后 createRun 执行;语义内核 = 扁平条目列表 + for 循环 walker,suspend/resume 靠 step 边界快照。
 _Avoid_: DAG 执行器(本框架 workflow 不是 DAG)、状态机 DSL
 
+**工作流条目 (WorkflowEntry)**:
+workflow 执行器迭代的单元:一个 `then` step、一个拥有若干 step 的控制流块(`parallel` / `branch` / `foreach` / `dowhile` / `dountil`),或无 step 的 `sleep`;七种形状由 ADR-0006 钉死。条目列表扁平——「条目图」只是 builder 产物的用户心智模型,不是 DAG。
+_Avoid_: 把条目等同于 step(step 是条目拥有或不拥有的执行节点)、把扁平条目列表当图执行器
+
+**条目拓扑 (Entry topology)**:
+条目之间的关系事实:条目拥有哪些 step、step 属于哪个条目、重入位置对应哪个条目、从某位置继续应回到哪个 step;它是扁平条目列表上的查询视图,不新增执行结构。
+_Avoid_: 把拓扑当 DAG/邻接表、把「条目图」当执行结构
+
 **快照 (Snapshot)**:
 run 的 JSON 化状态,两种:workflow 域 = step 边界的 stepResults + 位置(块内挂起时另携迭代现场);Harness 域 = durable agent loop 的消息列表 + step 计数 + 挂起点(仅工具调用边界审批闸产生)。suspend/resume/restart 的共用机制,经 storage port 读写,默认内存实现。
 _Avoid_: 事件溯源、完整历史(只保留每 run 最新一份)
+
+**重入位置 (Position)**:
+快照中指向扁平条目列表的下标,resume / restart / replay 由它决定从哪一条目重入;读法随快照 status 变——挂起 = 挂起条目,running = 下一个未执行条目,success = 条目数(列表末尾)。块内挂起另携迭代现场,不建多路径模型。
+_Avoid_: 把 position 当 step id 或条目 id、把不同 status 的读法混用
+
+**重入目标 (Restart target)**:
+外部 runner 从 running 快照恢复时,由重入位置反查出的应重启 step id:没有可重入条目时为空,调用方从头重启;重复 step id 时第一个包含它的条目获胜——重入宁可多执行,不会少执行。
+_Avoid_: 把重入目标当条目下标或条目 id、把"无目标"当失败(它是合法的从头重启)
 
 **迭代现场 (Iteration site)**:
 块内挂起时快照携带的块内重进坐标:挂起发生在块内哪一次执行、哪些执行已完成;记录能说清的部分(完成臂/挂起臂)不重复存。只随 suspended 快照出现,resume 据此重进块内。
